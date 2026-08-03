@@ -1,0 +1,28 @@
+{
+  "name": "@diskuk/directus",
+  "version": "1.0.0",
+  "description": "Directus service for DISKUK directus — monitoring service and operational content.",
+  "private": true,
+  "type": "module",
+  "author": "slaint",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.5.0"
+  },
+  "scripts": {
+    "dev": "directus start",
+    "start": "directus start",
+    "dbi": "directus database install",
+    "dbm:u": "directus database migrate:up",
+    "dbm:d": "directus database migrate:down",
+    "dbm:l": "directus database migrate:latest",
+    "sch:s": "directus schema snapshot ./snapshots/snapshot.yaml",
+    "sch:a": "directus schema apply ./snapshots/snapshot.yaml",
+    "clean": "rm -rf node_modules pnpm-lock.yaml"
+  },
+  "dependencies": {
+    "argon2": "^0.44.0",
+    "directus": "^11.4.0"
+  }
+}
