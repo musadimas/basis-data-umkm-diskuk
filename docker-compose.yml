@@ -1,6 +1,11 @@
+name: diskuk
+
 services:
-  postgres:
-    image: postgis/postgis:15-3.3
+  postgis:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.postgis
+    restart: always
     environment:
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
@@ -8,36 +13,128 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - db_data:/var/lib/postgresql/data
+      - ./services/storage/postgis/data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_DATABASE}"]
-      interval: 5s
+      interval: 10s
       timeout: 5s
-      retries: 10
+      retries: 5
+    networks:
+      - diskuk_net
+
+  minio:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.minio
+    restart: always
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - ./services/storage/minio/data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - diskuk_net
+
+  pgbouncer:
+    image: edoburu/pgbouncer:latest
+    restart: always
+    environment:
+      DB_HOST: postgis
+      DB_PORT: "5432"
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_DATABASE}
+      POOL_MODE: session
+      MAX_CLIENT_CONN: "100"
+      DEFAULT_POOL_SIZE: "25"
+      AUTH_TYPE: scram-sha-256
+      SERVER_RESET_QUERY: DISCARD ALL
+    depends_on:
+      postgis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5432"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - diskuk_net
+
+  minioclient:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.minioclient
+    restart: on-failure
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      S3_BUCKET_NAME: ${MINIO_BUCKET}
+    networks:
+      - diskuk_net
 
   directus:
-    image: directus/directus:11
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.directus
+    restart: always
     ports:
       - "8055:8055"
     depends_on:
-      postgres:
+      pgbouncer:
         condition: service_healthy
+      minioclient:
+        condition: service_completed_successfully
     environment:
       SECRET: ${DIRECTUS_SECRET}
       DB_CLIENT: pg
-      DB_HOST: postgres
+      DB_HOST: pgbouncer
       DB_PORT: 5432
       DB_DATABASE: ${DB_DATABASE}
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
+      STORAGE_LOCATIONS: s3
+      STORAGE_S3_DRIVER: s3
+      STORAGE_S3_KEY: ${MINIO_ROOT_USER}
+      STORAGE_S3_SECRET: ${MINIO_ROOT_PASSWORD}
+      STORAGE_S3_BUCKET: ${MINIO_BUCKET}
+      STORAGE_S3_ENDPOINT: http://minio:9000
+      STORAGE_S3_FORCE_PATH_STYLE: "true"
+      STORAGE_S3_REGION: ap-southeast-1
+      WEBSOCKETS_ENABLED: "true"
       ADMIN_EMAIL: ${DIRECTUS_ADMIN_EMAIL}
       ADMIN_PASSWORD: ${DIRECTUS_ADMIN_PASSWORD}
-      WEBSOCKETS_ENABLED: "true"
       PUBLIC_URL: ${DIRECTUS_PUBLIC_URL:-http://localhost:8055}
-    volumes:
-      - directus_uploads:/directus/uploads
-      - ./extensions:/directus/extensions
+    networks:
+      - diskuk_net
 
-volumes:
-  db_data:
-  directus_uploads:
+  web:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.web
+      args:
+        NUXT_PUBLIC_PANEL_URL: ${NUXT_PUBLIC_PANEL_URL}
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      - directus
+    environment:
+      NUXT_PUBLIC_PANEL_URL: ${NUXT_PUBLIC_PANEL_URL}
+    networks:
+      - diskuk_net
+
+networks:
+  diskuk_net:
+    name: diskuk_net

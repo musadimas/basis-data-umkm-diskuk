@@ -1,0 +1,33 @@
+{
+  "name": "@diskuk/docs",
+  "version": "1.0.0",
+  "description": "Scalar API Reference + OpenAPI docs endpoint for Directus",
+  "icon": "api",
+  "private": true,
+  "main": "dist/index.js",
+  "files": [
+    "dist"
+  ],
+  "directus:extension": {
+    "type": "endpoint",
+    "path": "dist/index.js",
+    "source": "src/index.ts",
+    "host": "^10.10.0"
+  },
+  "scripts": {
+    "build": "directus-extension build",
+    "dev": "directus-extension build -w --no-minify",
+    "clean": "rm -rf node_modules pnpm-lock.yaml"
+  },
+  "dependencies": {
+    "js-yaml": "^4.1.1"
+  },
+  "devDependencies": {
+    "@directus/extensions-sdk": "17.0.9",
+    "@directus/types": "^12.2.2",
+    "@types/express": "^4.17.25",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^20.17.6",
+    "typescript": "^5.6.3"
+  }
+}

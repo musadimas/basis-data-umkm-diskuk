@@ -1,0 +1,28 @@
+FROM node:20-alpine AS builder
+
+ARG NUXT_PUBLIC_PANEL_URL
+ENV NUXT_PUBLIC_PANEL_URL=$NUXT_PUBLIC_PANEL_URL
+
+WORKDIR /app
+
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+COPY apps/web/package.json apps/web/pnpm-lock.yaml ./
+COPY apps/web/.npmrc ./
+
+RUN pnpm install --frozen-lockfile
+
+COPY apps/web/ ./
+
+RUN pnpm run build
+
+FROM node:20-alpine
+
+WORKDIR /app
+
+COPY --from=builder /app/.output ./.output
+
+EXPOSE 3000
+ENV HOST=0.0.0.0
+
+CMD ["node", ".output/server/index.mjs"]

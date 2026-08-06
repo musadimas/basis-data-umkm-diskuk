@@ -1,0 +1,47 @@
+# ----------------------------------------------------
+# Builder stage - compile native modules and prepare extensions
+# ----------------------------------------------------
+FROM node:20-alpine AS builder
+
+# Install build tools
+RUN apk add --no-cache python3 g++ make bash
+
+# Set working directory
+WORKDIR /directus
+
+# Copy package.json (for argon2) and install dependencies
+RUN npm init -y
+RUN npm install argon2
+
+# Copy Directus custom extensions and migrations
+COPY services/directus/extensions /directus/extensions
+COPY services/directus/migrations /directus/migrations
+
+# ----------------------------------------------------
+# Runtime stage - official Directus image
+# ----------------------------------------------------
+FROM directus/directus:11
+
+# Switch to root to copy compiled modules
+USER root
+
+# Install PostgreSQL client and bash for init script
+RUN apk add --no-cache postgresql-client bash
+
+# Copy compiled node_modules and Directus extensions/migrations from builder
+COPY --from=builder /directus/node_modules /directus/node_modules
+COPY --from=builder /directus/extensions /directus/extensions
+COPY --from=builder /directus/migrations /directus/migrations
+
+# Copy email templates
+COPY services/directus/templates /directus/templates
+
+# Copy init script
+COPY services/directus/init.sh /usr/local/bin/init.sh
+RUN sed -i 's/\r$//' /usr/local/bin/init.sh && chmod +x /usr/local/bin/init.sh
+
+# Switch back to node user
+USER node
+
+# Set init.sh as entrypoint
+ENTRYPOINT ["/usr/local/bin/init.sh"]

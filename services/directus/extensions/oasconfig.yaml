@@ -1,0 +1,19 @@
+# Global config for api-docs endpoint
+# Scanned by extensions/bundle/src/utils.ts at startup
+
+docsPath: v1/docs
+useAuthentication: true # set true to require Directus auth to view /oas
+
+info:
+  title: DISKUK API DOCS
+  version: 1.0.0
+  description: >
+    Full API reference for DISKUK — includes all standard Directus
+    endpoints plus the custom extensions.
+
+# publishedTags: []   # uncomment + fill to hide everything except listed tags
+
+# Exclude paths by prefix — remove or leave empty to show all
+
+# excludePrefixes:
+#   - /items

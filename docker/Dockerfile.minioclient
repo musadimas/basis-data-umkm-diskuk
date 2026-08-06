@@ -1,0 +1,8 @@
+FROM minio/mc:RELEASE.2024-11-21T17-21-54Z
+
+COPY services/storage/minioclient/entrypoint.sh /entrypoint.sh
+
+RUN tr -d '\r' < /entrypoint.sh > /tmp/entrypoint.sh && mv /tmp/entrypoint.sh /entrypoint.sh && chmod +x /entrypoint.sh
+
+# ENTRYPOINT [ "/entrypoint.sh" ]
+ENTRYPOINT ["/bin/sh", "/entrypoint.sh"]
