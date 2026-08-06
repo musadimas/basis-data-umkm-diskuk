@@ -2,15 +2,15 @@ export const up = async (knex) => {
   await knex.transaction(async (trx) => {
     await trx.raw(`
       -- ── Table ────────────────────────────────────────────────────────────
-      CREATE TABLE IF NOT EXISTS data_sync_logs (
+      CREATE TABLE IF NOT EXISTS log_sinkronisasi (
         id           SERIAL PRIMARY KEY,
-        business     UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+        usaha        UUID NOT NULL REFERENCES usaha(id) ON DELETE CASCADE,
         pulled_at    TIMESTAMPTZ NOT NULL,
         date_created TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
 
-      CREATE INDEX IF NOT EXISTS idx_data_sync_logs_business   ON data_sync_logs(business);
-      CREATE INDEX IF NOT EXISTS idx_data_sync_logs_pulled_at  ON data_sync_logs(pulled_at);
+      CREATE INDEX IF NOT EXISTS idx_log_sinkronisasi_usaha     ON log_sinkronisasi(usaha);
+      CREATE INDEX IF NOT EXISTS idx_log_sinkronisasi_pulled_at ON log_sinkronisasi(pulled_at);
 
       -- ── Directus collection ───────────────────────────────────────────────
       INSERT INTO directus_collections
@@ -19,7 +19,7 @@ export const up = async (knex) => {
          unarchive_value, sort_field, accountability, color,
          item_duplication_fields, sort, "group", collapse, preview_url, versioning)
       VALUES
-        ('data_sync_logs', 'sync', NULL, '{{pulled_at}}', FALSE, FALSE,
+        ('log_sinkronisasi', 'sync', NULL, '{{pulled_at}}', FALSE, FALSE,
          NULL, NULL, TRUE, NULL, NULL, NULL, 'all', NULL, NULL, 9, NULL, 'open', NULL, FALSE)
       ON CONFLICT (collection) DO NOTHING;
 
@@ -29,10 +29,10 @@ export const up = async (knex) => {
          readonly, hidden, sort, width, translations, note, conditions,
          required, "group", validation, validation_message)
       VALUES
-        ('data_sync_logs', 'id',           NULL,          'input',    NULL, NULL,       NULL, TRUE,  TRUE,  1, 'full', NULL, NULL,                     NULL, FALSE, NULL, NULL, NULL),
-        ('data_sync_logs', 'business',     NULL,          NULL,       NULL, NULL,       NULL, FALSE, FALSE, 2, 'full', NULL, NULL,                     NULL, TRUE,  NULL, NULL, NULL),
-        ('data_sync_logs', 'pulled_at',    NULL,          'datetime', NULL, 'datetime', NULL, FALSE, FALSE, 3, 'full', NULL, 'Timestamp of data pull', NULL, TRUE,  NULL, NULL, NULL),
-        ('data_sync_logs', 'date_created', 'date-created','datetime', NULL, 'datetime', NULL, TRUE,  TRUE,  5, 'full', NULL, NULL,                     NULL, FALSE, NULL, NULL, NULL)
+        ('log_sinkronisasi', 'id',           NULL,          'input',    NULL, NULL,       NULL, TRUE,  TRUE,  1, 'full', NULL, NULL,                     NULL, FALSE, NULL, NULL, NULL),
+        ('log_sinkronisasi', 'usaha',        NULL,          NULL,       NULL, NULL,       NULL, FALSE, FALSE, 2, 'full', NULL, NULL,                     NULL, TRUE,  NULL, NULL, NULL),
+        ('log_sinkronisasi', 'pulled_at',    NULL,          'datetime', NULL, 'datetime', NULL, FALSE, FALSE, 3, 'full', NULL, 'Waktu pengambilan data', NULL, TRUE,  NULL, NULL, NULL),
+        ('log_sinkronisasi', 'date_created', 'date-created','datetime', NULL, 'datetime', NULL, TRUE,  TRUE,  5, 'full', NULL, NULL,                     NULL, FALSE, NULL, NULL, NULL)
       ON CONFLICT (collection, field) DO NOTHING;
 
       -- ── Directus relations ────────────────────────────────────────────────
@@ -41,7 +41,7 @@ export const up = async (knex) => {
          one_collection_field, one_allowed_collections, junction_field,
          sort_field, one_deselect_action)
       VALUES
-        ('data_sync_logs', 'business', 'businesses', NULL, NULL, NULL, NULL, NULL, 'nullify')
+        ('log_sinkronisasi', 'usaha', 'usaha', NULL, NULL, NULL, NULL, NULL, 'nullify')
       ON CONFLICT (many_collection, many_field) DO NOTHING;
     `);
   });
@@ -52,13 +52,13 @@ export const down = async (knex) => {
     await trx.raw(`
       DELETE FROM directus_relations
         WHERE (many_collection, many_field) IN (
-          ('data_sync_logs', 'business')
+          ('log_sinkronisasi', 'usaha')
         );
 
-      DELETE FROM directus_fields      WHERE collection = 'data_sync_logs';
-      DELETE FROM directus_collections WHERE collection = 'data_sync_logs';
+      DELETE FROM directus_fields      WHERE collection = 'log_sinkronisasi';
+      DELETE FROM directus_collections WHERE collection = 'log_sinkronisasi';
 
-      DROP TABLE IF EXISTS data_sync_logs;
+      DROP TABLE IF EXISTS log_sinkronisasi;
     `);
   });
 };

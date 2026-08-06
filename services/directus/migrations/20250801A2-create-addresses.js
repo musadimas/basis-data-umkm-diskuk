@@ -2,12 +2,12 @@ export const up = async (knex) => {
   await knex.transaction(async (trx) => {
     await trx.raw(`
       -- ── Table ────────────────────────────────────────────────────────────
-      CREATE TABLE IF NOT EXISTS addresses (
-        id             SERIAL PRIMARY KEY,
-        sub_district   INTEGER REFERENCES sub_districts(id) ON DELETE SET NULL,
-        street_address TEXT,
-        rt             VARCHAR(10),
-        rw             VARCHAR(10)
+      CREATE TABLE IF NOT EXISTS alamat (
+        id           SERIAL PRIMARY KEY,
+        kelurahan    INTEGER REFERENCES kelurahan(id) ON DELETE SET NULL,
+        alamat_jalan TEXT,
+        rt           VARCHAR(10),
+        rw           VARCHAR(10)
       );
 
       -- ── Directus collection ───────────────────────────────────────────────
@@ -17,7 +17,7 @@ export const up = async (knex) => {
          unarchive_value, sort_field, accountability, color,
          item_duplication_fields, sort, "group", collapse, preview_url, versioning)
       VALUES
-        ('addresses', 'home', NULL, '{{street_address}}', FALSE, FALSE,
+        ('alamat', 'home', NULL, '{{alamat_jalan}}', FALSE, FALSE,
          NULL, NULL, TRUE, NULL, NULL, NULL, 'all', NULL, NULL, 6, NULL, 'open', NULL, FALSE)
       ON CONFLICT (collection) DO NOTHING;
 
@@ -27,11 +27,11 @@ export const up = async (knex) => {
          readonly, hidden, sort, width, translations, note, conditions,
          required, "group", validation, validation_message)
       VALUES
-        ('addresses', 'id',             NULL, 'input',           NULL, NULL, NULL, TRUE,  TRUE,  1, 'full', NULL, NULL,              NULL, FALSE, NULL, NULL, NULL),
-        ('addresses', 'sub_district',   NULL, NULL,              NULL, NULL, NULL, FALSE, FALSE, 2, 'full', NULL, NULL,              NULL, FALSE, NULL, NULL, NULL),
-        ('addresses', 'street_address', NULL, 'input-multiline', NULL, NULL, NULL, FALSE, FALSE, 3, 'full', NULL, NULL,              NULL, FALSE, NULL, NULL, NULL),
-        ('addresses', 'rt',             NULL, 'input',           NULL, NULL, NULL, FALSE, FALSE, 4, 'half', NULL, 'RT (neighborhood)',NULL, FALSE, NULL, NULL, NULL),
-        ('addresses', 'rw',             NULL, 'input',           NULL, NULL, NULL, FALSE, FALSE, 5, 'half', NULL, 'RW (community)',   NULL, FALSE, NULL, NULL, NULL)
+        ('alamat', 'id',           NULL, 'input',           NULL, NULL, NULL, TRUE,  TRUE,  1, 'full', NULL, NULL,                  NULL, FALSE, NULL, NULL, NULL),
+        ('alamat', 'kelurahan',    NULL, NULL,              NULL, NULL, NULL, FALSE, FALSE, 2, 'full', NULL, NULL,                  NULL, FALSE, NULL, NULL, NULL),
+        ('alamat', 'alamat_jalan', NULL, 'input-multiline', NULL, NULL, NULL, FALSE, FALSE, 3, 'full', NULL, NULL,                  NULL, FALSE, NULL, NULL, NULL),
+        ('alamat', 'rt',           NULL, 'input',           NULL, NULL, NULL, FALSE, FALSE, 4, 'half', NULL, 'RT (Rukun Tetangga)', NULL, FALSE, NULL, NULL, NULL),
+        ('alamat', 'rw',           NULL, 'input',           NULL, NULL, NULL, FALSE, FALSE, 5, 'half', NULL, 'RW (Rukun Warga)',    NULL, FALSE, NULL, NULL, NULL)
       ON CONFLICT (collection, field) DO NOTHING;
 
       -- ── Directus relations ────────────────────────────────────────────────
@@ -40,7 +40,7 @@ export const up = async (knex) => {
          one_collection_field, one_allowed_collections, junction_field,
          sort_field, one_deselect_action)
       VALUES
-        ('addresses', 'sub_district', 'sub_districts', NULL, NULL, NULL, NULL, NULL, 'nullify')
+        ('alamat', 'kelurahan', 'kelurahan', NULL, NULL, NULL, NULL, NULL, 'nullify')
       ON CONFLICT (many_collection, many_field) DO NOTHING;
     `);
   });
@@ -51,13 +51,13 @@ export const down = async (knex) => {
     await trx.raw(`
       DELETE FROM directus_relations
         WHERE (many_collection, many_field) IN (
-          ('addresses', 'sub_district')
+          ('alamat', 'kelurahan')
         );
 
-      DELETE FROM directus_fields      WHERE collection = 'addresses';
-      DELETE FROM directus_collections WHERE collection = 'addresses';
+      DELETE FROM directus_fields      WHERE collection = 'alamat';
+      DELETE FROM directus_collections WHERE collection = 'alamat';
 
-      DROP TABLE IF EXISTS addresses;
+      DROP TABLE IF EXISTS alamat;
     `);
   });
 };
