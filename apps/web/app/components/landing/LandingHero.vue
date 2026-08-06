@@ -1,213 +1,186 @@
 <script setup lang="ts">
-import gsap from 'gsap'
-import ScrollTrigger from 'gsap/ScrollTrigger'
-import { Users, Store } from '@lucide/vue'
+import gsap from "gsap";
+import ScrollTrigger from "gsap/ScrollTrigger";
 
-gsap.registerPlugin(ScrollTrigger)
+gsap.registerPlugin(ScrollTrigger);
 
-const OPOP_TARGET = 5021
-const UMKM_TARGET = 13061
+const OPOP_TARGET = 5021;
+const UMKM_TARGET = 13061;
 
-const opopCount = ref(0)
-const umkmCount = ref(0)
+const opopCount = ref(0);
+const umkmCount = ref(0);
 
-const rootRef = useTemplateRef<HTMLElement>('root')
-const badgeRef = useTemplateRef<HTMLElement>('badge')
-const headingRef = useTemplateRef<HTMLElement>('heading')
-const descRef = useTemplateRef<HTMLElement>('desc')
-const ctaRef = useTemplateRef<HTMLElement>('cta')
-const parallaxRef = useTemplateRef<HTMLElement>('parallax')
-const statSectionRef = useTemplateRef<HTMLElement>('statSection')
+const rootRef = useTemplateRef<HTMLElement>("root");
+const badgeRef = useTemplateRef<HTMLElement>("badge");
+const headingRef = useTemplateRef<HTMLElement>("heading");
+const descRef = useTemplateRef<HTMLElement>("desc");
+const ctaRef = useTemplateRef<HTMLElement>("cta");
+const parallaxRef = useTemplateRef<HTMLElement>("parallax");
+const statSectionRef = useTemplateRef<HTMLElement>("statSection");
 
-const prefersReducedMotion = import.meta.client
-  ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  : false
+const prefersReducedMotion = import.meta.client ? window.matchMedia("(prefers-reduced-motion: reduce)").matches : false;
 
-let ctx: gsap.Context
+let ctx: gsap.Context;
 
-const { scrollTo } = useLenis()
+const { scrollTo } = useLenis();
 
 function formatNumber(n: number) {
-  return n.toLocaleString('id-ID')
+  return n.toLocaleString("id-ID");
 }
 
 onMounted(() => {
   if (prefersReducedMotion) {
-    opopCount.value = OPOP_TARGET
-    umkmCount.value = UMKM_TARGET
-    return
+    opopCount.value = OPOP_TARGET;
+    umkmCount.value = UMKM_TARGET;
+    return;
   }
 
   ctx = gsap.context(() => {
-    const tl = gsap.timeline({ defaults: { ease: 'power3.out' } })
+    const tl = gsap.timeline({ defaults: { ease: "power3.out" } });
 
     tl.from(badgeRef.value!, { y: 24, opacity: 0, duration: 0.5 })
-      .from(
-        Array.from(headingRef.value!.querySelector('h1')!.children),
-        { y: 60, opacity: 0, duration: 0.8, stagger: 0.15 },
-        '-=0.25',
-      )
-      .from(descRef.value!, { y: 20, opacity: 0, duration: 0.6 }, '-=0.4')
-      .from(ctaRef.value!, { y: 16, opacity: 0, duration: 0.5 }, '-=0.35')
+      .from(Array.from(headingRef.value!.children), { y: 60, opacity: 0, duration: 0.8, stagger: 0.15 }, "-=0.25")
+      .from(descRef.value!, { y: 20, opacity: 0, duration: 0.6 }, "-=0.4")
+      .from(ctaRef.value!, { y: 16, opacity: 0, duration: 0.5 }, "-=0.35");
 
     gsap.to(parallaxRef.value!, {
       yPercent: -20,
-      ease: 'none',
+      ease: "none",
       scrollTrigger: {
         trigger: rootRef.value!,
-        start: 'top top',
-        end: 'bottom top',
+        start: "top top",
+        end: "bottom top",
         scrub: true,
       },
-    })
+    });
 
-    const opopObj = { val: 0 }
-    const umkmObj = { val: 0 }
+    const opopObj = { val: 0 };
+    const umkmObj = { val: 0 };
 
     ScrollTrigger.create({
       trigger: statSectionRef.value!,
-      start: 'top 80%',
+      start: "top 80%",
       once: true,
       onEnter: () => {
         gsap.to(opopObj, {
           val: OPOP_TARGET,
           duration: 2,
-          ease: 'power2.out',
+          ease: "power2.out",
           onUpdate() {
-            opopCount.value = Math.round(opopObj.val)
+            opopCount.value = Math.round(opopObj.val);
           },
-        })
+        });
         gsap.to(umkmObj, {
           val: UMKM_TARGET,
           duration: 2,
-          ease: 'power2.out',
+          ease: "power2.out",
           onUpdate() {
-            umkmCount.value = Math.round(umkmObj.val)
+            umkmCount.value = Math.round(umkmObj.val);
           },
-        })
+        });
       },
-    })
-  }, rootRef.value!)
-})
+    });
+  }, rootRef.value!);
+});
 
-onUnmounted(() => ctx?.revert())
+onUnmounted(() => ctx?.revert());
 </script>
 
 <template>
-  <section
-    ref="root"
-    id="section-hero"
-    aria-label="Beranda"
-    class="relative isolate min-h-svh overflow-x-clip bg-sky-50 pt-16"
-  >
-    <div
-      ref="parallax"
-      class="pointer-events-none absolute inset-0 -z-10 h-[125%] w-full overflow-clip opacity-10 grayscale"
-    >
-      <NuxtImg
-        src="/images/gedungsate.webp"
-        alt=""
-        aria-hidden="true"
-        class="h-full w-full object-cover"
-        loading="eager"
-      />
+  <section ref="root" id="section-hero" aria-label="Beranda" class="relative isolate min-h-svh overflow-x-clip bg-sky-300 pt-16">
+    <!-- Parallax background -->
+    <div ref="parallax" class="absolute inset-x-[-80%] top-0 -z-10 overflow-clip opacity-30 mask-[linear-gradient(black,transparent)] lg:inset-0" aria-hidden="true">
+      <NuxtImg src="/images/gedung-sate.webp" alt="" draggable="false" class="w-full object-contain grayscale lg:size-full lg:object-cover" />
+      <div class="absolute inset-0 bg-sky-300 mix-blend-screen" />
     </div>
 
-    <div class="mx-auto max-w-screen-2xl px-4 py-16 lg:px-8 lg:py-24">
-      <div class="grid gap-8 lg:grid-cols-7">
-        <div
-          ref="statSection"
-          class="col-span-full flex flex-col gap-4 lg:col-span-2 lg:row-start-1 lg:col-start-1"
-        >
-          <div class="grid grid-cols-2 gap-4">
-            <UiCard
-              class="aspect-square border-0 bg-sky-400 p-4 flex flex-col justify-between text-sky-950"
-            >
-              <div class="flex items-start gap-2">
-                <Users class="size-6 shrink-0" aria-hidden="true" />
-                <span class="text-[10px] font-semibold uppercase leading-tight tracking-wide">
-                  Jumlah OPOP
-                </span>
-              </div>
-              <span
-                class="self-end text-3xl font-bold leading-none tabular-nums"
-                :aria-label="`${OPOP_TARGET} OPOP`"
-              >
-                {{ formatNumber(opopCount) }}
-              </span>
-            </UiCard>
+    <!-- Top blur ellipse decoration -->
+    <div class="absolute inset-x-[-5vw] top-0 -z-20 aspect-video -translate-y-1/2 rounded-[100%] bg-slate-100 blur-[5rem]" aria-hidden="true" />
 
-            <div class="aspect-square overflow-clip rounded-xl bg-amber-300">
-              <NuxtImg
-                src="/images/hero-1.jpg"
-                alt="Pelaku UMKM Jawa Barat"
-                class="h-full w-full object-cover"
-                loading="eager"
-                draggable="false"
-              />
+    <div class="relative py-16 lg:py-20">
+      <div class="mx-auto max-w-screen-2xl px-3 2xl:px-0">
+        <div class="relative">
+          <!-- Stat & image cards -->
+          <div ref="statSection" class="lg:absolute lg:inset-0 lg:flex lg:flex-col lg:justify-center">
+            <div class="grid -space-y-12 gap-3 lg:space-y-0 lg:grid-cols-7 2xl:gap-16">
+              <!-- Left column -->
+              <div class="col-span-full lg:col-span-2">
+                <div class="grid grid-cols-2 gap-3 [&>*:nth-child(odd)]:mt-12 lg:gap-0 lg:[&>*:nth-child(odd)]:mt-0">
+                  <!-- OPOP stat card -->
+                  <div class="relative">
+                    <div class="flex aspect-square flex-col justify-between rounded-xl bg-sky-400 p-4 lg:p-6">
+                      <div class="flex items-center gap-2">
+                        <SvgoOpop class="size-7 shrink-0 text-sky-950" :font-controlled="false" aria-hidden="true" />
+                        <span class="w-min text-[11px] font-semibold uppercase leading-tight tracking-wide text-sky-950">Jumlah OPOP</span>
+                      </div>
+                      <span class="self-end text-4xl font-bold leading-none tabular-nums text-sky-950" :aria-label="`${OPOP_TARGET} OPOP`">
+                        {{ formatNumber(opopCount) }}
+                      </span>
+                    </div>
+                    <div class="absolute left-full top-full hidden w-4/5 lg:block" aria-hidden="true">
+                      <div class="aspect-3/4 overflow-clip rounded-xl">
+                        <NuxtImg src="/images/kegiatan-umkm.jpg" alt="" draggable="false" loading="lazy" class="size-full object-cover" />
+                      </div>
+                    </div>
+                  </div>
+                  <!-- Hero image card -->
+                  <div class="relative">
+                    <div class="aspect-square overflow-clip rounded-xl bg-amber-300 lg:-translate-y-full">
+                      <NuxtImg src="/images/pelaku-umkm.jpg" alt="Pelaku UMKM Jawa Barat" draggable="false" loading="lazy" class="size-full object-cover" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Right column -->
+              <div class="col-span-full lg:col-span-2 lg:col-start-6">
+                <div class="grid grid-cols-2 gap-3 [&>*:nth-child(odd)]:mt-12 lg:gap-0 lg:[&>*:nth-child(odd)]:mt-0">
+                  <!-- Hero image card -->
+                  <div class="relative">
+                    <div class="aspect-square overflow-clip rounded-xl bg-stone-200 lg:translate-y-full">
+                      <NuxtImg src="/images/pameran-umkm.jpg" alt="Produk UMKM unggulan" draggable="false" loading="lazy" class="size-full object-cover" />
+                    </div>
+                  </div>
+                  <!-- UMKM stat card -->
+                  <div class="relative">
+                    <div class="flex aspect-square flex-col justify-between rounded-xl bg-slate-900 p-4 lg:p-6">
+                      <div class="flex items-center gap-2">
+                        <SvgoUmkm class="size-7 shrink-0 text-sky-400" :font-controlled="false" aria-hidden="true" />
+                        <span class="w-min text-[11px] font-semibold uppercase leading-tight tracking-wide text-white/80">Jumlah UMKM</span>
+                      </div>
+                      <span class="self-end text-4xl font-bold leading-none tabular-nums text-white" :aria-label="`${UMKM_TARGET} UMKM`">
+                        {{ formatNumber(umkmCount) }}
+                      </span>
+                    </div>
+                    <div class="absolute bottom-full right-full hidden w-4/5 lg:block" aria-hidden="true">
+                      <div class="aspect-square overflow-clip rounded-xl">
+                        <NuxtImg src="/images/pameran-umkm-2.jpg" alt="" draggable="false" loading="lazy" class="size-full object-cover" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-
-        <div class="col-span-full flex flex-col items-center gap-8 text-center lg:col-span-3 lg:col-start-3 lg:my-16">
-          <div ref="badge">
-            <UiBadge variant="secondary" class="text-[10px] tracking-widest uppercase px-3 py-1">
-              Selamat Datang
-            </UiBadge>
-          </div>
-
-          <div ref="heading">
-            <h1 class="text-[clamp(3.5rem,8vw,7.5rem)] font-extrabold uppercase leading-none tracking-tighter">
-              <span class="block text-foreground">UMKM</span>
-              <span class="block text-primary">BERDAYA SAING</span>
-            </h1>
-          </div>
-
-          <p ref="desc" class="max-w-sm text-balance text-muted-foreground">
-            Pelaku usaha yang memiliki karakteristik entrepreneur ditandai dengan semangat, sikap,
-            perilaku, dan kemampuan dalam menangani usaha dan menciptakan nilai tambah.
-          </p>
-
-          <div ref="cta">
-            <UiButton
-              size="lg"
-              variant="outline"
-              class="rounded-full px-8"
-              @click="scrollTo('#section-terms', { duration: 1.2 })"
-            >
-              Pelajari Selengkapnya
-            </UiButton>
-          </div>
-        </div>
-
-        <div class="col-span-full flex flex-col gap-4 lg:col-span-2 lg:row-start-1 lg:col-start-6">
-          <div class="grid grid-cols-2 gap-4">
-            <div class="aspect-square overflow-clip rounded-xl bg-stone-200">
-              <NuxtImg
-                src="/images/hero-2.jpg"
-                alt="Produk UMKM unggulan"
-                class="h-full w-full object-cover"
-                loading="eager"
-                draggable="false"
-              />
-            </div>
-
-            <UiCard
-              class="aspect-square border-0 bg-slate-900 p-4 flex flex-col justify-between text-white"
-            >
-              <div class="flex items-start gap-2">
-                <Store class="size-6 shrink-0 text-sky-400" aria-hidden="true" />
-                <span class="text-[10px] font-semibold uppercase leading-tight tracking-wide text-white/80">
-                  Jumlah UMKM
-                </span>
+          <!-- Center text column -->
+          <div class="relative mb-16 grid gap-8 lg:mb-0 lg:grid-cols-7 2xl:gap-16">
+            <div class="col-span-full text-center lg:col-span-3 lg:col-start-3">
+              <div class="flex flex-col items-center gap-8 lg:my-16">
+                <div class="flex flex-col items-center gap-4 lg:gap-6">
+                  <span ref="badge" class="inline-flex items-center rounded-full bg-sky-100/80 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-widest text-sky-800"> Selamat Datang </span>
+                  <h1 ref="heading" class="font-extrabold uppercase leading-[0.85] tracking-tighter text-[clamp(4.5rem,9vw,9rem)]">
+                    <span class="block lg:ml-[-8vw]">UMKM</span>
+                    <span class="block lg:ml-[8vw]">BERDAYA SAING</span>
+                  </h1>
+                </div>
+                <p ref="desc" class="text-balance text-sky-950/80 w-full">Pelaku usaha yang sudah memiliki karakteristik entrepreneur ditandai dengan semangat, sikap, perilaku, dan kemampuan dalam menangani usaha.</p>
+                <div ref="cta">
+                  <UiButton size="lg" variant="outline" class="rounded-full bg-transparent border-black border-2 hover:bg-black hover:text-white cursor-pointer" @click="scrollTo('#section-terms', { duration: 1.2 })">
+                    Pelajari Selengkapnya
+                  </UiButton>
+                </div>
               </div>
-              <span
-                class="self-end text-3xl font-bold leading-none tabular-nums"
-                :aria-label="`${UMKM_TARGET} UMKM`"
-              >
-                {{ formatNumber(umkmCount) }}
-              </span>
-            </UiCard>
+            </div>
           </div>
         </div>
       </div>

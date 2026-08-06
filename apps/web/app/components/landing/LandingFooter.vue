@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { ScanBarcode } from "@lucide/vue";
 import type { NavLink, SocialLink } from "@/types/landing";
 
 const quickLinks: NavLink[] = [
@@ -12,77 +11,98 @@ const quickLinks: NavLink[] = [
   { label: "Tentang Program", to: "/tentang-program" },
 ];
 
-const socials: (SocialLink & { icon: typeof ScanBarcode })[] = [
-  { label: "Facebook", href: "/", icon: ScanBarcode },
-  { label: "X / Twitter", href: "/", icon: ScanBarcode },
-  { label: "Instagram", href: "/", icon: ScanBarcode },
+const socials: SocialLink[] = [
+  { label: "Facebook", href: "/" },
+  { label: "X / Twitter", href: "/" },
+  { label: "Instagram", href: "/" },
 ];
 </script>
 
 <template>
-  <footer role="contentinfo" class="relative isolate overflow-clip border-t border-border">
-    <div class="mx-auto max-w-screen-7xl px-4 py-16 lg:px-8 lg:py-24">
-      <div class="grid gap-12 lg:grid-cols-12">
-        <div class="col-span-full lg:col-span-3">
-          <NuxtLink to="/" aria-label="Beranda Diskuk">
-            <span class="text-2xl font-extrabold tracking-tighter text-primary">DISKUK</span>
-            <br />
-            <span class="text-xs font-medium text-muted-foreground">Jawa Barat</span>
-          </NuxtLink>
-          <p class="mt-4 max-w-xs text-sm text-muted-foreground leading-relaxed">Dinas Koperasi dan Usaha Kecil Provinsi Jawa Barat</p>
-        </div>
+  <footer id="section-footer" role="contentinfo" class="relative isolate overflow-clip">
+    <!-- Main columns -->
+    <section class="relative py-16 lg:py-20">
+      <div class="mx-auto max-w-7xl px-3 lg:px-12 xl:px-0">
+        <div class="grid gap-16 lg:grid-cols-12">
+          <!-- Logo -->
+          <div class="col-span-full text-center lg:col-span-4 lg:text-start">
+            <NuxtLink to="/" aria-label="Beranda UMKM Diskuk" class="inline-flex h-20">
+              <NuxtImg src="/images/logo-umkm-diskuk.png" alt="UMKM Diskuk Jawa Barat" class="size-full object-contain" loading="lazy" />
+            </NuxtLink>
+          </div>
 
-        <div class="col-span-full lg:col-span-4">
-          <h3 class="mb-5 border-b border-border pb-3 text-[11px] font-semibold uppercase tracking-widest text-primary">Tautan Cepat</h3>
-          <ul class="grid grid-cols-2 gap-y-2 gap-x-6" role="list">
-            <li v-for="link in quickLinks" :key="link.to">
-              <NuxtLink :to="link.to" class="text-sm font-medium text-foreground/70 transition-colors hover:text-primary">
-                {{ link.label }}
-              </NuxtLink>
-            </li>
-          </ul>
-        </div>
+          <!-- Quick links -->
+          <div class="col-span-full lg:col-span-8">
+            <h3 class="mb-6 border-b border-foreground/10 pb-6 text-center text-[11px] font-semibold uppercase tracking-widest text-sky-500 lg:text-start">Quick Link</h3>
+            <ul class="group grid grid-cols-2 gap-x-8 gap-y-1 [&>*:nth-child(odd)]:text-end lg:gap-x-16 lg:[&>*:nth-child(odd)]:text-start" role="list">
+              <li v-for="link in quickLinks" :key="link.to">
+                <NuxtLink :to="link.to" class="inline-flex text-sm font-semibold text-foreground transition-colors group-hover:text-foreground/50 hover:text-foreground!">
+                  {{ link.label }}
+                </NuxtLink>
+              </li>
+            </ul>
+          </div>
 
-        <div class="col-span-full lg:col-span-3">
-          <h3 class="mb-5 border-b border-border pb-3 text-[11px] font-semibold uppercase tracking-widest text-primary">Alamat</h3>
-          <address class="not-italic text-sm text-muted-foreground leading-relaxed">
-            Jl. Soekarno Hatta No. 705 Jatisari,<br />
-            Kec. Buahbatu, Kota Bandung,<br />
-            Jawa Barat 40286
-          </address>
-        </div>
+          <!-- Address -->
+          <div class="col-span-full lg:col-span-4">
+            <h3 class="mb-6 border-b border-foreground/10 pb-6 text-center text-[11px] font-semibold uppercase tracking-widest text-sky-500 lg:text-start">Alamat</h3>
+            <address class="not-italic text-center text-sm font-semibold text-balance lg:text-start">Jl. Soekarno Hatta No. 705 Jatisari, Kec. Buahbatu, Kota Bandung, Jawa Barat 40286</address>
+          </div>
 
-        <div class="col-span-full lg:col-span-2">
-          <h3 class="mb-5 border-b border-border pb-3 text-[11px] font-semibold uppercase tracking-widest text-primary">Kontak</h3>
-          <ul class="flex flex-col gap-2" role="list">
-            <li>
-              <a href="tel:02273027750" class="text-sm font-medium text-foreground/70 transition-colors hover:text-primary"> (022) 7302775 </a>
-            </li>
-            <li>
-              <a href="mailto:buk.diskukjabar@gmail.com" class="text-sm font-medium text-foreground/70 transition-colors hover:text-primary break-all"> buk.diskukjabar@gmail.com </a>
-            </li>
-          </ul>
+          <!-- Support -->
+          <div class="col-span-full lg:col-span-4">
+            <h3 class="mb-6 border-b border-foreground/10 pb-6 text-center text-[11px] font-semibold uppercase tracking-widest text-sky-500 lg:text-start">Support</h3>
+            <ul class="group flex flex-col gap-1 text-center lg:text-start" role="list">
+              <li>
+                <a href="tel:02273027750" class="inline-flex text-sm font-semibold text-foreground transition-colors group-hover:text-foreground/50 hover:text-foreground!"> (022) 7302775 </a>
+              </li>
+              <li>
+                <a href="mailto:buk.diskukjabar@gmail.com" class="inline-flex break-all text-sm font-semibold text-foreground transition-colors group-hover:text-foreground/50 hover:text-foreground!"> buk.diskukjabar@gmail.com </a>
+              </li>
+            </ul>
+          </div>
 
-          <h3 class="mb-4 mt-8 border-b border-border pb-3 text-[11px] font-semibold uppercase tracking-widest text-primary">Ikuti Kami</h3>
-          <ul class="flex items-center gap-3" role="list">
-            <li v-for="social in socials" :key="social.label">
-              <a
-                :href="social.href"
-                :aria-label="social.label"
-                rel="noopener noreferrer"
-                target="_blank"
-                class="flex size-8 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:border-primary hover:text-primary"
-              >
-                <component :is="social.icon" class="size-4" aria-hidden="true" />
-              </a>
-            </li>
-          </ul>
+          <!-- Social -->
+          <div class="col-span-full lg:col-span-4">
+            <h3 class="mb-6 border-b border-foreground/10 pb-6 text-center text-[11px] font-semibold uppercase tracking-widest text-sky-500 lg:text-start">Ikuti Kami</h3>
+            <ul class="group flex flex-col gap-1 text-center lg:text-start" role="list">
+              <li v-for="social in socials" :key="social.label">
+                <a :href="social.href" rel="noopener noreferrer" target="_blank" class="inline-flex text-sm font-semibold text-foreground transition-colors group-hover:text-foreground/50 hover:text-foreground!">
+                  {{ social.label }}
+                </a>
+              </li>
+            </ul>
+          </div>
         </div>
       </div>
-    </div>
+    </section>
 
-    <div class="border-t border-border px-4 py-6 text-center">
-      <p class="text-xs text-muted-foreground">&copy; {{ new Date().getFullYear() }} UMKM Naik Kelas — Dinas Koperasi dan Usaha Kecil Provinsi Jawa Barat. Hak cipta dilindungi undang-undang.</p>
-    </div>
+    <!-- Bottom bar -->
+    <section class="relative pb-8 pt-16">
+      <div class="mx-auto max-w-7xl px-3 lg:px-12 xl:px-0">
+        <p class="text-center text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">&copy; {{ new Date().getFullYear() }} UMKM Naik Kelas</p>
+      </div>
+
+      <!-- Decorative divider with centered logo -->
+      <div class="absolute inset-x-0 top-0 mx-auto flex max-w-7xl -translate-y-1/2 items-center gap-6 px-3 lg:px-12 xl:px-0" aria-hidden="true">
+        <div class="h-px grow bg-linear-to-l from-foreground/30 to-transparent" />
+        <figure class="h-16 shrink-0">
+          <NuxtImg src="/images/logo-jabar-diskuk.png" alt="" class="size-full object-contain" loading="lazy" draggable="false" />
+        </figure>
+        <div class="h-px grow bg-linear-to-r from-foreground/30 to-transparent" />
+      </div>
+
+      <!-- Gradient colour bloom -->
+      <div class="absolute -top-48 bottom-0 inset-x-[-20vw] -z-2 overflow-clip pt-48" aria-hidden="true">
+        <div class="aspect-video rounded-full bg-linear-to-r from-sky-500 from-30% via-amber-500 via-60% to-green-500 blur-[5rem] opacity-80" />
+      </div>
+    </section>
+
+    <!-- Dot grid overlay -->
+    <div
+      class="pointer-events-none absolute inset-0 -z-1 translate-y-1/4 bg-top bg-no-repeat opacity-5 mix-blend-overlay"
+      style="background-image: radial-gradient(circle, currentColor 1px, transparent 1px); background-size: 24px 24px"
+      aria-hidden="true"
+    />
   </footer>
 </template>

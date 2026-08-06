@@ -31,7 +31,7 @@ function isActive(to: string) {
     <div class="absolute inset-0 transition-all duration-500 h-full" :class="isScrolled ? 'bg-linear-to-b from-white to-transparent' : 'bg-linear-to-b from-white/10 to-transparent'" />
 
     <div class="relative isolate px-4 lg:px-8">
-      <div class="mx-auto max-w-screen-7xl flex h-16 items-center justify-between gap-8">
+      <div class="mx-auto max-w-7xl! flex h-16 items-center justify-between gap-8">
         <NuxtLink to="/" class="flex items-center gap-2 shrink-0" aria-label="Beranda Diskuk">
           <span class="font-bold text-lg tracking-tight text-primary">DISKUK</span>
           <span class="text-xs font-medium text-muted-foreground hidden sm:inline">Jawa Barat</span>
