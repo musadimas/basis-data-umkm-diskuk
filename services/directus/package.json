@@ -19,7 +19,10 @@
     "dbm:l": "directus database migrate:latest",
     "sch:s": "directus schema snapshot ./snapshots/snapshot.yaml",
     "sch:a": "directus schema apply ./snapshots/snapshot.yaml",
-    "clean": "rm -rf node_modules pnpm-lock.yaml"
+    "clean": "rm -rf node_modules pnpm-lock.yaml",
+    "docker": "docker compose -f D:/Docker/directus/docker-compose.yml --env-file ./.env -p diskuk-directus up -d",
+    "docker:down": "docker compose -f D:/Docker/directus/docker-compose.yml --env-file ./.env -p diskuk-directus down",
+    "docker:latest": "docker compose -f D:/Docker/directus/docker-compose.yml --env-file ./.env -p diskuk-directus pull && docker compose -f D:/Docker/directus/docker-compose.yml --env-file ./.env -p diskuk-directus up -d"
   },
   "dependencies": {
     "argon2": "^0.44.0",

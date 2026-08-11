@@ -43,14 +43,17 @@ export const up = async (knex) => {
         ('statistik_tenaga_kerja', 'tidak_dibayar_perempuan',             NULL,          'input',    NULL, NULL,       NULL, FALSE, FALSE, 8,  'half', NULL, 'Tenaga kerja tidak dibayar — perempuan',            NULL, FALSE, NULL, NULL, NULL),
         ('statistik_tenaga_kerja', 'disabilitas_tidak_dibayar_laki_laki', NULL,          'input',    NULL, NULL,       NULL, FALSE, FALSE, 9,  'half', NULL, 'Penyandang disabilitas tidak dibayar — laki-laki',  NULL, FALSE, NULL, NULL, NULL),
         ('statistik_tenaga_kerja', 'disabilitas_tidak_dibayar_perempuan', NULL,          'input',    NULL, NULL,       NULL, FALSE, FALSE, 10, 'half', NULL, 'Penyandang disabilitas tidak dibayar — perempuan',  NULL, FALSE, NULL, NULL, NULL),
-        ('statistik_tenaga_kerja', 'date_updated',                        'date-updated','datetime', NULL, 'datetime', NULL, TRUE,  TRUE,  11, 'full', NULL, NULL,                                                NULL, FALSE, NULL, NULL, NULL);
+        ('statistik_tenaga_kerja', 'date_updated',                        'date-updated','datetime', NULL, 'datetime', NULL, TRUE,  TRUE,  11, 'full', NULL, NULL,                                                NULL, FALSE, NULL, NULL, NULL)
+      ;
+
       -- ── Directus relations ────────────────────────────────────────────────
       INSERT INTO directus_relations
         (many_collection, many_field, one_collection, one_field,
          one_collection_field, one_allowed_collections, junction_field,
          sort_field, one_deselect_action)
       VALUES
-        ('statistik_tenaga_kerja', 'usaha', 'usaha', NULL, NULL, NULL, NULL, NULL, 'nullify');
+        ('statistik_tenaga_kerja', 'usaha', 'usaha', NULL, NULL, NULL, NULL, NULL, 'nullify')
+      ;
     `);
   });
 };

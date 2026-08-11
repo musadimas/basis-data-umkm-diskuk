@@ -32,14 +32,17 @@ export const up = async (knex) => {
         ('log_sinkronisasi', 'id',           NULL,          'input',    NULL, NULL,       NULL, TRUE,  TRUE,  1, 'full', NULL, NULL,                     NULL, FALSE, NULL, NULL, NULL),
         ('log_sinkronisasi', 'usaha',        NULL,          NULL,       NULL, NULL,       NULL, FALSE, FALSE, 2, 'full', NULL, NULL,                     NULL, TRUE,  NULL, NULL, NULL),
         ('log_sinkronisasi', 'pulled_at',    NULL,          'datetime', NULL, 'datetime', NULL, FALSE, FALSE, 3, 'full', NULL, 'Waktu pengambilan data', NULL, TRUE,  NULL, NULL, NULL),
-        ('log_sinkronisasi', 'date_created', 'date-created','datetime', NULL, 'datetime', NULL, TRUE,  TRUE,  5, 'full', NULL, NULL,                     NULL, FALSE, NULL, NULL, NULL);
+        ('log_sinkronisasi', 'date_created', 'date-created','datetime', NULL, 'datetime', NULL, TRUE,  TRUE,  5, 'full', NULL, NULL,                     NULL, FALSE, NULL, NULL, NULL)
+      ;
+
       -- ── Directus relations ────────────────────────────────────────────────
       INSERT INTO directus_relations
         (many_collection, many_field, one_collection, one_field,
          one_collection_field, one_allowed_collections, junction_field,
          sort_field, one_deselect_action)
       VALUES
-        ('log_sinkronisasi', 'usaha', 'usaha', NULL, NULL, NULL, NULL, NULL, 'nullify');
+        ('log_sinkronisasi', 'usaha', 'usaha', NULL, NULL, NULL, NULL, NULL, 'nullify')
+      ;
     `);
   });
 };

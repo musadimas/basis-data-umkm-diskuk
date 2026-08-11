@@ -81,7 +81,9 @@ export const up = async (knex) => {
         ('provinsi', 'nama',       NULL, 'input', NULL, NULL, NULL, FALSE, FALSE, 2, 'full', NULL, NULL,                                      NULL, TRUE,  NULL, NULL, NULL),
         ('provinsi', 'kode',       NULL, 'input', NULL, NULL, NULL, FALSE, FALSE, 3, 'half', NULL, 'Kode wilayah BPS',                        NULL, FALSE, NULL, NULL, NULL),
         ('provinsi', 'geom',       NULL, 'input', NULL, NULL, NULL, TRUE,  TRUE,  4, 'full', NULL, 'Batas MultiPolygon — WGS84 / EPSG:4326',  NULL, FALSE, NULL, NULL, NULL),
-        ('provinsi', 'coordinate', NULL, 'input', NULL, NULL, NULL, TRUE,  TRUE,  5, 'full', NULL, 'Titik pusat — WGS84 / EPSG:4326',         NULL, FALSE, NULL, NULL, NULL);
+        ('provinsi', 'coordinate', NULL, 'input', NULL, NULL, NULL, TRUE,  TRUE,  5, 'full', NULL, 'Titik pusat — WGS84 / EPSG:4326',         NULL, FALSE, NULL, NULL, NULL)
+      ;
+
       -- ── Directus fields: kota ─────────────────────────────────────────────
       INSERT INTO directus_fields
         (collection, field, special, interface, options, display, display_options,
@@ -93,7 +95,9 @@ export const up = async (knex) => {
         ('kota', 'nama',       NULL, 'input', NULL, NULL, NULL, FALSE, FALSE, 3, 'full', NULL, NULL,                                      NULL, TRUE,  NULL, NULL, NULL),
         ('kota', 'kode',       NULL, 'input', NULL, NULL, NULL, FALSE, FALSE, 4, 'half', NULL, 'Kode wilayah BPS',                        NULL, FALSE, NULL, NULL, NULL),
         ('kota', 'geom',       NULL, 'input', NULL, NULL, NULL, TRUE,  TRUE,  5, 'full', NULL, 'Batas MultiPolygon — WGS84 / EPSG:4326',  NULL, FALSE, NULL, NULL, NULL),
-        ('kota', 'coordinate', NULL, 'input', NULL, NULL, NULL, TRUE,  TRUE,  6, 'full', NULL, 'Titik pusat — WGS84 / EPSG:4326',         NULL, FALSE, NULL, NULL, NULL);
+        ('kota', 'coordinate', NULL, 'input', NULL, NULL, NULL, TRUE,  TRUE,  6, 'full', NULL, 'Titik pusat — WGS84 / EPSG:4326',         NULL, FALSE, NULL, NULL, NULL)
+      ;
+
       -- ── Directus fields: kecamatan ────────────────────────────────────────
       INSERT INTO directus_fields
         (collection, field, special, interface, options, display, display_options,
@@ -105,7 +109,9 @@ export const up = async (knex) => {
         ('kecamatan', 'nama',       NULL, 'input', NULL, NULL, NULL, FALSE, FALSE, 3, 'full', NULL, NULL,                                      NULL, TRUE,  NULL, NULL, NULL),
         ('kecamatan', 'kode',       NULL, 'input', NULL, NULL, NULL, FALSE, FALSE, 4, 'half', NULL, 'Kode wilayah BPS',                        NULL, FALSE, NULL, NULL, NULL),
         ('kecamatan', 'geom',       NULL, 'input', NULL, NULL, NULL, TRUE,  TRUE,  5, 'full', NULL, 'Batas MultiPolygon — WGS84 / EPSG:4326',  NULL, FALSE, NULL, NULL, NULL),
-        ('kecamatan', 'coordinate', NULL, 'input', NULL, NULL, NULL, TRUE,  TRUE,  6, 'full', NULL, 'Titik pusat — WGS84 / EPSG:4326',         NULL, FALSE, NULL, NULL, NULL);
+        ('kecamatan', 'coordinate', NULL, 'input', NULL, NULL, NULL, TRUE,  TRUE,  6, 'full', NULL, 'Titik pusat — WGS84 / EPSG:4326',         NULL, FALSE, NULL, NULL, NULL)
+      ;
+
       -- ── Directus fields: kelurahan ────────────────────────────────────────
       INSERT INTO directus_fields
         (collection, field, special, interface, options, display, display_options,
@@ -117,7 +123,9 @@ export const up = async (knex) => {
         ('kelurahan', 'nama',       NULL, 'input', NULL, NULL, NULL, FALSE, FALSE, 3, 'full', NULL, NULL,                                      NULL, TRUE,  NULL, NULL, NULL),
         ('kelurahan', 'kode',       NULL, 'input', NULL, NULL, NULL, FALSE, FALSE, 4, 'half', NULL, 'Kode wilayah BPS',                        NULL, FALSE, NULL, NULL, NULL),
         ('kelurahan', 'geom',       NULL, 'input', NULL, NULL, NULL, TRUE,  TRUE,  5, 'full', NULL, 'Batas MultiPolygon — WGS84 / EPSG:4326',  NULL, FALSE, NULL, NULL, NULL),
-        ('kelurahan', 'coordinate', NULL, 'input', NULL, NULL, NULL, TRUE,  TRUE,  6, 'full', NULL, 'Titik pusat — WGS84 / EPSG:4326',         NULL, FALSE, NULL, NULL, NULL);
+        ('kelurahan', 'coordinate', NULL, 'input', NULL, NULL, NULL, TRUE,  TRUE,  6, 'full', NULL, 'Titik pusat — WGS84 / EPSG:4326',         NULL, FALSE, NULL, NULL, NULL)
+      ;
+
       -- ── Directus fields: klasifikasi_usaha ───────────────────────────────
       INSERT INTO directus_fields
         (collection, field, special, interface, options, display, display_options,
@@ -127,7 +135,9 @@ export const up = async (knex) => {
         ('klasifikasi_usaha', 'id',        NULL, 'input',           NULL, NULL, NULL, TRUE,  TRUE,  1, 'full', NULL, NULL,                 NULL, FALSE, NULL, NULL, NULL),
         ('klasifikasi_usaha', 'kode',      NULL, 'input',           NULL, NULL, NULL, FALSE, FALSE, 2, 'half', NULL, 'Kode KBLI',          NULL, TRUE,  NULL, NULL, NULL),
         ('klasifikasi_usaha', 'kategori',  NULL, 'input',           NULL, NULL, NULL, FALSE, FALSE, 3, 'half', NULL, 'Nama kategori KBLI', NULL, TRUE,  NULL, NULL, NULL),
-        ('klasifikasi_usaha', 'deskripsi', NULL, 'input-multiline', NULL, NULL, NULL, FALSE, FALSE, 4, 'full', NULL, NULL,                 NULL, FALSE, NULL, NULL, NULL);
+        ('klasifikasi_usaha', 'deskripsi', NULL, 'input-multiline', NULL, NULL, NULL, FALSE, FALSE, 4, 'full', NULL, NULL,                 NULL, FALSE, NULL, NULL, NULL)
+      ;
+
       -- ── Directus relations ────────────────────────────────────────────────
       INSERT INTO directus_relations
         (many_collection, many_field, one_collection, one_field,
@@ -136,7 +146,8 @@ export const up = async (knex) => {
       VALUES
         ('kota',      'provinsi',  'provinsi',  NULL, NULL, NULL, NULL, NULL, 'nullify'),
         ('kecamatan', 'kota',      'kota',      NULL, NULL, NULL, NULL, NULL, 'nullify'),
-        ('kelurahan', 'kecamatan', 'kecamatan', NULL, NULL, NULL, NULL, NULL, 'nullify');
+        ('kelurahan', 'kecamatan', 'kecamatan', NULL, NULL, NULL, NULL, NULL, 'nullify')
+      ;
     `);
   });
 };

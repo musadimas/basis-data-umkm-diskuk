@@ -1,0 +1,10 @@
+allowBuilds:
+  argon2: true
+  braintrust: true
+  esbuild: true
+  isolated-vm: true
+  oracledb: true
+  protobufjs: true
+  sharp: true
+  sqlite3: true
+  vue-demi: true
