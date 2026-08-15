@@ -1,27 +1,32 @@
+<script setup lang="ts">
+onMounted(() => document.documentElement.classList.add("no-scrollbar"));
+onUnmounted(() => document.documentElement.classList.remove("no-scrollbar"));
+</script>
+
 <template>
-  <UiSidebarProvider>
-    <NavAppSidebar />
-    <UiSidebarInset>
-      <header class="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/Uisidebar-wrapper:h-12">
-        <div class="flex items-center gap-2 px-4">
-          <UiSidebarTrigger class="-ml-1" />
-          <UiSeparator orientation="vertical" class="mr-2 data-[orientation=vertical]:h-4" />
-          <UiBreadcrumb>
-            <UiBreadcrumbList>
-              <UiBreadcrumbItem class="hidden md:block">
-                <UiBreadcrumbLink href="#"> Building Your Application </UiBreadcrumbLink>
-              </UiBreadcrumbItem>
-              <UiBreadcrumbSeparator class="hidden md:block" />
-              <UiBreadcrumbItem>
-                <UiBreadcrumbPage>Data Fetching</UiBreadcrumbPage>
-              </UiBreadcrumbItem>
-            </UiBreadcrumbList>
-          </UiBreadcrumb>
-        </div>
-      </header>
-      <div class="flex flex-1 flex-col gap-4 p-4 pt-0">
-        <slot />
+  <div class="min-h-screen bg-slate-50/70 dark:bg-background text-foreground flex flex-col">
+    <!-- Accessibility Skip Link -->
+    <a
+      href="#main-content"
+      class="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-emerald-600 focus:text-white focus:rounded-md focus:outline-none"
+    >
+      Lewati ke konten utama
+    </a>
+
+    <!-- Top Navigation Header -->
+    <DashboardHeader />
+
+    <!-- Main Container: Sidebar + Content -->
+    <div class="w-full flex-1 px-2 py-3 xl:px-4">
+      <div class="flex flex-col gap-6 md:flex-row md:items-start md:gap-4 xl:gap-8">
+        <!-- Sidebar Navigation -->
+        <DashboardSidebar />
+
+        <!-- Main Page Content -->
+        <main id="main-content" class="min-w-0 flex-1">
+          <slot />
+        </main>
       </div>
-    </UiSidebarInset>
-  </UiSidebarProvider>
+    </div>
+  </div>
 </template>
