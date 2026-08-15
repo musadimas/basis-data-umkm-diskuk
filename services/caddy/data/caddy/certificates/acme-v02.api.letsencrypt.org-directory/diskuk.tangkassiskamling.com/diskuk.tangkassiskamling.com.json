@@ -1,0 +1,19 @@
+{
+	"sans": [
+		"diskuk.tangkassiskamling.com"
+	],
+	"issuer_data": {
+		"url": "https://acme-v02.api.letsencrypt.org/acme/cert/05e5a761a99866e4a8ef15a8cc8d9f52775e",
+		"ca": "https://acme-v02.api.letsencrypt.org/directory",
+		"account": "https://acme-v02.api.letsencrypt.org/acme/acct/3633027531",
+		"renewal_info": {
+			"suggestedWindow": {
+				"start": "2026-10-13T07:54:37Z",
+				"end": "2026-10-15T03:05:27Z"
+			},
+			"_uniqueIdentifier": "uyDKRwv-1-Wc-Y8JKqOMN0WxvNg.BeWnYamYZuSo7xWozI2fUnde",
+			"_retryAfter": "2026-08-15T12:56:11.299745992Z",
+			"_selectedTime": "2026-10-14T11:35:18Z"
+		}
+	}
+}

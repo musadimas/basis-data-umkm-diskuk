@@ -31,17 +31,14 @@ export const up = async (knex) => {
         ('alamat', 'kelurahan',    NULL, NULL,              NULL, NULL, NULL, FALSE, FALSE, 2, 'full', NULL, NULL,                  NULL, FALSE, NULL, NULL, NULL),
         ('alamat', 'alamat_jalan', NULL, 'input-multiline', NULL, NULL, NULL, FALSE, FALSE, 3, 'full', NULL, NULL,                  NULL, FALSE, NULL, NULL, NULL),
         ('alamat', 'rt',           NULL, 'input',           NULL, NULL, NULL, FALSE, FALSE, 4, 'half', NULL, 'RT (Rukun Tetangga)', NULL, FALSE, NULL, NULL, NULL),
-        ('alamat', 'rw',           NULL, 'input',           NULL, NULL, NULL, FALSE, FALSE, 5, 'half', NULL, 'RW (Rukun Warga)',    NULL, FALSE, NULL, NULL, NULL)
-      ON CONFLICT (collection, field) DO NOTHING;
-
+        ('alamat', 'rw',           NULL, 'input',           NULL, NULL, NULL, FALSE, FALSE, 5, 'half', NULL, 'RW (Rukun Warga)',    NULL, FALSE, NULL, NULL, NULL);
       -- ── Directus relations ────────────────────────────────────────────────
       INSERT INTO directus_relations
         (many_collection, many_field, one_collection, one_field,
          one_collection_field, one_allowed_collections, junction_field,
          sort_field, one_deselect_action)
       VALUES
-        ('alamat', 'kelurahan', 'kelurahan', NULL, NULL, NULL, NULL, NULL, 'nullify')
-      ON CONFLICT (many_collection, many_field) DO NOTHING;
+        ('alamat', 'kelurahan', 'kelurahan', NULL, NULL, NULL, NULL, NULL, 'nullify');
     `);
   });
 };

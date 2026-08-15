@@ -135,6 +135,22 @@ services:
     networks:
       - diskuk_net
 
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./services/caddy/data:/data
+      - ./services/caddy/config:/config
+    depends_on:
+      - web
+    networks:
+      - diskuk_net
+
 networks:
   diskuk_net:
     name: diskuk_net

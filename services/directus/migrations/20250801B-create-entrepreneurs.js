@@ -46,17 +46,14 @@ export const up = async (knex) => {
         ('pelaku_usaha', 'telepon',                NULL,          'input',           NULL,                                                                                                                                                                                                                                                   NULL,       NULL,               FALSE, FALSE, 8,  'half', NULL, NULL,             NULL, FALSE, NULL, NULL, NULL),
         ('pelaku_usaha', 'alamat',                 NULL,          NULL,              NULL,                                                                                                                                                                                                                                                   NULL,       NULL,               FALSE, FALSE, 9,  'full', NULL, NULL,             NULL, FALSE, NULL, NULL, NULL),
         ('pelaku_usaha', 'date_created',           'date-created','datetime',        NULL,                                                                                                                                                                                                                                                   'datetime', NULL,               TRUE,  TRUE,  10, 'full', NULL, NULL,             NULL, FALSE, NULL, NULL, NULL),
-        ('pelaku_usaha', 'date_updated',           'date-updated','datetime',        NULL,                                                                                                                                                                                                                                                   'datetime', NULL,               TRUE,  TRUE,  11, 'full', NULL, NULL,             NULL, FALSE, NULL, NULL, NULL)
-      ON CONFLICT (collection, field) DO NOTHING;
-
+        ('pelaku_usaha', 'date_updated',           'date-updated','datetime',        NULL,                                                                                                                                                                                                                                                   'datetime', NULL,               TRUE,  TRUE,  11, 'full', NULL, NULL,             NULL, FALSE, NULL, NULL, NULL);
       -- ── Directus relations ────────────────────────────────────────────────
       INSERT INTO directus_relations
         (many_collection, many_field, one_collection, one_field,
          one_collection_field, one_allowed_collections, junction_field,
          sort_field, one_deselect_action)
       VALUES
-        ('pelaku_usaha', 'alamat', 'alamat', NULL, NULL, NULL, NULL, NULL, 'nullify')
-      ON CONFLICT (many_collection, many_field) DO NOTHING;
+        ('pelaku_usaha', 'alamat', 'alamat', NULL, NULL, NULL, NULL, NULL, 'nullify');
     `);
   });
 };

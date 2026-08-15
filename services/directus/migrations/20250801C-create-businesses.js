@@ -65,9 +65,7 @@ export const up = async (knex) => {
         ('usaha', 'longitude',           NULL,          'input',           NULL,                                                                                                                                                              NULL,       NULL,     FALSE, FALSE, 18, 'half', NULL, NULL,                   NULL, FALSE, NULL, NULL, NULL),
         ('usaha', 'foto',                NULL,          'input',           NULL,                                                                                                                                                              NULL,       NULL,     FALSE, FALSE, 19, 'full', NULL, 'URL foto dari sumber',  NULL, FALSE, NULL, NULL, NULL),
         ('usaha', 'date_created',        'date-created','datetime',        NULL,                                                                                                                                                              'datetime', NULL,     TRUE,  TRUE,  20, 'full', NULL, NULL,                   NULL, FALSE, NULL, NULL, NULL),
-        ('usaha', 'date_updated',        'date-updated','datetime',        NULL,                                                                                                                                                              'datetime', NULL,     TRUE,  TRUE,  21, 'full', NULL, NULL,                   NULL, FALSE, NULL, NULL, NULL)
-      ON CONFLICT (collection, field) DO NOTHING;
-
+        ('usaha', 'date_updated',        'date-updated','datetime',        NULL,                                                                                                                                                              'datetime', NULL,     TRUE,  TRUE,  21, 'full', NULL, NULL,                   NULL, FALSE, NULL, NULL, NULL);
       -- ── Directus relations ────────────────────────────────────────────────
       INSERT INTO directus_relations
         (many_collection, many_field, one_collection, one_field,
@@ -76,8 +74,7 @@ export const up = async (knex) => {
       VALUES
         ('usaha', 'pelaku_usaha', 'pelaku_usaha',    NULL, NULL, NULL, NULL, NULL, 'nullify'),
         ('usaha', 'klasifikasi',  'klasifikasi_usaha', NULL, NULL, NULL, NULL, NULL, 'nullify'),
-        ('usaha', 'alamat',       'alamat',            NULL, NULL, NULL, NULL, NULL, 'nullify')
-      ON CONFLICT (many_collection, many_field) DO NOTHING;
+        ('usaha', 'alamat',       'alamat',            NULL, NULL, NULL, NULL, NULL, 'nullify');
     `);
   });
 };

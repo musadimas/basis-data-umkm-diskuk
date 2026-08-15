@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { SidebarProps } from "@/components/ui/sidebar";
+import type { SidebarProps } from "../ui/sidebar/index";
 
 import { AudioWaveform, BookOpen, Bot, Command, Frame, GalleryVerticalEnd, Map, PieChart, Settings2, SquareTerminal } from "@lucide/vue";
 
