@@ -1,3 +1,4 @@
 /pg/backup
 /pg/data
+/postgis/data
 /minio/data
