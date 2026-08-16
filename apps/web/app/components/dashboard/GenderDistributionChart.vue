@@ -21,6 +21,11 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<{
   (e: "click:action"): void;
 }>();
+
+const circumference = 2 * Math.PI * 38;
+const maleArc = computed(() => `${(circumference * props.data.malePercentage) / 100} ${circumference}`);
+const femaleArc = computed(() => `${(circumference * props.data.femalePercentage) / 100} ${circumference}`);
+const femaleOffset = computed(() => `-${(circumference * props.data.malePercentage) / 100}`);
 </script>
 
 <template>
@@ -46,7 +51,7 @@ const emit = defineEmits<{
             r="38"
             class="stroke-sky-500 transition-all duration-700 hover:stroke-sky-400 cursor-pointer"
             stroke-width="14"
-            stroke-dasharray="119.38 238.76"
+            :stroke-dasharray="maleArc"
             stroke-dashoffset="0"
             fill="none"
           />
@@ -57,8 +62,8 @@ const emit = defineEmits<{
             r="38"
             class="stroke-rose-500 transition-all duration-700 hover:stroke-rose-400 cursor-pointer"
             stroke-width="14"
-            stroke-dasharray="119.38 238.76"
-            stroke-dashoffset="-119.38"
+            :stroke-dasharray="femaleArc"
+            :stroke-dashoffset="femaleOffset"
             fill="none"
           />
         </svg>

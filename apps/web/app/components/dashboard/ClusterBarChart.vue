@@ -2,22 +2,10 @@
 import type { ClusterItem } from "~/types/dashboard";
 
 interface Props {
-  items?: ClusterItem[];
+  items: ClusterItem[];
 }
 
-const props = withDefaults(defineProps<Props>(), {
-  items: () => [
-    { id: "1", name: "Pariwisata", value: 1850000, formattedValue: "000.000", percentage: 92 },
-    { id: "2", name: "Kuliner", value: 1720000, formattedValue: "000.000", percentage: 86 },
-    { id: "3", name: "Handicraft", value: 1150000, formattedValue: "000.000", percentage: 58 },
-    { id: "4", name: "Makan Bergizi Gratis (MBG)", value: 920000, formattedValue: "000.000", percentage: 46 },
-    { id: "5", name: "Pertambangan, Energi & Energi Terbarukan", value: 680000, formattedValue: "000.000", percentage: 34 },
-    { id: "6", name: "Perumahan Rakyat", value: 420000, formattedValue: "000.000", percentage: 21 },
-    { id: "7", name: "Kesehatan dan Kecantikan", value: 360000, formattedValue: "000.000", percentage: 18 },
-    { id: "8", name: "Industri Olahraga", value: 240000, formattedValue: "000.000", percentage: 12 },
-    { id: "9", name: "Sektor Supply Chain Otomotif", value: 180000, formattedValue: "000.000", percentage: 9 },
-  ],
-});
+defineProps<Props>();
 
 const getWidthClass = (pct?: number) => {
   if (!pct) return "w-1/12";

@@ -43,6 +43,71 @@ regions AS (
     GROUP BY kota_id, kota_nama
   ) AS grouped
 ),
+sektor_definisi(kode, nama, divisi_awal, divisi_akhir) AS (
+  VALUES
+    ('A', 'Pertanian, Kehutanan, dan Perikanan', 1, 3),
+    ('B', 'Pertambangan dan Penggalian', 5, 9),
+    ('C', 'Industri Pengolahan (Manufaktur/Kerajinan)', 10, 33),
+    ('D', 'Pengadaan Listrik, Gas, Uap/Air Panas, dan Udara Dingin', 35, 35),
+    ('E', 'Pengelolaan Air, Limbah, Sampah, dan Aktivitas Remediasi', 36, 39),
+    ('F', 'Konstruksi', 41, 43),
+    ('G', 'Perdagangan Besar dan Eceran; Reparasi Kendaraan', 45, 47),
+    ('H', 'Pengangkutan dan Pergudangan', 49, 53),
+    ('I', 'Penyediaan Akomodasi dan Makan Minum', 55, 56),
+    ('J', 'Informasi dan Komunikasi', 58, 63),
+    ('K', 'Aktivitas Keuangan dan Asuransi', 64, 66),
+    ('L', 'Real Estat', 68, 68),
+    ('M', 'Aktivitas Profesional, Ilmiah, dan Teknis', 69, 75),
+    ('N', 'Aktivitas Penyewaan, Ketenagakerjaan, Agen Perjalanan, dan Penunjang Usaha', 77, 82),
+    ('O', 'Administrasi Pemerintahan, Pertahanan, dan Jaminan Sosial Wajib', 84, 84),
+    ('P', 'Pendidikan', 85, 85),
+    ('Q', 'Aktivitas Kesehatan Manusia dan Aktivitas Sosial', 86, 88),
+    ('R', 'Kesenian, Hiburan, dan Rekreasi', 90, 93),
+    ('S', 'Aktivitas Jasa Lainnya', 94, 96),
+    ('T', 'Aktivitas Rumah Tangga sebagai Pemberi Kerja; Aktivitas yang Menghasilkan Barang dan Jasa oleh Rumah Tangga untuk Kebutuhan Sendiri', 97, 98),
+    ('U', 'Aktivitas Badan Internasional dan Badan Ekstra Internasional Lainnya', 99, 99)
+),
+sektor_rows AS (
+  SELECT
+    sektor_definisi.kode,
+    sektor_definisi.nama,
+    COUNT(usaha_jawa_barat.id)::integer AS total,
+    COUNT(*) FILTER (WHERE usaha_jawa_barat.skala = 'micro')::integer AS mikro,
+    COUNT(*) FILTER (WHERE usaha_jawa_barat.skala = 'small')::integer AS kecil,
+    COUNT(*) FILTER (WHERE usaha_jawa_barat.skala = 'medium')::integer AS menengah
+  FROM sektor_definisi
+  LEFT JOIN klasifikasi_usaha ON (
+    CASE
+      WHEN klasifikasi_usaha.kode ~ '^[0-9]{2,5}$' THEN LEFT(klasifikasi_usaha.kode, 2)::integer
+    END
+  ) BETWEEN sektor_definisi.divisi_awal AND sektor_definisi.divisi_akhir
+  LEFT JOIN usaha_jawa_barat ON usaha_jawa_barat.klasifikasi = klasifikasi_usaha.id
+  GROUP BY sektor_definisi.kode, sektor_definisi.nama
+),
+sector_coverage AS (
+  SELECT jsonb_build_object(
+    'mapped', COALESCE(SUM(total), 0)::integer,
+    'unclassified', ((SELECT COUNT(*) FROM usaha_jawa_barat) - COALESCE(SUM(total), 0))::integer
+  ) AS value
+  FROM sektor_rows
+),
+sectors AS (
+  SELECT COALESCE(jsonb_agg(
+    jsonb_build_object('code', kode, 'name', nama, 'total', total, 'mikro', mikro, 'kecil', kecil, 'menengah', menengah, 'percentage', percentage)
+    ORDER BY total DESC, kode ASC
+  ), '[]'::jsonb) AS value
+  FROM (
+    SELECT
+      kode,
+      nama,
+      total,
+      mikro,
+      kecil,
+      menengah,
+      COALESCE(ROUND(total * 100.0 / NULLIF(MAX(total) OVER (), 0), 1), 0) AS percentage
+    FROM sektor_rows
+  ) AS normalized
+),
 kbli_rows AS (
   SELECT
     klasifikasi_usaha.kode AS code,
@@ -83,11 +148,13 @@ INSERT INTO infografis_snapshot (id, payload, refreshed_at)
 SELECT 1, jsonb_build_object(
   'scales', scale.value,
   'regions', regions.value,
+  'sectors', sectors.value,
+  'sectorCoverage', sector_coverage.value,
   'topKbli', kbli.top_rows,
   'kbli', kbli.all_rows,
   'workforce', workforce.value
 ), NOW()
-FROM scale, regions, kbli, workforce
+FROM scale, regions, sectors, sector_coverage, kbli, workforce
 ON CONFLICT (id) DO UPDATE
 SET payload = EXCLUDED.payload, refreshed_at = EXCLUDED.refreshed_at;
 

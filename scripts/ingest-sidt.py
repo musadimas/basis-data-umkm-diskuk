@@ -18,6 +18,7 @@ PREPARE_SQL = ROOT / 'ingest-sidt-prepare.sql'
 BATCH_START_SQL = ROOT / 'ingest-sidt-batch-start.sql'
 BATCH_END_SQL = ROOT / 'ingest-sidt-batch-end.sql'
 REFRESH_SNAPSHOT_SQL = ROOT / 'refresh-infografis-snapshot.sql'
+CHECK_SNAPSHOT_SQL = ROOT / 'check-infografis-snapshot.sql'
 EXPECTED_COLUMNS = [
     'id_data_badan_usaha', 'nik_pengusaha', 'nama_pengusaha', 'nib', 'jenis_kelamin',
     'is_disabilitas', 'tanggal_lahir', 'pendidikan_formal', 'kontak_hp', 'prov_pengusaha',
@@ -89,6 +90,8 @@ def self_check() -> None:
     assert len(EXPECTED_COLUMNS) == 49
     assert 'COMMIT;' in BATCH_END_SQL.read_text()
     assert 'infografis_snapshot' in REFRESH_SNAPSHOT_SQL.read_text()
+    assert 'sectorCoverage' in REFRESH_SNAPSHOT_SQL.read_text()
+    assert 'sector total' in CHECK_SNAPSHOT_SQL.read_text()
 
 
 def main() -> int:
@@ -136,6 +139,8 @@ def main() -> int:
         print('Refreshing infographic snapshot', flush=True)
         with REFRESH_SNAPSHOT_SQL.open('rb') as refresh:
             ssh(args.ssh_target, REMOTE_PSQL, stdin=refresh)
+        with CHECK_SNAPSHOT_SQL.open('rb') as check:
+            ssh(args.ssh_target, REMOTE_PSQL, stdin=check)
     print(f'SIDT import complete: {completed_rows} rows')
     return 0
 

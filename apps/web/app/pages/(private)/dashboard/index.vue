@@ -1,4 +1,13 @@
 <script setup lang="ts">
+import type {
+  ClusterItem,
+  GenderDistributionData,
+  KbliCategoryItem,
+  ScaleStatItem,
+  TopCategoryItem,
+} from "~/types/dashboard";
+import type { InfografisData } from "~/types/infografis";
+
 definePageMeta({
   layout: "dashboard",
 });
@@ -8,6 +17,60 @@ useSeoMeta({
   description:
     "Dashboard infografis statistik sebaran UMKM, skala usaha, kluster holding UMKM, dan klasifikasi KBLI Provinsi Jawa Barat.",
 });
+
+const { data, error } = await useFetch<{ data: InfografisData }>("/panel/infografis/");
+
+const infografis = computed(() => data.value?.data);
+
+const scaleItems = computed<ScaleStatItem[]>(() => {
+  const scales = infografis.value?.scales;
+  if (!scales) return [];
+
+  return [
+    { id: "total", title: "Total UMKM", value: scales.total, category: "total", buttonText: "Lihat Data", buttonHref: "/dashboard/tabular" },
+    { id: "mikro", title: "Usaha Mikro", value: scales.mikro, category: "mikro" },
+    { id: "kecil", title: "Usaha Kecil", value: scales.kecil, category: "kecil" },
+    { id: "menengah", title: "Usaha Menengah", value: scales.menengah, category: "menengah" },
+  ];
+});
+
+const topCategoryItems = computed<TopCategoryItem[]>(() =>
+  (infografis.value?.topKbli ?? []).map(({ code, name, total }) => ({ code, name, value: total }))
+);
+
+const sectorItems = computed<ClusterItem[]>(() =>
+  (infografis.value?.sectors ?? []).map(({ code, name, total, percentage }) => ({
+    id: code,
+    name,
+    value: total,
+    percentage,
+  }))
+);
+
+const genderData = computed<GenderDistributionData | undefined>(() => {
+  const workforce = infografis.value?.workforce;
+  return workforce && {
+    malePercentage: workforce.malePercentage,
+    femalePercentage: workforce.femalePercentage,
+    maleCount: workforce.male,
+    femaleCount: workforce.female,
+    totalWorkers: workforce.total,
+  };
+});
+
+const kbliItems = computed<KbliCategoryItem[]>(() =>
+  (infografis.value?.sectors ?? []).map((item) => ({
+    code: item.code,
+    title: item.name,
+    description: "Sektor lapangan usaha berdasarkan KBLI.",
+    totalUmkm: item.total,
+    subItems: [
+      { title: "Usaha Mikro", value: item.mikro, category: "mikro" },
+      { title: "Usaha Kecil", value: item.kecil, category: "kecil" },
+      { title: "Usaha Menengah", value: item.menengah, category: "menengah" },
+    ],
+  }))
+);
 </script>
 
 <template>
@@ -18,6 +81,10 @@ useSeoMeta({
       description="Lorem ipsum dolor sit amet, consectetur adipiscing elit. Praesent dictum tortor eu dictum pulvinar. Fusce pulvinar enim ac dui luctus, ac tempus nisl vestibulum. Sed sit amet ante sit amet sapien dictum ultrices quis at augue. Nulla pharetra ex dictum, venenatis nunc a, tempor lectus."
     />
 
+    <p v-if="error" class="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+      Data infografis belum dapat dimuat. Silakan coba lagi.
+    </p>
+
     <!-- Section 1: Jumlah Usaha Berdasarkan Skala Usaha -->
     <DashboardSectionCard
       title="Jumlah Usaha Berdasarkan Skala Usaha"
@@ -26,7 +93,7 @@ useSeoMeta({
       card-class="p-3!"
       header-class="mb-3!"
     >
-      <DashboardScaleStatsGrid />
+      <DashboardScaleStatsGrid :items="scaleItems" />
     </DashboardSectionCard>
 
     <!-- Section 2: Peta Sebaran Usaha Berdasarkan Wilayah -->
@@ -38,13 +105,13 @@ useSeoMeta({
       <DashboardRegionalMapSection />
     </DashboardSectionCard>
 
-    <!-- Section 3: Jumlah UMKM Berdasarkan Kluster UMKM -->
+    <!-- Section 3: Jumlah UMKM Berdasarkan Kategori Lapangan Usaha -->
     <DashboardSectionCard
-      title="Jumlah UMKM Berdasarkan Kluster UMKM"
-      description="Kluster UMKM ini merupakan bagian dari program Holding UMKM, sebagai salah satu strategi inovasi Kementeri UMKM dalam rangka meningkatkan kapasitas Pengusaha UMKM."
-      tooltip-text="Kluster Holding UMKM dari Kementerian Koperasi dan UKM RI"
+      title="Jumlah UMKM Berdasarkan Kategori Lapangan Usaha"
+      description="Dikelompokkan berdasarkan 21 kategori lapangan usaha dalam KBLI."
+      tooltip-text="Kategori A–U berdasarkan Klasifikasi Baku Lapangan Usaha Indonesia (KBLI)"
     >
-      <DashboardClusterBarChart />
+      <DashboardClusterBarChart :items="sectorItems" />
     </DashboardSectionCard>
 
     <!-- Row with 2 Columns: Top Categories & Gender Distribution -->
@@ -56,7 +123,7 @@ useSeoMeta({
         tooltip-text="5 Kategori KBLI dengan populasi usaha tertinggi"
         card-class="flex flex-col justify-between h-full"
       >
-        <DashboardTopCategoriesChart />
+        <DashboardTopCategoriesChart :items="topCategoryItems" />
       </DashboardSectionCard>
 
       <!-- Gender Distribution -->
@@ -66,17 +133,17 @@ useSeoMeta({
         tooltip-text="Perbandingan demografi tenaga kerja UMKM"
         card-class="flex flex-col justify-between h-full"
       >
-        <DashboardGenderDistributionChart />
+        <DashboardGenderDistributionChart :data="genderData" />
       </DashboardSectionCard>
     </div>
 
-    <!-- Section 5: KBLI Accordion List -->
+    <!-- Section 5: Category Accordion List -->
     <DashboardSectionCard
-      title="Title"
-      description="Description"
-      tooltip-text="Daftar Klasifikasi Baku Lapangan Usaha Indonesia (KBLI) per kategori"
+      title="Rincian UMKM Berdasarkan Kategori KBLI"
+      description="Dikelompokkan berdasarkan huruf kategori KBLI dan diurutkan dari jumlah UMKM terbanyak."
+      tooltip-text="Kategori A–U berdasarkan Klasifikasi Baku Lapangan Usaha Indonesia (KBLI)"
     >
-      <DashboardKbliAccordionList />
+      <DashboardKbliAccordionList :items="kbliItems" />
     </DashboardSectionCard>
   </div>
 </template>

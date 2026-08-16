@@ -179,7 +179,7 @@ const handleSearch = () => {
         <input
           v-model="searchQuery"
           type="search"
-          placeholder="Kode atau nama KBLI"
+          placeholder="Huruf atau nama kategori KBLI"
           class="w-full bg-transparent px-3 py-1.5 text-xs sm:text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
         />
       </div>
