@@ -1,8 +1,8 @@
 /**
- * Tabel materialized untuk halaman Data Tabular UMKM.
+ * Snapshot publik per usaha untuk halaman tabular dan sumber agregasi infografis.
  *
  * Snapshot flat dari `usaha` (+ relasi wilayah & KBLI) untuk provinsi Jawa Barat,
- * dipelihara oleh `scripts/refresh-usaha-tabular.sql` setelah setiap ingest SIDT,
+ * diterbitkan oleh `scripts/refresh-dashboard-snapshots.sql` setelah setiap ingest SIDT,
  * sehingga halaman tabular dapat dipaginasi & difilter tanpa join berat
  * ke 5,4 juta baris tabel `usaha` pada setiap request.
  */

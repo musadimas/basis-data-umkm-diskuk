@@ -9,6 +9,9 @@ const captureRouter = () => {
     get: (path, handler) => {
       routes[path] = handler;
     },
+    post: (path, handler) => {
+      routes[path] = handler;
+    },
     routes,
   };
 };
@@ -25,10 +28,10 @@ const fakeResponse = () => {
   return res;
 };
 
-const run = async (routes, path, query) => {
+const run = async (routes, path, query, request = {}) => {
   const res = fakeResponse();
   await routes[path](
-    { query },
+    { ...request, query },
     res,
     (error) => {
       throw error instanceof Error ? error : new Error(String(error));
@@ -90,8 +93,8 @@ test("tabular: ignores invalid filter params and clamps page_size", async () => 
 test("tabular: returns filter options mapped to camelCase", async () => {
   const router = captureRouter();
   const raw = async (sql) => {
-    if (sql.includes("kota ko")) return rows([{ id: 38, nama: "KAB. GARUT" }]);
-    if (sql.includes("kecamatan kc")) return rows([{ id: 5, nama: "BANJARWANGI", kotaId: 38 }]);
+    if (sql.includes("kota_nama AS nama")) return rows([{ id: 38, nama: "KAB. GARUT" }]);
+    if (sql.includes("kecamatan_nama AS nama")) return rows([{ id: 5, nama: "BANJARWANGI", kotaId: 38 }]);
     if (sql.includes("kategori_kbli AS nama")) return rows([{ nama: "PERDAGANGAN" }]);
     return rows([{ kode: "47112", kategori: "PERDAGANGAN" }]);
   };
@@ -130,4 +133,49 @@ test("tabular: requires kecamatan param for kelurahan", async () => {
 
   assert.equal(res.statusCode, 400);
   assert.ok(res.body.errors[0].message.includes("kecamatan"));
+});
+
+test("tabular: public reads do not join mutable source tables", async () => {
+  const router = captureRouter();
+  const sqlCalls = [];
+  const raw = async (sql) => {
+    sqlCalls.push(sql);
+    return rows(sql.includes("COUNT(*)") ? [{ filterCount: "0" }] : []);
+  };
+  extension.handler(router, { database: { raw }, logger: { error: () => assert.fail("no errors expected") } });
+
+  await run(router.routes, "/", {});
+  await run(router.routes, "/options", {});
+  await run(router.routes, "/kelurahan", { kecamatan: "5" });
+
+  assert.ok(sqlCalls.every((sql) => !/\bJOIN\s+(kota|kecamatan|kelurahan|usaha|statistik_tenaga_kerja)\b/i.test(sql)));
+});
+
+test("tabular: rejects publish from non-admin users", async () => {
+  const router = captureRouter();
+  extension.handler(router, {
+    database: { raw: async () => assert.fail("database must not be called") },
+    logger: { error: () => assert.fail("no errors expected") },
+  });
+
+  const res = await run(router.routes, "/publish", {}, { accountability: { admin: false } });
+
+  assert.equal(res.statusCode, 403);
+});
+
+test("tabular: admin publish runs the atomic SQL and returns its status", async () => {
+  const router = captureRouter();
+  const rawCalls = [];
+  const raw = async (sql) => {
+    rawCalls.push(sql);
+    if (sql.includes("BEGIN;")) return rows([]);
+    return rows([{ refreshedAt: "2026-08-16T12:00:00.000Z", total: 3 }]);
+  };
+  extension.handler(router, { database: { raw }, logger: { error: () => assert.fail("no errors expected") } });
+
+  const res = await run(router.routes, "/publish", {}, { accountability: { admin: true } });
+
+  assert.match(rawCalls[0], /TRUNCATE usaha_tabular/);
+  assert.match(rawCalls[0], /INSERT INTO infografis_snapshot/);
+  assert.deepEqual(res.body.data, { refreshedAt: "2026-08-16T12:00:00.000Z", total: 3 });
 });

@@ -17,10 +17,7 @@ ROOT = Path(__file__).resolve().parent
 PREPARE_SQL = ROOT / 'ingest-sidt-prepare.sql'
 BATCH_START_SQL = ROOT / 'ingest-sidt-batch-start.sql'
 BATCH_END_SQL = ROOT / 'ingest-sidt-batch-end.sql'
-REFRESH_SNAPSHOT_SQL = ROOT / 'refresh-infografis-snapshot.sql'
-CHECK_SNAPSHOT_SQL = ROOT / 'check-infografis-snapshot.sql'
-REFRESH_USAHA_TABULAR_SQL = ROOT / 'refresh-usaha-tabular.sql'
-CHECK_USAHA_TABULAR_SQL = ROOT / 'check-usaha-tabular.sql'
+REFRESH_DASHBOARD_SQL = ROOT / 'refresh-dashboard-snapshots.sql'
 EXPECTED_COLUMNS = [
     'id_data_badan_usaha', 'nik_pengusaha', 'nama_pengusaha', 'nib', 'jenis_kelamin',
     'is_disabilitas', 'tanggal_lahir', 'pendidikan_formal', 'kontak_hp', 'prov_pengusaha',
@@ -91,11 +88,13 @@ def self_check() -> None:
     assert [list(batch) for batch in batches([['a'], ['b'], ['c']], 2)] == [[['a'], ['b']], [['c']]]
     assert len(EXPECTED_COLUMNS) == 49
     assert 'COMMIT;' in BATCH_END_SQL.read_text()
-    assert 'infografis_snapshot' in REFRESH_SNAPSHOT_SQL.read_text()
-    assert 'sectorCoverage' in REFRESH_SNAPSHOT_SQL.read_text()
-    assert 'sector total' in CHECK_SNAPSHOT_SQL.read_text()
-    assert 'usaha_tabular' in REFRESH_USAHA_TABULAR_SQL.read_text()
-    assert 'usaha_tabular' in CHECK_USAHA_TABULAR_SQL.read_text()
+    refresh_sql = REFRESH_DASHBOARD_SQL.read_text()
+    assert 'TRUNCATE usaha_tabular' in refresh_sql
+    assert 'FROM usaha_tabular' in refresh_sql
+    assert 'INSERT INTO infografis_snapshot' in refresh_sql
+    assert 'ROLLBACK' not in refresh_sql
+    assert refresh_sql.count('BEGIN;') == refresh_sql.count('COMMIT;') == 1
+    assert "RAISE EXCEPTION 'dashboard snapshot" in refresh_sql
 
 
 def main() -> int:
@@ -140,16 +139,9 @@ def main() -> int:
             completed_rows += import_batch(args.ssh_target, header, rows, args.dry_run)
             print(f'SIDT batch {batch_number} completed ({completed_rows} rows this run)', flush=True)
     if not args.dry_run:
-        print('Refreshing infographic snapshot', flush=True)
-        with REFRESH_SNAPSHOT_SQL.open('rb') as refresh:
+        print('Publishing dashboard snapshots', flush=True)
+        with REFRESH_DASHBOARD_SQL.open('rb') as refresh:
             ssh(args.ssh_target, REMOTE_PSQL, stdin=refresh)
-        with CHECK_SNAPSHOT_SQL.open('rb') as check:
-            ssh(args.ssh_target, REMOTE_PSQL, stdin=check)
-        print('Refreshing tabular snapshot', flush=True)
-        with REFRESH_USAHA_TABULAR_SQL.open('rb') as refresh:
-            ssh(args.ssh_target, REMOTE_PSQL, stdin=refresh)
-        with CHECK_USAHA_TABULAR_SQL.open('rb') as check:
-            ssh(args.ssh_target, REMOTE_PSQL, stdin=check)
     print(f'SIDT import complete: {completed_rows} rows')
     return 0
 

@@ -1,17 +1,41 @@
 /**
  * Directus endpoint `tabular` — data tabular UMKM untuk dashboard.
  *
- * Membaca dari tabel materialized `usaha_tabular` (lihat
- * services/directus/migrations/20260816B-create-usaha-tabular.js dan
- * scripts/refresh-usaha-tabular.sql) sehingga paginasi & filter tetap cepat
+ * Membaca hanya dari snapshot publik `usaha_tabular` (lihat
+ * scripts/refresh-dashboard-snapshots.sql) sehingga paginasi & filter tetap cepat
  * untuk jutaan baris. Endpoint ini publik, sama seperti endpoint `infografis`.
  *
  * Routes:
  *   GET  /tabular/               → { data: rows, meta: { filterCount, page, pageSize } }
  *   GET  /tabular/options        → { data: { kota, kecamatan, kategori, kbli } }
  *   GET  /tabular/kelurahan?kecamatan=<id> → { data: kelurahan }
+ *   GET  /tabular/status         → waktu dan total snapshot aktif
+ *   POST /tabular/publish        → terbitkan snapshot (Super Admin)
  */
+const { existsSync, readFileSync } = require("node:fs");
+const { join } = require("node:path");
+
 const rows = (result) => result.rows ?? result[0] ?? [];
+
+const publishSqlPath = [
+  join(__dirname, "publish.sql"),
+  join(__dirname, "../../../../../scripts/refresh-dashboard-snapshots.sql"),
+].find(existsSync);
+
+const publishSql = () => {
+  if (!publishSqlPath) throw new Error("Dashboard publish SQL not found");
+  return readFileSync(publishSqlPath, "utf8");
+};
+
+const readStatus = async (database) => {
+  const result = await database.raw(`
+    SELECT refreshed_at AS "refreshedAt",
+           (payload -> 'scales' ->> 'total')::integer AS total
+    FROM infografis_snapshot
+    WHERE id = 1
+  `);
+  return rows(result)[0] ?? { refreshedAt: null, total: 0 };
+};
 
 const VALID_SKALA = ["micro", "small", "medium"];
 
@@ -28,21 +52,43 @@ const stringParam = (value, maxLength = 255) =>
 module.exports = {
   id: "tabular",
   handler: (router, { database, logger }) => {
+    router.get("/status", async (_req, res, next) => {
+      try {
+        res.json({ data: await readStatus(database) });
+      } catch (error) {
+        logger.error(error, "Unable to read dashboard publish status");
+        next(error);
+      }
+    });
+
+    router.post("/publish", async (req, res, next) => {
+      if (req.accountability?.admin !== true) {
+        res.status(403).json({ errors: [{ message: "Super Admin access is required." }] });
+        return;
+      }
+
+      try {
+        await database.raw(publishSql());
+        res.json({ data: await readStatus(database) });
+      } catch (error) {
+        logger.error(error, "Unable to publish dashboard snapshots");
+        next(error);
+      }
+    });
+
     // Filter dropdown options (dimuat sekali oleh halaman).
     router.get("/options", async (_req, res, next) => {
       try {
         const [kotaResult, kecamatanResult, kategoriResult, kbliResult] = await Promise.all([
           database.raw(`
-            SELECT DISTINCT t.kota_id AS id, ko.nama
-            FROM usaha_tabular t
-            JOIN kota ko ON ko.id = t.kota_id
-            ORDER BY ko.nama
+            SELECT DISTINCT kota_id AS id, kota_nama AS nama
+            FROM usaha_tabular
+            ORDER BY kota_nama
           `),
           database.raw(`
-            SELECT DISTINCT t.kecamatan_id AS id, kc.nama, kc.kota AS "kotaId"
-            FROM usaha_tabular t
-            JOIN kecamatan kc ON kc.id = t.kecamatan_id
-            ORDER BY kc.nama
+            SELECT DISTINCT kecamatan_id AS id, kecamatan_nama AS nama, kota_id AS "kotaId"
+            FROM usaha_tabular
+            ORDER BY kecamatan_nama
           `),
           database.raw(`
             SELECT DISTINCT kategori_kbli AS nama
@@ -84,11 +130,10 @@ module.exports = {
       try {
         const result = await database.raw(
           `
-            SELECT DISTINCT l.id, l.nama
-            FROM kelurahan l
-            JOIN usaha_tabular t ON t.kelurahan_id = l.id
-            WHERE l.kecamatan = ?
-            ORDER BY l.nama
+            SELECT DISTINCT kelurahan_id AS id, kelurahan_nama AS nama
+            FROM usaha_tabular
+            WHERE kecamatan_id = ?
+            ORDER BY kelurahan_nama
           `,
           [kecamatanId],
         );
@@ -128,11 +173,9 @@ module.exports = {
           SELECT t.id, t.nama, t.skala, t.produk_utama AS "produkUtama",
                  t.kegiatan_utama AS "kegiatanUtama",
                  t.kode_kbli AS "kodeKbli", t.kategori_kbli AS "kategoriKbli",
-                 ko.nama AS kota, kc.nama AS kecamatan, kl.nama AS kelurahan
+                 t.kota_nama AS kota, t.kecamatan_nama AS kecamatan,
+                 t.kelurahan_nama AS kelurahan
           FROM usaha_tabular t
-          JOIN kota ko ON ko.id = t.kota_id
-          JOIN kecamatan kc ON kc.id = t.kecamatan_id
-          JOIN kelurahan kl ON kl.id = t.kelurahan_id
           ${where}
           ORDER BY t.nama, t.id
           LIMIT ? OFFSET ?

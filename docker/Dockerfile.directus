@@ -16,9 +16,11 @@ RUN npm install argon2
 # Copy Directus custom extensions and migrations
 COPY services/directus/extensions /directus/extensions
 COPY services/directus/migrations /directus/migrations
+COPY scripts/refresh-dashboard-snapshots.sql /directus/scripts/refresh-dashboard-snapshots.sql
 
 # Build the tabular endpoint extension (plain CJS, no bundling: src -> dist)
-RUN cd /directus/extensions/directus-extension-tabular && npm run build
+RUN cd /directus/extensions/directus-extension-tabular && npm run build \
+    && cp /directus/scripts/refresh-dashboard-snapshots.sql dist/publish.sql
 
 # ----------------------------------------------------
 # Runtime stage - official Directus image

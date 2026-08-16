@@ -1,7 +1,7 @@
 {
   "name": "directus-extension-tabular",
   "version": "1.0.0",
-  "description": "Read-only tabular UMKM rows and filter options for the DISKUK UMKM dashboard",
+  "description": "Published UMKM dashboard snapshots and Super Admin publish endpoint",
   "private": true,
   "main": "dist/index.js",
   "files": [

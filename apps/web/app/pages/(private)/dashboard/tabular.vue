@@ -2,7 +2,7 @@
  * Halaman Data Tabular UMKM.
  * Menampilkan data usaha dari Directus (endpoint `/panel/tabular/`) dengan
  * paginasi & filter server-side, karena jumlah baris mencapai jutaan
- * (tabel materialized `usaha_tabular` yang di-refresh pasca-ingest SIDT).
+ * (snapshot publik `usaha_tabular` yang diterbitkan pasca-ingest SIDT).
  */
 <script setup lang="ts">
 import { Table, ChevronDown, MoreHorizontal, Filter, RotateCcw, Download, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "@lucide/vue";
