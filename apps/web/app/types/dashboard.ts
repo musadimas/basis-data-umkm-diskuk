@@ -51,12 +51,33 @@ export interface KbliCategoryItem {
   isExpandedDefault?: boolean
 }
 
+export type SkalaUsaha = "mikro" | "kecil" | "menengah"
+
+export interface TabularUmkmItem {
+  id: string
+  namaUsaha: string
+  skala: SkalaUsaha
+  kabupatenKota: string
+  kecamatan: string
+  desaKelurahan?: string
+  produkUtama: string
+  kegiatanUsaha: string
+  kodeKbli: string
+  desil?: string
+}
+
 export interface MapRegionItem {
   id: string
   name: string
   count: number
   tier: 'tier-1' | 'tier-2' | 'tier-3' | 'tier-4' | 'tier-5'
   pathData?: string
+}
+
+export interface SpasialUmkmItem extends TabularUmkmItem {
+  /** Koordinat geografis (WGS84) untuk penempatan marker di peta. */
+  latitude: number
+  longitude: number
 }
 
 export interface DashboardNavMenuItem {
