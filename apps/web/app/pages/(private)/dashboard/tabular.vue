@@ -1,7 +1,20 @@
+/*
+ * Halaman Data Tabular UMKM.
+ * Menampilkan data usaha dari Directus (endpoint `/panel/tabular/`) dengan
+ * paginasi & filter server-side, karena jumlah baris mencapai jutaan
+ * (tabel materialized `usaha_tabular` yang di-refresh pasca-ingest SIDT).
+ */
 <script setup lang="ts">
 import { Table, ChevronDown, MoreHorizontal, Filter, RotateCcw, Download, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "@lucide/vue";
 
 import type { SkalaUsaha, TabularUmkmItem } from "~/types/dashboard";
+import type {
+  TabularKelurahanItem,
+  TabularKbliOption,
+  TabularOptions,
+  TabularRowItem,
+  TabularRowsResponse,
+} from "~/types/tabular";
 
 definePageMeta({
   layout: "dashboard",
@@ -13,21 +26,17 @@ useSeoMeta({
     "Tabel data UMKM Provinsi Jawa Barat dengan filter wilayah, skala usaha, kegiatan usaha, dan kode KBLI.",
 });
 
-// ── Sample dataset (mock; to be replaced with Directus API data) ──────────
-const rows: TabularUmkmItem[] = [
-  { id: "1", namaUsaha: "Wawan Leathercraft", skala: "menengah", kabupatenKota: "Kabupaten Subang", kecamatan: "Kasomalang", produkUtama: "Sepatu Kulit", kegiatanUsaha: "Industri Pengolahan", kodeKbli: "14132" },
-  { id: "2", namaUsaha: "Kasih Salon", skala: "mikro", kabupatenKota: "Kota Bandung", kecamatan: "Antapani", produkUtama: "Salon Wanita", kegiatanUsaha: "Aktivitas Jasa Lainnya", kodeKbli: "96" },
-  { id: "3", namaUsaha: "Kebab Turki Azizah", skala: "mikro", kabupatenKota: "Kota Bandung", kecamatan: "Cicendo", produkUtama: "Makanan Cepat Saji", kegiatanUsaha: "Penyediaan Akomodasi dan Penyediaan Makan dan Minum", kodeKbli: "10" },
-  { id: "4", namaUsaha: "Bruce Lee Photo", skala: "kecil", kabupatenKota: "Kabupaten Bekasi", kecamatan: "Cibitung", produkUtama: "Percetakan dan Studio Foto", kegiatanUsaha: "Aktivitas Jasa Lainnya", kodeKbli: "7420" },
-  { id: "5", namaUsaha: "Kaisar Boba", skala: "mikro", kabupatenKota: "Kabupaten Subang", kecamatan: "Cisalak", produkUtama: "Minuman Dingin", kegiatanUsaha: "Penyediaan Akomodasi dan Penyediaan Makan dan Minum", kodeKbli: "11" },
-  { id: "6", namaUsaha: "Kancil Motorworks", skala: "menengah", kabupatenKota: "Kabupaten Bandung", kecamatan: "Soreang", produkUtama: "Suku Cadang Motor Balap", kegiatanUsaha: "Reparasi dan Perawatan Mobil dan Sepeda Motor", kodeKbli: "47833" },
-  { id: "7", namaUsaha: "Kircon Fried Chicken", skala: "mikro", kabupatenKota: "Kota Bandung", kecamatan: "Kiaracondong", produkUtama: "Makanan Cepat Saji", kegiatanUsaha: "Penyediaan Akomodasi dan Penyediaan Makan dan Minum", kodeKbli: "10" },
-  { id: "8", namaUsaha: "Susu Kambing H. Ojang", skala: "menengah", kabupatenKota: "Kabupaten Kuningan", kecamatan: "Kuningan", produkUtama: "Susu Kambing dan Olahannya", kegiatanUsaha: "Penyediaan Akomodasi dan Penyediaan Makan dan Minum", kodeKbli: "47214" },
-  { id: "9", namaUsaha: "Sulis Boutique", skala: "kecil", kabupatenKota: "Kabupaten Subang", kecamatan: "Subang", produkUtama: "Pakaian Import", kegiatanUsaha: "Industri Pengolahan", kodeKbli: "47711" },
-  { id: "10", namaUsaha: "Uye Vape", skala: "kecil", kabupatenKota: "Kabupaten Bandung", kecamatan: "Cimenyan", produkUtama: "Liquid Vape", kegiatanUsaha: "Penyediaan Akomodasi dan Penyediaan Makan dan Minum", kodeKbli: "20291" },
-  { id: "11", namaUsaha: "Dapur Nusantara Bu Tuti", skala: "mikro", kabupatenKota: "Kota Cimahi", kecamatan: "Cimahi Tengah", produkUtama: "Kue Tradisional", kegiatanUsaha: "Industri Pengolahan", kodeKbli: "10710" },
-  { id: "12", namaUsaha: "Bengkel Jaya Motor", skala: "kecil", kabupatenKota: "Kota Bekasi", kecamatan: "Bekasi Timur", produkUtama: "Perawatan Kendaraan", kegiatanUsaha: "Reparasi dan Perawatan Mobil dan Sepeda Motor", kodeKbli: "45205" },
-];
+// ── Skala: nilai API (micro/small/medium) ⇄ nilai UI (mikro/kecil/menengah) ─
+const skalaToApi: Record<SkalaUsaha, "micro" | "small" | "medium"> = {
+  mikro: "micro",
+  kecil: "small",
+  menengah: "medium",
+};
+const apiToSkala: Record<string, SkalaUsaha> = {
+  micro: "mikro",
+  small: "kecil",
+  medium: "menengah",
+};
 
 // ── Skala badge styling (per design tokens) ───────────────────────────────
 const skalaBadgeClasses: Record<SkalaUsaha, string> = {
@@ -42,20 +51,27 @@ const skalaLabels: Record<SkalaUsaha, string> = {
   menengah: "Menengah",
 };
 
+const skalaOptions = [
+  { value: "semua", label: "Semua" },
+  { value: "mikro", label: "Mikro" },
+  { value: "kecil", label: "Kecil" },
+  { value: "menengah", label: "Menengah" },
+];
+
 // ── Filter state (draft vs. applied on "Filter Data") ─────────────────────
 interface TabularFilters {
-  kabupatenKota: string;
+  kabupatenKota: string; // id kota dari Directus, "semua" = semua
   kecamatan: string;
-  desaKelurahan?: string;
+  desaKelurahan: string;
   skala: string;
-  kegiatanUsaha: string;
+  kegiatanUsaha: string; // kategori KBLI
   kodeKbli: string;
 }
 
 const defaultFilters = (): TabularFilters => ({
   kabupatenKota: "semua",
   kecamatan: "semua",
-  desaKelurahan: undefined,
+  desaKelurahan: "semua",
   skala: "semua",
   kegiatanUsaha: "semua",
   kodeKbli: "semua",
@@ -64,65 +80,138 @@ const defaultFilters = (): TabularFilters => ({
 const filters = reactive<TabularFilters>(defaultFilters());
 const appliedFilters = reactive<TabularFilters>(defaultFilters());
 
-const skalaOptions = [
-  { value: "semua", label: "Semua" },
-  { value: "mikro", label: "Mikro" },
-  { value: "kecil", label: "Kecil" },
-  { value: "menengah", label: "Menengah" },
-];
-
-const uniqueValues = (key: "kabupatenKota" | "kecamatan" | "kegiatanUsaha" | "kodeKbli" | "desaKelurahan") =>
-  [...new Set(rows.map((r) => r[key]).filter((v): v is string => Boolean(v)))].sort();
-
-const kabupatenOptions = ["semua", ...uniqueValues("kabupatenKota")].map((v) => ({
-  value: v,
-  label: v === "semua" ? "Semua Kabupaten/Kota" : v,
-}));
-const kecamatanOptions = ["semua", ...uniqueValues("kecamatan")].map((v) => ({
-  value: v,
-  label: v === "semua" ? "Semua Kecamatan" : v,
-}));
-const desaKelurahanOptions = uniqueValues("desaKelurahan").map((v) => ({ value: v, label: v }));
-const kegiatanOptions = ["semua", ...uniqueValues("kegiatanUsaha")].map((v) => ({
-  value: v,
-  label: v === "semua" ? "Semua" : v,
-}));
-const kbliOptions = ["semua", ...uniqueValues("kodeKbli")].map((v) => ({
-  value: v,
-  label: v === "semua" ? "Semua" : v,
-}));
-
-const applyFilters = () => {
-  Object.assign(appliedFilters, filters);
-  page.value = 1;
-};
-
-const resetFilters = () => {
-  Object.assign(filters, defaultFilters());
-  applyFilters();
-};
-
-// ── Filtered rows + pagination ────────────────────────────────────────────
-const filteredRows = computed(() =>
-  rows.filter(
-    (r) =>
-      (appliedFilters.kabupatenKota === "semua" || r.kabupatenKota === appliedFilters.kabupatenKota) &&
-      (appliedFilters.kecamatan === "semua" || r.kecamatan === appliedFilters.kecamatan) &&
-      (!appliedFilters.desaKelurahan || r.desaKelurahan === appliedFilters.desaKelurahan) &&
-      (appliedFilters.skala === "semua" || r.skala === appliedFilters.skala) &&
-      (appliedFilters.kegiatanUsaha === "semua" || r.kegiatanUsaha === appliedFilters.kegiatanUsaha) &&
-      (appliedFilters.kodeKbli === "semua" || r.kodeKbli === appliedFilters.kodeKbli)
-  )
+// ── Data opsi filter (dari Directus, dimuat sekali) ───────────────────────
+const { data: optionsData, error: optionsError } = await useFetch<{ data: TabularOptions }>(
+  "/panel/tabular/options",
 );
 
+const kabupatenOptions = computed(() => [
+  { value: "semua", label: "Semua Kabupaten/Kota" },
+  ...(optionsData.value?.data?.kota ?? []).map((k) => ({ value: String(k.id), label: k.nama })),
+]);
+
+const kecamatanOptions = computed(() => {
+  const list = optionsData.value?.data?.kecamatan ?? [];
+  const kotaId = Number(filters.kabupatenKota);
+  const scoped = Number.isInteger(kotaId) && kotaId > 0 ? list.filter((k) => k.kotaId === kotaId) : list;
+  return [
+    { value: "semua", label: "Semua Kecamatan" },
+    ...scoped.map((k) => ({ value: String(k.id), label: k.nama })),
+  ];
+});
+
+const kegiatanOptions = computed(() => [
+  { value: "semua", label: "Semua" },
+  ...(optionsData.value?.data?.kategori ?? []).map((k) => ({ value: k, label: k })),
+]);
+
+const kbliOptions = computed(() => {
+  const list: TabularKbliOption[] = optionsData.value?.data?.kbli ?? [];
+  const scoped = filters.kegiatanUsaha === "semua" ? list : list.filter((k) => k.kategori === filters.kegiatanUsaha);
+  return [
+    { value: "semua", label: "Semua" },
+    ...scoped.map((k) => ({ value: k.kode, label: k.kode })),
+  ];
+});
+
+// ── Kelurahan: dimuat per kecamatan & di-cache di klien ───────────────────
+const kelurahanCache = new Map<string, TabularKelurahanItem[]>();
+const desaKelurahanOptions = ref<{ value: string; label: string }[]>([
+  { value: "semua", label: "Semua Desa/Kelurahan" },
+]);
+
+const syncKelurahanOptions = (kecamatanId: string) => {
+  const items = kecamatanId === "semua" ? [] : (kelurahanCache.get(kecamatanId) ?? []);
+  desaKelurahanOptions.value = [
+    { value: "semua", label: "Semua Desa/Kelurahan" },
+    ...items.map((k) => ({ value: String(k.id), label: k.nama })),
+  ];
+};
+
+const loadKelurahan = async (kecamatanId: string) => {
+  try {
+    const res = await $fetch<{ data: TabularKelurahanItem[] }>("/panel/tabular/kelurahan", {
+      query: { kecamatan: kecamatanId },
+    });
+    kelurahanCache.set(kecamatanId, res.data ?? []);
+  } catch {
+    kelurahanCache.set(kecamatanId, []);
+  } finally {
+    if (filters.kecamatan === kecamatanId) syncKelurahanOptions(kecamatanId);
+  }
+};
+
+watch(
+  () => filters.kecamatan,
+  (v) => {
+    filters.desaKelurahan = "semua";
+    if (v === "semua") {
+      syncKelurahanOptions("semua");
+      return;
+    }
+    if (!kelurahanCache.has(v)) {
+      syncKelurahanOptions("semua");
+      loadKelurahan(v);
+    } else {
+      syncKelurahanOptions(v);
+    }
+  },
+);
+
+watch(
+  () => filters.kabupatenKota,
+  () => {
+    filters.kecamatan = "semua";
+  },
+);
+
+watch(
+  () => filters.kegiatanUsaha,
+  (v) => {
+    if (v === "semua" || filters.kodeKbli === "semua") return;
+    const list = optionsData.value?.data?.kbli ?? [];
+    if (!list.some((k) => k.kategori === v && k.kode === filters.kodeKbli)) {
+      filters.kodeKbli = "semua";
+    }
+  },
+);
+
+// ── Fetch baris (otomatis refetch saat filter diterapkan / ganti halaman) ──
 const pageSize = 10;
 const page = ref(1);
-const totalData = computed(() => filteredRows.value.length);
+
+const rowsQuery = computed(() => ({
+  kota: appliedFilters.kabupatenKota !== "semua" ? appliedFilters.kabupatenKota : undefined,
+  kecamatan: appliedFilters.kecamatan !== "semua" ? appliedFilters.kecamatan : undefined,
+  kelurahan: appliedFilters.desaKelurahan !== "semua" ? appliedFilters.desaKelurahan : undefined,
+  skala: appliedFilters.skala !== "semua" ? skalaToApi[appliedFilters.skala as SkalaUsaha] : undefined,
+  kegiatan: appliedFilters.kegiatanUsaha !== "semua" ? appliedFilters.kegiatanUsaha : undefined,
+  kbli: appliedFilters.kodeKbli !== "semua" ? appliedFilters.kodeKbli : undefined,
+  page: page.value,
+  page_size: pageSize,
+}));
+
+const { data: rowsData, pending: rowsPending, error: rowsError } = await useFetch<TabularRowsResponse>(
+  "/panel/tabular/",
+  { query: rowsQuery },
+);
+
+const pagedRows = computed<TabularUmkmItem[]>(() =>
+  (rowsData.value?.data ?? []).map((r) => ({
+    id: r.id,
+    namaUsaha: r.nama,
+    skala: apiToSkala[r.skala] ?? "mikro",
+    kabupatenKota: r.kota,
+    kecamatan: r.kecamatan,
+    desaKelurahan: r.kelurahan,
+    produkUtama: r.produkUtama ?? "–",
+    kegiatanUsaha: r.kategoriKbli ?? "–",
+    kodeKbli: r.kodeKbli ?? "–",
+  })),
+);
+
+const totalData = computed(() => rowsData.value?.meta?.filterCount ?? 0);
 const pageCount = computed(() => Math.max(1, Math.ceil(totalData.value / pageSize)));
-const pagedRows = computed(() => {
-  const start = (page.value - 1) * pageSize;
-  return filteredRows.value.slice(start, start + pageSize);
-});
 
 const pages = computed<(number | "…")[]>(() => {
   const total = pageCount.value;
@@ -142,11 +231,50 @@ const goToPage = (p: number) => {
   page.value = Math.min(Math.max(1, p), pageCount.value);
 };
 
-// ── CSV export for the download button ────────────────────────────────────
-const exportCsv = () => {
-  const header = ["No", "Nama Usaha", "Skala Usaha", "Kabupaten/Kota", "Kecamatan", "Desa/Kelurahan", "Produk Utama", "Kegiatan Usaha", "Kode KBLI", "Desil"];
-  const lines = filteredRows.value.map((r, i) =>
-    [i + 1, r.namaUsaha, skalaLabels[r.skala], r.kabupatenKota, r.kecamatan, r.desaKelurahan ?? "-", r.produkUtama, r.kegiatanUsaha, r.kodeKbli, r.desil ?? "-"]
+// ── Filter actions ────────────────────────────────────────────────────────
+const applyFilters = () => {
+  page.value = 1;
+  Object.assign(appliedFilters, filters);
+};
+
+const resetFilters = () => {
+  Object.assign(filters, defaultFilters());
+  applyFilters();
+};
+
+// ── CSV export: unduh seluruh hasil filter via paginasi server ⁻───────────
+const EXPORT_PAGE_SIZE = 1000;
+const EXPORT_MAX_ROWS = 50_000;
+
+const exportCsv = async () => {
+  const total = totalData.value;
+  if (total === 0 || rowsPending.value) return;
+  const limit = Math.min(total, EXPORT_MAX_ROWS);
+  const collected: TabularRowItem[] = [];
+  const pageCountToFetch = Math.ceil(limit / EXPORT_PAGE_SIZE);
+
+  for (let p = 1; p <= pageCountToFetch; p++) {
+    const res = await $fetch<TabularRowsResponse>("/panel/tabular/", {
+      query: { ...rowsQuery.value, page: p, page_size: EXPORT_PAGE_SIZE },
+    });
+    collected.push(...(res?.data ?? []));
+    if (collected.length >= limit) break;
+  }
+  if (collected.length === 0) return;
+
+  const header = ["No", "Nama Usaha", "Skala Usaha", "Kabupaten/Kota", "Kecamatan", "Desa/Kelurahan", "Produk Utama", "Kegiatan Usaha", "Kode KBLI"];
+  const lines = collected.map((r, i) =>
+    [
+      i + 1,
+      r.nama,
+      skalaLabels[apiToSkala[r.skala] ?? "mikro"],
+      r.kota,
+      r.kecamatan,
+      r.kelurahan,
+      r.produkUtama ?? "-",
+      r.kategoriKbli ?? "-",
+      r.kodeKbli ?? "-",
+    ]
       .map((v) => `"${String(v).replaceAll('"', '""')}"`)
       .join(",")
   );
@@ -169,6 +297,19 @@ const exportCsv = () => {
       title="Data Tabular UMKM"
       description="Lorem ipsum dolor sit amet, consectetur adipiscing elit. Praesent dictum tortor eu dictum pulvinar. Fusce pulvinar enim ac dui luctus, ac tempus nisl vestibulum. Sed sit amet ante sit amet sapien dictum ultrices quis at augue. Nulla pharetra ex dictum, venenatis nunc a, tempor lectus."
     />
+
+    <p
+      v-if="optionsError"
+      class="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"
+    >
+      Opsi filter (wilayah &amp; KBLI) belum dapat dimuat. Silakan muat ulang halaman.
+    </p>
+    <p
+      v-if="rowsError"
+      class="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"
+    >
+      Data tabular belum dapat dimuat. Silakan coba lagi.
+    </p>
 
     <!-- Section 1: Jumlah Usaha Berdasarkan Skala Usaha -->
     <DashboardSectionCard
@@ -237,7 +378,7 @@ const exportCsv = () => {
                 id="filter-desa"
                 class="h-[54px] w-full rounded-lg border-[#9e9e9e] bg-[#fdfdfd] text-sm text-[#757575]"
               >
-                <UiSelectValue placeholder="Desa/Kelurahan" />
+                <UiSelectValue placeholder="Semua Desa/Kelurahan" />
               </UiSelectTrigger>
               <UiSelectContent>
                 <UiSelectItem v-for="opt in desaKelurahanOptions" :key="opt.value" :value="opt.value">
@@ -312,11 +453,20 @@ const exportCsv = () => {
 
         <!-- Filter Actions -->
         <div class="flex flex-wrap items-center justify-end gap-2">
-          <UiButton variant="outline" class="gap-1.5 rounded-lg border-[#069550] text-sm font-bold text-[#069550] hover:bg-emerald-50" @click="resetFilters">
+          <UiButton
+            variant="outline"
+            class="gap-1.5 rounded-lg border-[#069550] text-sm font-bold text-[#069550] hover:bg-emerald-50"
+            :disabled="rowsPending"
+            @click="resetFilters"
+          >
             <RotateCcw class="h-4 w-4" />
             <span>Reset Filter</span>
           </UiButton>
-          <UiButton class="gap-1.5 rounded-lg bg-emerald-600 text-sm font-bold text-white hover:bg-emerald-700" @click="applyFilters">
+          <UiButton
+            class="gap-1.5 rounded-lg bg-emerald-600 text-sm font-bold text-white hover:bg-emerald-700"
+            :disabled="rowsPending"
+            @click="applyFilters"
+          >
             <Filter class="h-4 w-4" />
             <span>Filter Data</span>
           </UiButton>
@@ -324,8 +474,9 @@ const exportCsv = () => {
             variant="ghost"
             size="icon"
             class="rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 hover:text-white"
+            :disabled="rowsPending || totalData === 0"
             aria-label="Unduh data UMKM (CSV)"
-            title="Unduh data (CSV)"
+            title="Unduh seluruh hasil filter (CSV, maks. 50.000 baris)"
             @click="exportCsv"
           >
             <Download class="h-4 w-4" />
@@ -346,11 +497,18 @@ const exportCsv = () => {
               <th scope="col" class="w-44 px-3 py-[7px] text-left font-bold">Produk Utama</th>
               <th scope="col" class="min-w-52 px-3 py-[7px] text-left font-bold">Kegiatan Usaha</th>
               <th scope="col" class="w-24 px-3 py-[7px] text-left font-bold">Kode KBLI</th>
-              <th scope="col" class="w-16 px-3 py-[7px] text-center font-bold">Desil</th>
               <th scope="col" class="w-12 px-3 py-[7px] text-center font-bold">Aksi</th>
             </tr>
           </thead>
           <tbody>
+            <tr
+              v-if="rowsPending && pagedRows.length === 0"
+              class="bg-white dark:bg-card"
+            >
+              <td colspan="9" class="px-3 py-10 text-center text-sm text-muted-foreground">
+                Memuat data…
+              </td>
+            </tr>
             <tr
               v-for="(r, i) in pagedRows"
               :key="r.id"
@@ -372,7 +530,6 @@ const exportCsv = () => {
               <td class="px-3 py-[7px] leading-8 text-[#212121]">{{ r.produkUtama }}</td>
               <td class="px-3 py-[7px] leading-8 text-[#212121]">{{ r.kegiatanUsaha }}</td>
               <td class="px-3 py-[7px] leading-8 text-[#212121]">{{ r.kodeKbli }}</td>
-              <td class="px-3 py-[7px] text-center leading-8 text-muted-foreground">{{ r.desil ?? "–" }}</td>
               <td class="px-3 py-[7px] text-center">
                 <UiDropdownMenu>
                   <UiDropdownMenuTrigger as-child>
@@ -395,8 +552,8 @@ const exportCsv = () => {
               </td>
             </tr>
             <!-- Empty state -->
-            <tr v-if="pagedRows.length === 0" class="bg-white dark:bg-card">
-              <td colspan="10" class="px-3 py-10 text-center text-sm text-muted-foreground">
+            <tr v-if="!rowsPending && pagedRows.length === 0" class="bg-white dark:bg-card">
+              <td colspan="9" class="px-3 py-10 text-center text-sm text-muted-foreground">
                 Tidak ada data UMKM yang cocok dengan filter yang dipilih.
               </td>
             </tr>
@@ -411,7 +568,9 @@ const exportCsv = () => {
           <span>{{ pageSize }}</span>
           <ChevronDown class="h-4 w-4" />
         </div>
-        <span class="min-w-0 flex-1">dari {{ totalData }} Data Ditemukan</span>
+        <span class="min-w-0 flex-1">
+          dari {{ rowsPending ? "…" : totalData }} Data Ditemukan
+        </span>
 
         <div class="flex items-center gap-1.5">
           <button

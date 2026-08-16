@@ -1,0 +1,19 @@
+{
+  "name": "directus-extension-tabular",
+  "version": "1.0.0",
+  "description": "Read-only tabular UMKM rows and filter options for the DISKUK UMKM dashboard",
+  "private": true,
+  "main": "dist/index.js",
+  "files": [
+    "dist"
+  ],
+  "directus:extension": {
+    "type": "endpoint",
+    "path": "dist/index.js",
+    "source": "",
+    "host": "^11.0.0"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.cjs"
+  }
+}

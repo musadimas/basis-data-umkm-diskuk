@@ -63,7 +63,6 @@ export interface TabularUmkmItem {
   produkUtama: string
   kegiatanUsaha: string
   kodeKbli: string
-  desil?: string
 }
 
 export interface MapRegionItem {
