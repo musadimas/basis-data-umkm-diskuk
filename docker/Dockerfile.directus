@@ -17,6 +17,9 @@ RUN npm install argon2
 COPY services/directus/extensions /directus/extensions
 COPY services/directus/migrations /directus/migrations
 
+# Build the tabular endpoint extension (plain CJS, no bundling: src -> dist)
+RUN cd /directus/extensions/directus-extension-tabular && npm run build
+
 # ----------------------------------------------------
 # Runtime stage - official Directus image
 # ----------------------------------------------------
