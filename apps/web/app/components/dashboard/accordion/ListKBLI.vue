@@ -12,7 +12,8 @@ const props = withDefaults(defineProps<Props>(), {
   items: () => [
     {
       code: "G",
-      title: "Perdagangan Besar dan Eceran; Reparasi dan Perawatan Mobil dan Sepeda Motor",
+      title:
+        "Perdagangan Besar dan Eceran; Reparasi dan Perawatan Mobil dan Sepeda Motor",
       description:
         "Kategori ini mencakup kegiatan ekonomi/lapangan usaha yang berkaitan dengan perdagangan besar dan eceran berbagai jenis barang, serta jasa reparasi dan perawatan kendaraan bermotor.",
       totalUmkm: "9.999.999",
@@ -158,7 +159,7 @@ const filteredItems = computed(() => {
     (item) =>
       item.code.toLowerCase().includes(q) ||
       item.title.toLowerCase().includes(q) ||
-      item.description.toLowerCase().includes(q)
+      item.description.toLowerCase().includes(q),
   );
 });
 
@@ -203,7 +204,7 @@ const handleSearch = () => {
 
     <!-- Accordion Items List -->
     <div v-else class="space-y-3">
-      <DashboardKbliAccordionItem
+      <DashboardAccordionItemKBLI
         v-for="item in filteredItems"
         :key="item.code"
         :item="item"

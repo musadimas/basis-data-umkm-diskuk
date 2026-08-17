@@ -26,11 +26,13 @@ const selectedFilter = ref("Semua");
 const isFilterOpen = ref(false);
 
 const zoomIn = () => {
-  if (zoomLevel.value < 2) zoomLevel.value = Number((zoomLevel.value + 0.25).toFixed(2));
+  if (zoomLevel.value < 2)
+    zoomLevel.value = Number((zoomLevel.value + 0.25).toFixed(2));
 };
 
 const zoomOut = () => {
-  if (zoomLevel.value > 0.8) zoomLevel.value = Number((zoomLevel.value - 0.25).toFixed(2));
+  if (zoomLevel.value > 0.8)
+    zoomLevel.value = Number((zoomLevel.value - 0.25).toFixed(2));
 };
 
 const resetZoom = () => {
@@ -268,9 +270,13 @@ const handleFilterSelect = (filter: string) => {
 </script>
 
 <template>
-  <div class="relative overflow-hidden rounded-xl border border-slate-200 bg-[#cce3f0] dark:bg-slate-900 shadow-xs">
+  <div
+    class="relative overflow-hidden rounded-xl border border-slate-200 bg-[#cce3f0] dark:bg-slate-900 shadow-xs"
+  >
     <!-- Map Control Buttons (Top Left) -->
-    <div class="absolute left-4 top-4 z-20 flex flex-col gap-1.5 rounded-lg bg-white/95 p-1 shadow-md backdrop-blur-xs">
+    <div
+      class="absolute left-4 top-4 z-20 flex flex-col gap-1.5 rounded-lg bg-white/95 p-1 shadow-md backdrop-blur-xs"
+    >
       <button
         type="button"
         class="flex h-7 w-7 items-center justify-center rounded text-slate-700 transition-colors hover:bg-slate-100 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
@@ -314,16 +320,26 @@ const handleFilterSelect = (filter: string) => {
         <UiDropdownMenuContent align="end" class="w-48">
           <UiDropdownMenuLabel>Filter Skala Usaha</UiDropdownMenuLabel>
           <UiDropdownMenuSeparator />
-          <UiDropdownMenuItem @click="handleFilterSelect('Semua')">Semua Wilayah</UiDropdownMenuItem>
-          <UiDropdownMenuItem @click="handleFilterSelect('≥ 500.000')">Kepadatan Tinggi (≥ 500k)</UiDropdownMenuItem>
-          <UiDropdownMenuItem @click="handleFilterSelect('100.000 - 499.000')">Kepadatan Sedang</UiDropdownMenuItem>
-          <UiDropdownMenuItem @click="handleFilterSelect('< 100.000')">Kepadatan Rendah</UiDropdownMenuItem>
+          <UiDropdownMenuItem @click="handleFilterSelect('Semua')"
+            >Semua Wilayah</UiDropdownMenuItem
+          >
+          <UiDropdownMenuItem @click="handleFilterSelect('≥ 500.000')"
+            >Kepadatan Tinggi (≥ 500k)</UiDropdownMenuItem
+          >
+          <UiDropdownMenuItem @click="handleFilterSelect('100.000 - 499.000')"
+            >Kepadatan Sedang</UiDropdownMenuItem
+          >
+          <UiDropdownMenuItem @click="handleFilterSelect('< 100.000')"
+            >Kepadatan Rendah</UiDropdownMenuItem
+          >
         </UiDropdownMenuContent>
       </UiDropdownMenu>
     </div>
 
     <!-- Interactive SVG Map Canvas -->
-    <div class="relative h-[340px] sm:h-[380px] lg:h-[400px] w-full cursor-grab active:cursor-grabbing overflow-hidden">
+    <div
+      class="relative h-[340px] sm:h-[380px] lg:h-[400px] w-full cursor-grab active:cursor-grabbing overflow-hidden"
+    >
       <div
         class="h-full w-full transition-transform duration-300 ease-out flex items-center justify-center"
         :class="[
@@ -341,7 +357,12 @@ const handleFilterSelect = (filter: string) => {
         >
           <defs>
             <!-- Water Pattern -->
-            <pattern id="water-dots" width="20" height="20" patternUnits="userSpaceOnUse">
+            <pattern
+              id="water-dots"
+              width="20"
+              height="20"
+              patternUnits="userSpaceOnUse"
+            >
               <circle cx="2" cy="2" r="0.8" class="fill-slate-400/20" />
             </pattern>
           </defs>
@@ -356,7 +377,13 @@ const handleFilterSelect = (filter: string) => {
             class="fill-slate-200/80 stroke-slate-300 dark:fill-slate-800/80 dark:stroke-slate-700"
             stroke-width="1.5"
           />
-          <text x="110" y="210" class="fill-slate-500 font-medium text-[11px] select-none">BANTEN</text>
+          <text
+            x="110"
+            y="210"
+            class="fill-slate-500 font-medium text-[11px] select-none"
+          >
+            BANTEN
+          </text>
 
           <!-- DKI Jakarta -->
           <path
@@ -364,7 +391,13 @@ const handleFilterSelect = (filter: string) => {
             class="fill-amber-200/90 stroke-amber-400 dark:fill-amber-950/70"
             stroke-width="1.5"
           />
-          <text x="185" y="160" class="fill-amber-900 font-bold text-[10px] select-none">Jakarta</text>
+          <text
+            x="185"
+            y="160"
+            class="fill-amber-900 font-bold text-[10px] select-none"
+          >
+            Jakarta
+          </text>
 
           <!-- Jawa Tengah (East) -->
           <path
@@ -372,7 +405,13 @@ const handleFilterSelect = (filter: string) => {
             class="fill-slate-200/80 stroke-slate-300 dark:fill-slate-800/80 dark:stroke-slate-700"
             stroke-width="1.5"
           />
-          <text x="640" y="290" class="fill-slate-500 font-medium text-[11px] select-none">JAWA TENGAH</text>
+          <text
+            x="640"
+            y="290"
+            class="fill-slate-500 font-medium text-[11px] select-none"
+          >
+            JAWA TENGAH
+          </text>
 
           <!-- West Java Regions (Choropleth Paths) -->
           <g class="transition-all">
@@ -383,7 +422,9 @@ const handleFilterSelect = (filter: string) => {
               class="cursor-pointer stroke-white/90 stroke-1.5 transition-all duration-200 dark:stroke-slate-900"
               :class="[
                 region.colorClass,
-                hoveredRegion?.id === region.id ? 'stroke-white stroke-2.5 filter drop-shadow-md brightness-110' : '',
+                hoveredRegion?.id === region.id
+                  ? 'stroke-white stroke-2.5 filter drop-shadow-md brightness-110'
+                  : '',
               ]"
               @mouseenter="hoveredRegion = region"
               @mouseleave="hoveredRegion = null"
@@ -401,7 +442,12 @@ const handleFilterSelect = (filter: string) => {
               text-anchor="middle"
               class="fill-white font-bold text-[8.5px] drop-shadow-[0_1px_2px_rgba(0,0,0,0.7)]"
             >
-              {{ region.name.replace("Kabupaten & Kota ", "").replace("Kabupaten ", "").replace("Kota ", "") }}
+              {{
+                region.name
+                  .replace("Kabupaten & Kota ", "")
+                  .replace("Kabupaten ", "")
+                  .replace("Kota ", "")
+              }}
             </text>
           </g>
         </svg>
@@ -420,10 +466,10 @@ const handleFilterSelect = (filter: string) => {
     </div>
 
     <!-- Floating Legend Box (Bottom Left) -->
-    <div class="absolute bottom-4 left-4 z-20 rounded-xl bg-white/95 p-3.5 shadow-lg backdrop-blur-xs border border-slate-100 max-w-[200px] sm:max-w-xs">
-      <div class="mb-2 text-xs font-bold text-slate-800">
-        Jumlah UMKM
-      </div>
+    <div
+      class="absolute bottom-4 left-4 z-20 rounded-xl bg-white/95 p-3.5 shadow-lg backdrop-blur-xs border border-slate-100 max-w-[200px] sm:max-w-xs"
+    >
+      <div class="mb-2 text-xs font-bold text-slate-800">Jumlah UMKM</div>
       <div class="space-y-1.5 text-[11px] text-slate-600 font-medium">
         <div class="flex items-center gap-2">
           <span class="h-3 w-3 shrink-0 rounded-xs bg-cyan-700" />
