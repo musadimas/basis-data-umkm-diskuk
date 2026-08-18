@@ -291,7 +291,7 @@ const exportCsv = async () => {
 <template>
   <div class="space-y-5 pb-8">
     <!-- Top Hero Banner (Data variant) -->
-    <DashboardBanner
+    <DashboardCardBanner
       variant="data"
       :icon="Table"
       title="Data Tabular UMKM"
@@ -312,13 +312,13 @@ const exportCsv = async () => {
     </p>
 
     <!-- Section 1: Jumlah Usaha Berdasarkan Skala Usaha -->
-    <DashboardSectionCard
+    <DashboardCardSection
       title="Jumlah Usaha Berdasarkan Skala Usaha"
       description="Berdasarkan kriteria penjualan tahunan sebagaimana dimaksud dalam Pasal 35 ayat (5) Peraturan Pemerintah Nomor 7 Tahun 2021 tentang Kemudahan, Pelindungan, dan Pemberdayaan Koperasi serta UMKM."
-      tooltip-text="Klasifikasi skala usaha berdasarkan kriteria omzet & aset sesuai PP No. 7 Tahun 2021"
+      tooltip="Klasifikasi skala usaha berdasarkan kriteria omzet & aset sesuai PP No. 7 Tahun 2021"
     >
-      <DashboardScaleStatsGrid />
-    </DashboardSectionCard>
+      <DashboardCardScaleStatsGrid />
+    </DashboardCardSection>
 
     <!-- Section 2: Filter + Data Table -->
     <section

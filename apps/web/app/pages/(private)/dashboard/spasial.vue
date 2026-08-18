@@ -112,20 +112,20 @@ const kabupatenCount = computed(
 <template>
   <div class="space-y-5 pb-8">
     <!-- Top Hero Banner -->
-    <DashboardBanner
+    <DashboardCardBanner
       :icon="MapPinned"
       title="Peta Spasial UMKM"
       description="Lorem ipsum dolor sit amet, consectetur adipiscing elit. Praesent dictum tortor eu dictum pulvinar. Fusce pulvinar enim ac dui luctus, ac tempus nisl vestibulum. Sed sit amet ante sit amet sapien dictum ultrices quis at augue. Nulla pharetra ex dictum, venenatis nunc a, tempor lectus."
     />
 
     <!-- Section 1: Jumlah Usaha Berdasarkan Skala Usaha -->
-    <DashboardSectionCard
+    <DashboardCardSection
       title="Jumlah Usaha Berdasarkan Skala Usaha"
       description="Berdasarkan kriteria penjualan tahunan sebagaimana dimaksud dalam Pasal 35 ayat (5) Peraturan Pemerintah Nomor 7 Tahun 2021 tentang Kemudahan, Pelindungan, dan Pemberdayaan Koperasi serta UMKM."
-      tooltip-text="Klasifikasi skala usaha berdasarkan kriteria omzet & aset sesuai PP No. 7 Tahun 2021"
+      tooltip="Klasifikasi skala usaha berdasarkan kriteria omzet & aset sesuai PP No. 7 Tahun 2021"
     >
-      <DashboardScaleStatsGrid />
-    </DashboardSectionCard>
+      <DashboardCardScaleStatsGrid />
+    </DashboardCardSection>
 
     <!-- Section 2: Filter + Peta Interaktif -->
     <section

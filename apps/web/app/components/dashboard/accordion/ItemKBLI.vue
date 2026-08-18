@@ -102,7 +102,7 @@ const defaultSubItems = computed(() => {
       >
         <!-- 3 Sub Scale Cards -->
         <div class="grid flex-1 grid-cols-1 gap-3 sm:grid-cols-3">
-          <DashboardScaleStatCard
+          <DashboardCardScaleStat
             v-for="(sub, idx) in defaultSubItems"
             :key="idx"
             :title="sub.title"
