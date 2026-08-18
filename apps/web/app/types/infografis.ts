@@ -29,7 +29,7 @@ export interface InfografisData {
   sectors: InfografisSectorItem[]
   topKbli: InfografisKbliItem[]
   kbli: InfografisKbliItem[]
-  workforce: {
+  workforce?: {
     male: number
     female: number
     total: number

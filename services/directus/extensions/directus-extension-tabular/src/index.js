@@ -7,25 +7,16 @@
  *
  * Routes:
  *   GET  /tabular/               → { data: rows, meta: { filterCount, page, pageSize } }
+ *   GET  /tabular/spasial        → { data: points, meta: { filterCount, mikro, kecil, menengah, limit } }
  *   GET  /tabular/options        → { data: { kota, kecamatan, kategori, kbli } }
  *   GET  /tabular/kelurahan?kecamatan=<id> → { data: kelurahan }
  *   GET  /tabular/status         → waktu dan total snapshot aktif
  *   POST /tabular/publish        → terbitkan snapshot (Super Admin)
  */
-const { existsSync, readFileSync } = require("node:fs");
-const { join } = require("node:path");
+const { routeGuard } = require("../../shared/auth.cjs");
 
 const rows = (result) => result.rows ?? result[0] ?? [];
-
-const publishSqlPath = [
-  join(__dirname, "publish.sql"),
-  join(__dirname, "../../../../../scripts/refresh-dashboard-snapshots.sql"),
-].find(existsSync);
-
-const publishSql = () => {
-  if (!publishSqlPath) throw new Error("Dashboard publish SQL not found");
-  return readFileSync(publishSqlPath, "utf8");
-};
+const privateHeaders = (res) => { res.setHeader?.("Cache-Control", "private, no-store"); };
 
 const readStatus = async (database) => {
   const result = await database.raw(`
@@ -49,10 +40,34 @@ const positiveInt = (value, fallback) => {
 const stringParam = (value, maxLength = 255) =>
   typeof value === "string" && value.length > 0 ? value.slice(0, maxLength) : null;
 
+/** Bangun WHERE dinamis dari query filter dengan parameter binding. */
+const buildFilter = (q) => {
+  const clauses = [];
+  const params = [];
+  const push = (column, value) => {
+    if (value === null) return;
+    params.push(value);
+    clauses.push(`${column} = ?`);
+  };
+
+  push("t.kota_id", positiveInt(q.kota, null));
+  push("t.kecamatan_id", positiveInt(q.kecamatan, null));
+  push("t.kelurahan_id", positiveInt(q.kelurahan, null));
+  push("t.skala", VALID_SKALA.includes(q.skala) ? q.skala : null);
+  push("t.kategori_kbli", stringParam(q.kegiatan));
+  push("t.kode_kbli", stringParam(q.kbli));
+
+  return {
+    where: clauses.length ? `WHERE ${clauses.join(" AND ")}` : "",
+    params,
+  };
+};
+
 module.exports = {
   id: "tabular",
   handler: (router, { database, logger }) => {
-    router.get("/status", async (_req, res, next) => {
+    router.get("/status", async (req, res, next) => {
+      if (!routeGuard(req, next)) return; privateHeaders(res);
       try {
         res.json({ data: await readStatus(database) });
       } catch (error) {
@@ -62,22 +77,20 @@ module.exports = {
     });
 
     router.post("/publish", async (req, res, next) => {
-      if (req.accountability?.admin !== true) {
-        res.status(403).json({ errors: [{ message: "Super Admin access is required." }] });
-        return;
-      }
-
+      if (!routeGuard(req, next, { adminOnly: true })) return;
       try {
-        await database.raw(publishSql());
-        res.json({ data: await readStatus(database) });
+        const result = await database.raw("SELECT analitik_enqueue_job('rebuild_current_model', 'rebuild_current_model', NULL) AS id");
+        const jobId = rows(result)[0]?.id;
+        res.status(202).json({ data: { jobId, status: "queued" } });
       } catch (error) {
-        logger.error(error, "Unable to publish dashboard snapshots");
+        logger.error(error, "Unable to enqueue dashboard rebuild");
         next(error);
       }
     });
 
     // Filter dropdown options (dimuat sekali oleh halaman).
-    router.get("/options", async (_req, res, next) => {
+    router.get("/options", async (req, res, next) => {
+      if (!routeGuard(req, next)) return; privateHeaders(res);
       try {
         const [kotaResult, kecamatanResult, kategoriResult, kbliResult] = await Promise.all([
           database.raw(`
@@ -120,6 +133,7 @@ module.exports = {
 
     // Kelurahan untuk satu kecamatan (opsi kaskade filter).
     router.get("/kelurahan", async (req, res, next) => {
+      if (!routeGuard(req, next)) return; privateHeaders(res);
       const kecamatanId = positiveInt(req.query?.kecamatan, null);
       if (kecamatanId === null) {
         res
@@ -146,28 +160,13 @@ module.exports = {
 
     // Halaman data + jumlah data yang cocok dengan filter.
     router.get("/", async (req, res, next) => {
+      if (!routeGuard(req, next)) return; privateHeaders(res);
       try {
         const q = req.query ?? {};
         const page = positiveInt(q.page, 1);
         const pageSize = Math.min(Math.max(positiveInt(q.page_size, 10), 1), 1000);
 
-        // Bangun WHERE dinamis dengan parameter binding (bebas SQL injection).
-        const clauses = [];
-        const params = [];
-        const push = (column, value) => {
-          if (value === null) return;
-          params.push(value);
-          clauses.push(`${column} = ?`);
-        };
-
-        push("t.kota_id", positiveInt(q.kota, null));
-        push("t.kecamatan_id", positiveInt(q.kecamatan, null));
-        push("t.kelurahan_id", positiveInt(q.kelurahan, null));
-        push("t.skala", VALID_SKALA.includes(q.skala) ? q.skala : null);
-        push("t.kategori_kbli", stringParam(q.kegiatan));
-        push("t.kode_kbli", stringParam(q.kbli));
-
-        const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
+        const { where, params } = buildFilter(q);
 
         const selectSql = `
           SELECT t.id, t.nama, t.skala, t.produk_utama AS "produkUtama",
@@ -201,6 +200,64 @@ module.exports = {
         });
       } catch (error) {
         logger.error(error, "Unable to read tabular rows");
+        next(error);
+      }
+    });
+
+    // Titik spasial (usaha berkoordinat) + rekap skala untuk peta.
+    // Count skala dihitung dari semua baris yang cocok filter (bukan hanya
+    // yang berkoordinat), sehingga angka kartu skala konsisten dengan tabular.
+    router.get("/spasial", async (req, res, next) => {
+      if (!routeGuard(req, next)) return; privateHeaders(res);
+      try {
+        const q = req.query ?? {};
+        const limit = Math.min(Math.max(positiveInt(q.limit, 1000), 1), 5000);
+
+        const { where, params } = buildFilter(q);
+        const coordClause = "t.latitude IS NOT NULL AND t.longitude IS NOT NULL";
+        const pointWhere = where ? `${where} AND ${coordClause}` : `WHERE ${coordClause}`;
+
+        const [result, countResult] = await Promise.all([
+          database.raw(
+            `
+              SELECT t.id, t.nama, t.skala, t.produk_utama AS "produkUtama",
+                     t.kegiatan_utama AS "kegiatanUtama",
+                     t.kode_kbli AS "kodeKbli", t.kategori_kbli AS "kategoriKbli",
+                     t.kota_nama AS kota, t.kecamatan_nama AS kecamatan,
+                     t.latitude::float AS latitude, t.longitude::float AS longitude
+              FROM usaha_tabular t
+              ${pointWhere}
+              ORDER BY t.nama, t.id
+              LIMIT ?
+            `,
+            [...params, limit],
+          ),
+          database.raw(
+            `
+              SELECT COUNT(*) AS "filterCount",
+                     COUNT(*) FILTER (WHERE t.skala = 'micro')::integer AS mikro,
+                     COUNT(*) FILTER (WHERE t.skala = 'small')::integer AS kecil,
+                     COUNT(*) FILTER (WHERE t.skala = 'medium')::integer AS menengah
+              FROM usaha_tabular t
+              ${where}
+            `,
+            params,
+          ),
+        ]);
+
+        const [countRow] = rows(countResult);
+        res.json({
+          data: rows(result),
+          meta: {
+            filterCount: Number(countRow?.filterCount ?? 0),
+            mikro: Number(countRow?.mikro ?? 0),
+            kecil: Number(countRow?.kecil ?? 0),
+            menengah: Number(countRow?.menengah ?? 0),
+            limit,
+          },
+        });
+      } catch (error) {
+        logger.error(error, "Unable to read tabular points");
         next(error);
       }
     });

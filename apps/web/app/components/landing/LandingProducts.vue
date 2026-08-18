@@ -169,7 +169,7 @@ onUnmounted(() => ctx?.revert());
 </script>
 
 <template>
-  <section ref="root" id="section-products" role="region" aria-label="Produk Unggulan UMKM" class="relative isolate overflow-x-clip py-16 lg:py-24">
+  <section id="section-products" ref="root" role="region" aria-label="Produk Unggulan UMKM" class="relative isolate overflow-x-clip py-16 lg:py-24">
     <div class="mx-auto max-w-7xl px-4 lg:px-8">
       <div ref="header" class="mb-12 flex flex-col items-center gap-4 text-center">
         <UiBadge variant="outline" class="text-[10px] tracking-widest uppercase">Katalog</UiBadge>

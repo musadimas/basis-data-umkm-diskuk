@@ -7,7 +7,7 @@
 <script setup lang="ts">
 import { Table, ChevronDown, MoreHorizontal, Filter, RotateCcw, Download, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "@lucide/vue";
 
-import type { SkalaUsaha, TabularUmkmItem } from "~/types/dashboard";
+import type { ScaleStatItem, SkalaUsaha, TabularUmkmItem } from "~/types/dashboard";
 import type {
   TabularKelurahanItem,
   TabularKbliOption,
@@ -180,13 +180,17 @@ watch(
 const pageSize = 10;
 const page = ref(1);
 
-const rowsQuery = computed(() => ({
+const filterQuery = computed(() => ({
   kota: appliedFilters.kabupatenKota !== "semua" ? appliedFilters.kabupatenKota : undefined,
   kecamatan: appliedFilters.kecamatan !== "semua" ? appliedFilters.kecamatan : undefined,
   kelurahan: appliedFilters.desaKelurahan !== "semua" ? appliedFilters.desaKelurahan : undefined,
   skala: appliedFilters.skala !== "semua" ? skalaToApi[appliedFilters.skala as SkalaUsaha] : undefined,
   kegiatan: appliedFilters.kegiatanUsaha !== "semua" ? appliedFilters.kegiatanUsaha : undefined,
   kbli: appliedFilters.kodeKbli !== "semua" ? appliedFilters.kodeKbli : undefined,
+}));
+
+const rowsQuery = computed(() => ({
+  ...filterQuery.value,
   page: page.value,
   page_size: pageSize,
 }));
@@ -195,6 +199,16 @@ const { data: rowsData, pending: rowsPending, error: rowsError } = await useFetc
   "/panel/tabular/",
   { query: rowsQuery },
 );
+
+// ── Kartu skala: ikut filter aktif (1 request ringan per skala) ───────────
+const scaleCountQuery = (skala: "micro" | "small" | "medium") =>
+  computed(() => ({ ...filterQuery.value, skala, page: 1, page_size: 1 }));
+
+const [countMikro, countKecil, countMenengah] = await Promise.all([
+  useFetch<TabularRowsResponse>("/panel/tabular/", { query: scaleCountQuery("micro") }),
+  useFetch<TabularRowsResponse>("/panel/tabular/", { query: scaleCountQuery("small") }),
+  useFetch<TabularRowsResponse>("/panel/tabular/", { query: scaleCountQuery("medium") }),
+]);
 
 const pagedRows = computed<TabularUmkmItem[]>(() =>
   (rowsData.value?.data ?? []).map((r) => ({
@@ -211,6 +225,35 @@ const pagedRows = computed<TabularUmkmItem[]>(() =>
 );
 
 const totalData = computed(() => rowsData.value?.meta?.filterCount ?? 0);
+
+const scaleItems = computed<ScaleStatItem[]>(() => [
+  {
+    id: "total",
+    title: "Total UMKM",
+    value: totalData.value,
+    category: "total",
+    buttonText: "Lihat Data",
+    buttonHref: "#data-tabular",
+  },
+  {
+    id: "mikro",
+    title: "Usaha Mikro",
+    value: countMikro.data.value?.meta?.filterCount ?? 0,
+    category: "mikro",
+  },
+  {
+    id: "kecil",
+    title: "Usaha Kecil",
+    value: countKecil.data.value?.meta?.filterCount ?? 0,
+    category: "kecil",
+  },
+  {
+    id: "menengah",
+    title: "Usaha Menengah",
+    value: countMenengah.data.value?.meta?.filterCount ?? 0,
+    category: "menengah",
+  },
+]);
 const pageCount = computed(() => Math.max(1, Math.ceil(totalData.value / pageSize)));
 
 const pages = computed<(number | "…")[]>(() => {
@@ -221,7 +264,8 @@ const pages = computed<(number | "…")[]>(() => {
   const sorted = [...visible].filter((n) => n >= 1 && n <= total).sort((a, b) => a - b);
   const out: (number | "…")[] = [];
   sorted.forEach((n, i) => {
-    if (i > 0 && n - sorted[i - 1] > 1) out.push("…");
+    const previous = sorted[i - 1];
+    if (previous !== undefined && n - previous > 1) out.push("…");
     out.push(n);
   });
   return out;
@@ -317,11 +361,12 @@ const exportCsv = async () => {
       description="Berdasarkan kriteria penjualan tahunan sebagaimana dimaksud dalam Pasal 35 ayat (5) Peraturan Pemerintah Nomor 7 Tahun 2021 tentang Kemudahan, Pelindungan, dan Pemberdayaan Koperasi serta UMKM."
       tooltip="Klasifikasi skala usaha berdasarkan kriteria omzet & aset sesuai PP No. 7 Tahun 2021"
     >
-      <DashboardCardScaleStatsGrid />
+      <DashboardCardScaleStatsGrid :items="scaleItems" />
     </DashboardCardSection>
 
     <!-- Section 2: Filter + Data Table -->
     <section
+      id="data-tabular"
       class="rounded-lg border border-border/80 bg-white p-4 shadow-xs dark:bg-card"
       aria-label="Tabel Data UMKM"
     >

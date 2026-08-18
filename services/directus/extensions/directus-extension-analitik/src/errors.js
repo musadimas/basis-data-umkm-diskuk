@@ -1,0 +1,5 @@
+class AnalyticsApiError extends Error { constructor(statusCode, code, message = "Permintaan tidak dapat diproses.", details = undefined) { super(message); this.name = "AnalyticsApiError"; this.statusCode = statusCode; this.code = code; this.details = details; this.extensions = { code, status: statusCode }; } }
+function badRequest(code, message = "Permintaan tidak dapat diproses.") { return new AnalyticsApiError(400, code, message); }
+function sanitizedError(error) { if (error instanceof AnalyticsApiError) return error; const timeout = error?.code === "57014" || error?.code === "55P03" || /timeout/i.test(String(error?.message)); return new AnalyticsApiError(timeout ? 504 : 500, timeout ? "QUERY_TIMEOUT" : "INTERNAL_SERVER_ERROR"); }
+function sendError(res, error, requestId) { const safe = sanitizedError(error); res.setHeader?.("Cache-Control", "private, no-store"); res.setHeader?.("X-Request-Id", requestId); res.status(safe.statusCode).json({ errors: [{ message: safe.message, extensions: { code: safe.code, requestId, correlationId: requestId } }] }); }
+module.exports = { AnalyticsApiError, badRequest, sanitizedError, sendError };

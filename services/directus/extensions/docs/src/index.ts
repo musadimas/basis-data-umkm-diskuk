@@ -3,6 +3,9 @@ import { Request, Response, NextFunction } from "express";
 import { getConfig, getOas, getPackage, merge, filterPaths, EXCLUDED_TAG_RE } from "./utils";
 import { createReadStream, existsSync } from "fs";
 import { join, extname } from "path";
+// Shared CommonJS helper keeps the anonymous boundary identical to custom endpoints.
+// @ts-ignore no declaration file is needed for the bundled runtime helper.
+const { routeGuard } = require("../../shared/auth.cjs");
 
 const config = getConfig();
 
@@ -15,7 +18,8 @@ export default {
     const assetsDir = join(__dirname, "..", "src", "assets");
     const MIME: Record<string, string> = { ".png": "image/png", ".svg": "image/svg+xml", ".jpg": "image/jpeg", ".webp": "image/webp" };
 
-    router.get("/assets/:file", (req: Request, res: Response) => {
+    router.get("/assets/:file", (req: Request, res: Response, next: NextFunction) => {
+      if (!routeGuard(req, next)) return;
       const file = (req.params as any).file as string;
       const filePath = join(assetsDir, file);
       if (!filePath.startsWith(assetsDir) || !existsSync(filePath)) {
@@ -23,7 +27,7 @@ export default {
         return;
       }
       res.setHeader("Content-Type", MIME[extname(file)] ?? "application/octet-stream");
-      res.setHeader("Cache-Control", "public, max-age=86400");
+      res.setHeader("Cache-Control", "private, no-store");
       createReadStream(filePath).pipe(res);
     });
 
@@ -69,16 +73,18 @@ export default {
 </html>`;
     }
 
-    router.get("/", (_req: Request, res: Response) => {
+    router.get("/", (req: Request, res: Response, next: NextFunction) => {
+      if (!routeGuard(req, next)) return;
       res.setHeader("Content-Type", "text/html");
       res.send(scalarPage(`/${id}/oas`, config.info.title || "Cartogram — CMS API"));
     });
 
     router.get("/oas", async (req: Request, res: Response, next: NextFunction) => {
+      if (!routeGuard(req, next)) return;
       try {
         const schema = await getSchema();
 
-        const accountability = config.useAuthentication ? (req as any).accountability : { admin: true };
+        const accountability = (req as any).accountability;
 
         const scalar = await getOas(services, schema, accountability);
 

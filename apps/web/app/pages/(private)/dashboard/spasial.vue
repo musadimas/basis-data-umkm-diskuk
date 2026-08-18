@@ -2,11 +2,18 @@
  * Halaman Peta Spasial UMKM.
  * Menampilkan sebaran titik lokasi usaha pada peta interaktif (MapLibre + OSM)
  * dengan filter wilayah, skala usaha, kegiatan usaha, dan kode KBLI.
+ * Data titik & rekap skala dibaca dari endpoint /panel/tabular/spasial
+ * (snapshot publik usaha_tabular yang berisi koordinat sumber SIDT).
  */
 <script setup lang="ts">
 import { Filter, MapPinned, RotateCcw } from "@lucide/vue";
 
-import type { SpasialUmkmItem } from "~/types/dashboard";
+import type { ScaleStatItem, SkalaUsaha, SpasialUmkmItem } from "~/types/dashboard";
+import type {
+  TabularKbliOption,
+  TabularOptions,
+  TabularSpasialResponse,
+} from "~/types/tabular";
 
 definePageMeta({
   layout: "dashboard",
@@ -18,22 +25,17 @@ useSeoMeta({
     "Peta interaktif sebaran UMKM Provinsi Jawa Barat dengan filter wilayah, skala usaha, kegiatan usaha, dan kode KBLI.",
 });
 
-// ── Sample dataset (mock; to be replaced with Directus API data) ──────────
-// Titik koordinat merupakan perkiraan lokasi kecamatan untuk keperluan tampilan.
-const umkmPoints: SpasialUmkmItem[] = [
-  { id: "1", namaUsaha: "Wawan Leathercraft", skala: "menengah", kabupatenKota: "Kabupaten Subang", kecamatan: "Kasomalang", produkUtama: "Sepatu Kulit", kegiatanUsaha: "Industri Pengolahan", kodeKbli: "14132", latitude: -6.658, longitude: 107.772 },
-  { id: "2", namaUsaha: "Kasih Salon", skala: "mikro", kabupatenKota: "Kota Bandung", kecamatan: "Antapani", produkUtama: "Salon Wanita", kegiatanUsaha: "Aktivitas Jasa Lainnya", kodeKbli: "96", latitude: -6.913, longitude: 107.657 },
-  { id: "3", namaUsaha: "Kebab Turki Azizah", skala: "mikro", kabupatenKota: "Kota Bandung", kecamatan: "Cicendo", produkUtama: "Makanan Cepat Saji", kegiatanUsaha: "Penyediaan Akomodasi dan Penyediaan Makan dan Minum", kodeKbli: "10", latitude: -6.911, longitude: 107.596 },
-  { id: "4", namaUsaha: "Bruce Lee Photo", skala: "kecil", kabupatenKota: "Kabupaten Bekasi", kecamatan: "Cibitung", produkUtama: "Percetakan dan Studio Foto", kegiatanUsaha: "Aktivitas Jasa Lainnya", kodeKbli: "7420", latitude: -6.24, longitude: 107.103 },
-  { id: "5", namaUsaha: "Kaisar Boba", skala: "mikro", kabupatenKota: "Kabupaten Subang", kecamatan: "Cisalak", produkUtama: "Minuman Dingin", kegiatanUsaha: "Penyediaan Akomodasi dan Penyediaan Makan dan Minum", kodeKbli: "11", latitude: -6.714, longitude: 107.755 },
-  { id: "6", namaUsaha: "Kancil Motorworks", skala: "menengah", kabupatenKota: "Kabupaten Bandung", kecamatan: "Soreang", produkUtama: "Suku Cadang Motor Balap", kegiatanUsaha: "Reparasi dan Perawatan Mobil dan Sepeda Motor", kodeKbli: "47833", latitude: -7.032, longitude: 107.518 },
-  { id: "7", namaUsaha: "Kircon Fried Chicken", skala: "mikro", kabupatenKota: "Kota Bandung", kecamatan: "Kiaracondong", produkUtama: "Makanan Cepat Saji", kegiatanUsaha: "Penyediaan Akomodasi dan Penyediaan Makan dan Minum", kodeKbli: "10", latitude: -6.93, longitude: 107.639 },
-  { id: "8", namaUsaha: "Susu Kambing H. Ojang", skala: "menengah", kabupatenKota: "Kabupaten Kuningan", kecamatan: "Kuningan", produkUtama: "Susu Kambing dan Olahannya", kegiatanUsaha: "Penyediaan Akomodasi dan Penyediaan Makan dan Minum", kodeKbli: "47214", latitude: -6.976, longitude: 108.483 },
-  { id: "9", namaUsaha: "Sulis Boutique", skala: "kecil", kabupatenKota: "Kabupaten Subang", kecamatan: "Subang", produkUtama: "Pakaian Import", kegiatanUsaha: "Industri Pengolahan", kodeKbli: "47711", latitude: -6.566, longitude: 107.756 },
-  { id: "10", namaUsaha: "Uye Vape", skala: "kecil", kabupatenKota: "Kabupaten Bandung", kecamatan: "Cimenyan", produkUtama: "Liquid Vape", kegiatanUsaha: "Penyediaan Akomodasi dan Penyediaan Makan dan Minum", kodeKbli: "20291", latitude: -6.888, longitude: 107.656 },
-  { id: "11", namaUsaha: "Dapur Nusantara Bu Tuti", skala: "mikro", kabupatenKota: "Kota Cimahi", kecamatan: "Cimahi Tengah", produkUtama: "Kue Tradisional", kegiatanUsaha: "Industri Pengolahan", kodeKbli: "10710", latitude: -6.879, longitude: 107.542 },
-  { id: "12", namaUsaha: "Bengkel Jaya Motor", skala: "kecil", kabupatenKota: "Kota Bekasi", kecamatan: "Bekasi Timur", produkUtama: "Perawatan Kendaraan", kegiatanUsaha: "Reparasi dan Perawatan Mobil dan Sepeda Motor", kodeKbli: "45205", latitude: -6.247, longitude: 106.997 },
-];
+// ── Skala: nilai API (micro/small/medium) ⇄ nilai UI (mikro/kecil/menengah) ─
+const skalaToApi: Record<SkalaUsaha, "micro" | "small" | "medium"> = {
+  mikro: "micro",
+  kecil: "small",
+  menengah: "medium",
+};
+const apiToSkala: Record<string, SkalaUsaha> = {
+  micro: "mikro",
+  small: "kecil",
+  medium: "menengah",
+};
 
 // ── Filter state (draft vs. applied on "Filter Data") ─────────────────────
 interface SpasialFilters {
@@ -55,34 +57,116 @@ const defaultFilters = (): SpasialFilters => ({
 const filters = reactive<SpasialFilters>(defaultFilters());
 const appliedFilters = reactive<SpasialFilters>(defaultFilters());
 
-const skalaOptions = [
+// ── Data opsi filter (dari Directus, dimuat sekali) ───────────────────────
+const { data: optionsData, error: optionsError } = await useFetch<{ data: TabularOptions }>(
+  "/panel/tabular/options",
+);
+
+const kabupatenOptions = computed(() => [
+  { value: "semua", label: "Semua Kabupaten/Kota" },
+  ...(optionsData.value?.data?.kota ?? []).map((k) => ({ value: String(k.id), label: k.nama })),
+]);
+
+const kecamatanOptions = computed(() => {
+  const list = optionsData.value?.data?.kecamatan ?? [];
+  const kotaId = Number(filters.kabupatenKota);
+  const scoped = Number.isInteger(kotaId) && kotaId > 0 ? list.filter((k) => k.kotaId === kotaId) : list;
+  return [
+    { value: "semua", label: "Semua Kecamatan" },
+    ...scoped.map((k) => ({ value: String(k.id), label: k.nama })),
+  ];
+});
+
+const kegiatanOptions = computed(() => [
   { value: "semua", label: "Semua" },
-  { value: "mikro", label: "Mikro" },
-  { value: "kecil", label: "Kecil" },
-  { value: "menengah", label: "Menengah" },
-];
+  ...(optionsData.value?.data?.kategori ?? []).map((k) => ({ value: k, label: k })),
+]);
 
-type FilterableKey = "kabupatenKota" | "kecamatan" | "kegiatanUsaha" | "kodeKbli";
-const uniqueValues = (key: FilterableKey) =>
-  [...new Set(umkmPoints.map((r) => r[key]))].sort();
+const kbliOptions = computed(() => {
+  const list: TabularKbliOption[] = optionsData.value?.data?.kbli ?? [];
+  const scoped = filters.kegiatanUsaha === "semua" ? list : list.filter((k) => k.kategori === filters.kegiatanUsaha);
+  return [
+    { value: "semua", label: "Semua" },
+    ...scoped.map((k) => ({ value: k.kode, label: k.kode })),
+  ];
+});
 
-const kabupatenOptions = ["semua", ...uniqueValues("kabupatenKota")].map((v) => ({
-  value: v,
-  label: v === "semua" ? "Semua Kabupaten/Kota" : v,
-}));
-const kecamatanOptions = ["semua", ...uniqueValues("kecamatan")].map((v) => ({
-  value: v,
-  label: v === "semua" ? "Semua Kecamatan" : v,
-}));
-const kegiatanOptions = ["semua", ...uniqueValues("kegiatanUsaha")].map((v) => ({
-  value: v,
-  label: v === "semua" ? "Semua" : v,
-}));
-const kbliOptions = ["semua", ...uniqueValues("kodeKbli")].map((v) => ({
-  value: v,
-  label: v === "semua" ? "Semua" : v,
+watch(
+  () => filters.kabupatenKota,
+  () => {
+    filters.kecamatan = "semua";
+  },
+);
+
+watch(
+  () => filters.kegiatanUsaha,
+  (v) => {
+    if (v === "semua" || filters.kodeKbli === "semua") return;
+    const list = optionsData.value?.data?.kbli ?? [];
+    if (!list.some((k) => k.kategori === v && k.kode === filters.kodeKbli)) {
+      filters.kodeKbli = "semua";
+    }
+  },
+);
+
+// ── Fetch titik + rekap skala (refetch saat filter diterapkan) ────────────
+const POINT_LIMIT = 1000;
+
+const pointsQuery = computed(() => ({
+  kota: appliedFilters.kabupatenKota !== "semua" ? appliedFilters.kabupatenKota : undefined,
+  kecamatan: appliedFilters.kecamatan !== "semua" ? appliedFilters.kecamatan : undefined,
+  skala: appliedFilters.skala !== "semua" ? skalaToApi[appliedFilters.skala as SkalaUsaha] : undefined,
+  kegiatan: appliedFilters.kegiatanUsaha !== "semua" ? appliedFilters.kegiatanUsaha : undefined,
+  kbli: appliedFilters.kodeKbli !== "semua" ? appliedFilters.kodeKbli : undefined,
+  limit: POINT_LIMIT,
 }));
 
+const { data: pointsData, pending: pointsPending, error: pointsError } = await useFetch<TabularSpasialResponse>(
+  "/panel/tabular/spasial",
+  { query: pointsQuery },
+);
+
+const mapItems = computed<SpasialUmkmItem[]>(() =>
+  (pointsData.value?.data ?? []).map((p) => ({
+    id: p.id,
+    namaUsaha: p.nama,
+    skala: apiToSkala[p.skala] ?? "mikro",
+    kabupatenKota: p.kota,
+    kecamatan: p.kecamatan,
+    produkUtama: p.produkUtama ?? "–",
+    kegiatanUsaha: p.kategoriKbli ?? "–",
+    kodeKbli: p.kodeKbli ?? "–",
+    latitude: p.latitude,
+    longitude: p.longitude,
+  })),
+);
+
+const scaleItems = computed<ScaleStatItem[]>(() => {
+  const meta = pointsData.value?.meta;
+  return [
+    {
+      id: "total",
+      title: "Total UMKM",
+      value: meta?.filterCount ?? 0,
+      category: "total",
+      buttonText: "Lihat Data",
+      buttonHref: "/dashboard/tabular",
+    },
+    { id: "mikro", title: "Usaha Mikro", value: meta?.mikro ?? 0, category: "mikro" },
+    { id: "kecil", title: "Usaha Kecil", value: meta?.kecil ?? 0, category: "kecil" },
+    { id: "menengah", title: "Usaha Menengah", value: meta?.menengah ?? 0, category: "menengah" },
+  ];
+});
+
+const formatNumber = (val: number) => new Intl.NumberFormat("id-ID").format(val);
+
+const kabupatenCount = computed(
+  () => new Set(mapItems.value.map((p) => p.kabupatenKota)).size,
+);
+
+const totalMatching = computed(() => pointsData.value?.meta?.filterCount ?? 0);
+
+// ── Filter actions ────────────────────────────────────────────────────────
 const applyFilters = () => {
   Object.assign(appliedFilters, filters);
 };
@@ -91,22 +175,6 @@ const resetFilters = () => {
   Object.assign(filters, defaultFilters());
   applyFilters();
 };
-
-// ── Filtered map points ───────────────────────────────────────────────────
-const filteredPoints = computed(() =>
-  umkmPoints.filter(
-    (p) =>
-      (appliedFilters.kabupatenKota === "semua" || p.kabupatenKota === appliedFilters.kabupatenKota) &&
-      (appliedFilters.kecamatan === "semua" || p.kecamatan === appliedFilters.kecamatan) &&
-      (appliedFilters.skala === "semua" || p.skala === appliedFilters.skala) &&
-      (appliedFilters.kegiatanUsaha === "semua" || p.kegiatanUsaha === appliedFilters.kegiatanUsaha) &&
-      (appliedFilters.kodeKbli === "semua" || p.kodeKbli === appliedFilters.kodeKbli)
-  )
-);
-
-const kabupatenCount = computed(
-  () => new Set(filteredPoints.value.map((p) => p.kabupatenKota)).size
-);
 </script>
 
 <template>
@@ -118,13 +186,26 @@ const kabupatenCount = computed(
       description="Lorem ipsum dolor sit amet, consectetur adipiscing elit. Praesent dictum tortor eu dictum pulvinar. Fusce pulvinar enim ac dui luctus, ac tempus nisl vestibulum. Sed sit amet ante sit amet sapien dictum ultrices quis at augue. Nulla pharetra ex dictum, venenatis nunc a, tempor lectus."
     />
 
+    <p
+      v-if="optionsError"
+      class="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"
+    >
+      Opsi filter (wilayah &amp; KBLI) belum dapat dimuat. Silakan muat ulang halaman.
+    </p>
+    <p
+      v-if="pointsError"
+      class="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"
+    >
+      Data spasial belum dapat dimuat. Silakan coba lagi.
+    </p>
+
     <!-- Section 1: Jumlah Usaha Berdasarkan Skala Usaha -->
     <DashboardCardSection
       title="Jumlah Usaha Berdasarkan Skala Usaha"
       description="Berdasarkan kriteria penjualan tahunan sebagaimana dimaksud dalam Pasal 35 ayat (5) Peraturan Pemerintah Nomor 7 Tahun 2021 tentang Kemudahan, Pelindungan, dan Pemberdayaan Koperasi serta UMKM."
       tooltip="Klasifikasi skala usaha berdasarkan kriteria omzet & aset sesuai PP No. 7 Tahun 2021"
     >
-      <DashboardCardScaleStatsGrid />
+      <DashboardCardScaleStatsGrid :items="scaleItems" />
     </DashboardCardSection>
 
     <!-- Section 2: Filter + Peta Interaktif -->
@@ -188,7 +269,16 @@ const kabupatenCount = computed(
                 <UiSelectValue placeholder="Semua" />
               </UiSelectTrigger>
               <UiSelectContent>
-                <UiSelectItem v-for="opt in skalaOptions" :key="opt.value" :value="opt.value">
+                <UiSelectItem
+                  v-for="opt in [
+                    { value: 'semua', label: 'Semua' },
+                    { value: 'mikro', label: 'Mikro' },
+                    { value: 'kecil', label: 'Kecil' },
+                    { value: 'menengah', label: 'Menengah' },
+                  ]"
+                  :key="opt.value"
+                  :value="opt.value"
+                >
                   {{ opt.label }}
                 </UiSelectItem>
               </UiSelectContent>
@@ -261,12 +351,17 @@ const kabupatenCount = computed(
       <!-- Map -->
       <div class="mt-4 space-y-2">
         <p class="text-xs leading-4 text-[#777574]">
-          Menampilkan {{ filteredPoints.length }} dari {{ umkmPoints.length }} data UMKM
-          <template v-if="filteredPoints.length">
-            &middot; tersebar di {{ kabupatenCount }} kabupaten/kota
+          <template v-if="pointsPending && mapItems.length === 0">Memuat titik…</template>
+          <template v-else>
+            Menampilkan {{ formatNumber(mapItems.length) }} titik dari
+            {{ formatNumber(totalMatching) }} usaha
+            <template v-if="kabupatenCount"> &middot; tersebar di {{ kabupatenCount }} kabupaten/kota</template>
+            <template v-if="mapItems.length >= POINT_LIMIT">
+              &middot; maks. {{ formatNumber(POINT_LIMIT) }} titik ditampilkan
+            </template>
           </template>
         </p>
-        <DashboardSpasialUmkmMap :items="filteredPoints" />
+        <DashboardSpasialUmkmMap :items="mapItems" />
       </div>
     </section>
   </div>

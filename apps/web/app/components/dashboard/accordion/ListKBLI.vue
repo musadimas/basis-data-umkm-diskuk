@@ -3,142 +3,12 @@ import type { KbliCategoryItem } from "~/types/dashboard";
 import { Search } from "@lucide/vue";
 
 interface Props {
-  items?: KbliCategoryItem[];
+  items: KbliCategoryItem[];
   defaultOpenCode?: string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   defaultOpenCode: "I",
-  items: () => [
-    {
-      code: "G",
-      title:
-        "Perdagangan Besar dan Eceran; Reparasi dan Perawatan Mobil dan Sepeda Motor",
-      description:
-        "Kategori ini mencakup kegiatan ekonomi/lapangan usaha yang berkaitan dengan perdagangan besar dan eceran berbagai jenis barang, serta jasa reparasi dan perawatan kendaraan bermotor.",
-      totalUmkm: "9.999.999",
-    },
-    {
-      code: "I",
-      title: "Penyediaan Akomodasi dan Penyediaan Makan dan Minum",
-      description:
-        "Kategori ini mencakup kegiatan ekonomi/lapangan usaha yang berkaitan dengan penyediaan layanan penginapan dan penyediaan makanan dan minuman untuk konsumsi langsung.",
-      totalUmkm: "9.999.999",
-      isExpandedDefault: true,
-      subItems: [
-        { title: "Title", value: "9.999.999", category: "mikro" },
-        { title: "Title", value: "9.999.999", category: "kecil" },
-        { title: "Title", value: "9.999.999", category: "menengah" },
-      ],
-    },
-    {
-      code: "C",
-      title: "Industri Pengolahan",
-      description:
-        "Kategori ini meliputi kegiatan ekonomi/lapangan usaha di bidang perubahan secara kimia atau fisik dari bahan, unsur atau komponen menjadi produk baru. Bahan baku industri pengolahan berasal dari produk pertanian, kehutanan, perikanan, pertambangan atau penggalian seperti produk dari kegiatan industri pengolahan lainnya. Perubahan, pembaharuan atau rekonstruksi yang pokok dari barang secara umum diperlakukan sebagai industri pengolahan.",
-      totalUmkm: "9.999.999",
-    },
-    {
-      code: "S",
-      title: "Aktivitas Jasa Lainnya",
-      description:
-        "Kategori ini mencakup kegiatan ekonomi/lapangan usaha yang tidak termasuk dalam kategori lainnya, seperti jasa perorangan, jasa rumah tangga, dan jasa lainnya yang mendukung kegiatan ekonomi.",
-      totalUmkm: "9.999.999",
-    },
-    {
-      code: "H",
-      title: "Pengangkutan dan Pergudangan",
-      description:
-        "Kategori ini mencakup kegiatan ekonomi/lapangan usaha yang berkaitan dengan transportasi penumpang dan barang melalui darat, laut, udara, serta jasa pergudangan dan penyimpanan barang.",
-      totalUmkm: "9.999.999",
-    },
-    {
-      code: "J",
-      title: "Informasi dan Komunikasi",
-      description:
-        "Kategori ini mencakup kegiatan ekonomi/lapangan usaha yang berkaitan dengan produksi dan distribusi informasi dan komunikasi, termasuk penerbitan, penyiaran, telekomunikasi, dan teknologi informasi.",
-      totalUmkm: "9.999.999",
-    },
-    {
-      code: "F",
-      title: "Konstruksi",
-      description:
-        "Kategori ini mencakup kegiatan ekonomi/lapangan usaha yang berkaitan dengan pembangunan, perbaikan, dan pemeliharaan bangunan dan infrastruktur, termasuk gedung, jalan, jembatan, dan fasilitas lainnya.",
-      totalUmkm: "9.999.999",
-    },
-    {
-      code: "N",
-      title:
-        "Aktivitas Penyewaan dan Sewa Guna Usaha Tanpa Hak Opsi, Ketenagakerjaan, Agen Perjalanan dan Penunjang Usaha Lainnya",
-      description:
-        "Kategori ini mencakup kegiatan ekonomi/lapangan usaha yang berkaitan dengan penyewaan barang tanpa hak opsi, jasa ketenagakerjaan, agen perjalanan, dan layanan penunjang usaha lainnya.",
-      totalUmkm: "9.999.999",
-    },
-    {
-      code: "E",
-      title:
-        "Pengelolaan Air, Pengelolaan Air Limbah, Pengelolaan dan Daur Ulang Sampah dan Aktivitas Remediasi",
-      description:
-        "Kategori ini mencakup kegiatan ekonomi/lapangan usaha yang berhubungan dengan pengelolaan air. Kategori ini juga mencakup pengelolaan berbagai bentuk limbah dan sampah, seperti limbah dan sampah padat atau bukan yang berasal dari rumah tangga dan industri, yang dapat mencemari lingkungan. Hasil dari proses pengolahan limbah dan sampah dapat dibuang atau menjadi input dalam proses produksi lainnya.",
-      totalUmkm: "9.999.999",
-    },
-    {
-      code: "L",
-      title: "Real Estat",
-      description:
-        "Kategori ini mencakup kegiatan ekonomi/lapangan usaha yang berkaitan dengan kepemilikan, penyewaan, dan pengelolaan properti real estat, baik yang dimiliki sendiri maupun disewa.",
-      totalUmkm: "9.999.999",
-    },
-    {
-      code: "R",
-      title: "Kesenian, Hiburan dan Rekreasi",
-      description:
-        "Kategori ini mencakup kegiatan ekonomi/lapangan usaha yang berkaitan dengan produksi dan penyelenggaraan kesenian, hiburan, dan rekreasi, termasuk pertunjukan seni, bioskop, dan taman rekreasi.",
-      totalUmkm: "9.999.999",
-    },
-    {
-      code: "Q",
-      title: "Aktivitas Kesehatan Manusia dan Aktivitas Sosial",
-      description:
-        "Kategori ini mencakup kegiatan ekonomi/lapangan usaha yang berkaitan dengan pelayanan kesehatan manusia dan aktivitas sosial, termasuk rumah sakit, klinik, dan layanan sosial lainnya.",
-      totalUmkm: "9.999.999",
-    },
-    {
-      code: "P",
-      title: "Pendidikan",
-      description:
-        "Kategori ini mencakup kegiatan ekonomi/lapangan usaha yang berkaitan dengan penyelenggaraan pendidikan formal dan non-formal di berbagai jenjang dan bidang studi.",
-      totalUmkm: "9.999.999",
-    },
-    {
-      code: "M",
-      title: "Aktivitas Profesional, Ilmiah dan Teknis",
-      description:
-        "Kategori ini mencakup kegiatan ekonomi/lapangan usaha yang berkaitan dengan jasa profesional, ilmiah, dan teknis, termasuk layanan hukum, akuntansi, arsitektur, teknik, penelitian dan pengembangan.",
-      totalUmkm: "9.999.999",
-    },
-    {
-      code: "D",
-      title: "Pengadaan Listrik, Gas, Uap/Air Panas dan Udara Dingin",
-      description:
-        "Kategori ini mencakup kegiatan ekonomi/lapangan usaha pengadaan tenaga listrik, gas alam, uap panas, air panas dan sejenisnya melalui jaringan, saluran atau pipa infrastruktur permanen. Dimensi jaringan/infrastruktur tidak dapat ditentukan dengan pasti, termasuk kegiatan pendistribusian listrik, gas, uap panas dan air panas serta sejenisnya dalam lokasi pabrik atau bangunan tempat tinggal.",
-      totalUmkm: "9.999.999",
-    },
-    {
-      code: "K",
-      title: "Aktivitas Keuangan dan Asuransi",
-      description:
-        "Kategori ini mencakup kegiatan ekonomi/lapangan usaha yang berkaitan dengan jasa keuangan, perbankan, asuransi, dana pensiun, dan lembaga keuangan lainnya.",
-      totalUmkm: "9.999.999",
-    },
-    {
-      code: "B",
-      title: "Pertambangan dan Penggalian",
-      description:
-        "Kategori ini mencakup kegiatan ekonomi/lapangan usaha pengambilan mineral dalam bentuk alami, yaitu padat (batu bara dan bijih logam), cair (minyak bumi) atau gas (gas alam). Kegiatan ini dapat dilakukan dengan metode yang berbeda seperti pertambangan dan penggalian di permukaan tanah atau dibawah tanah, pengoperasian sumur pertambangan, penambangan di dasar laut dan lain-lain.",
-      totalUmkm: "9.999.999",
-    },
-  ],
 });
 
 const searchQuery = ref("");
@@ -182,7 +52,7 @@ const handleSearch = () => {
           type="search"
           placeholder="Huruf atau nama kategori KBLI"
           class="w-full bg-transparent px-3 py-1.5 text-xs sm:text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
-        />
+        >
       </div>
       <button
         type="submit"

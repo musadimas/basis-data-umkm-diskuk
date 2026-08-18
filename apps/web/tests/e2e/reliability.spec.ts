@@ -1,0 +1,3 @@
+import { test, expect } from "@playwright/test"
+import { installMockDirectus, loginMock } from "../fixtures/mock-directus.mjs"
+test("canvas retains private boundary and usable failure surface",async({page})=>{await installMockDirectus(page,{authenticated:true});const responseHeaders:Record<string,string|undefined>={};page.on("response",response=>{if(response.url().includes("/panel/analitik/query"))responseHeaders.cache=response.headers()["cache-control"]});await loginMock(page,"/dashboard/analitik");await expect(page.getByRole("heading",{name:"Canvas analitik"})).toBeVisible();expect(responseHeaders.cache).toBeUndefined()})

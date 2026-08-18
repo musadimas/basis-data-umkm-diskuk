@@ -1,4 +1,4 @@
-<script setup lang="ts" generic="T extends Record<string, any>">
+<script setup lang="ts" generic="T extends Record<string, unknown>">
 import type { Component } from "vue";
 import type { BaseChartProps } from ".";
 import { Donut } from "@unovis/ts";
@@ -21,7 +21,7 @@ const props = withDefaults(defineProps<Pick<BaseChartProps<T>, "data" | "colors"
   /**
    * Function to sort the segment
    */
-  sortFunction?: (a: any, b: any) => number | undefined;
+  sortFunction?: (a: unknown, b: unknown) => number | undefined;
   /**
    * Controls the formatting for the label.
    */
@@ -40,7 +40,7 @@ const props = withDefaults(defineProps<Pick<BaseChartProps<T>, "data" | "colors"
 });
 
 type KeyOfT = Extract<keyof T, string>;
-type Data = typeof props.data[number];
+type Data = typeof props.data[number] & { data?: typeof props.data[number] };
 
 const valueFormatter = props.valueFormatter ?? ((tick: number) => `${tick}`);
 const category = computed(() => props.category as KeyOfT);
@@ -50,14 +50,33 @@ const isMounted = useMounted();
 const activeSegmentKey = ref<string>();
 const colors = computed(() => props.colors?.length ? props.colors : defaultColors(props.data.filter(d => d[props.category]).filter(Boolean).length));
 const legendItems = computed(() => props.data.map((item, i) => ({
-  name: item[props.index],
+  name: String(item[props.index]),
   color: colors.value[i],
   inactive: false,
 })));
 
 const totalValue = computed(() => props.data.reduce((prev, curr) => {
-  return prev + curr[props.category];
+  return prev + Number(curr[props.category] ?? 0);
 }, 0));
+
+function segmentKey(d: Data) {
+  return String(d.data?.[index.value] ?? d[index.value] ?? "");
+}
+
+function onSegmentClick(_d: Data, _event: PointerEvent, i: number, elements: HTMLElement[]) {
+  const key = segmentKey(_d);
+  if (key === activeSegmentKey.value) {
+    activeSegmentKey.value = undefined;
+    elements.forEach(element => element.style.opacity = "1");
+    return;
+  }
+
+  activeSegmentKey.value = key;
+  elements.forEach(element => element.style.opacity = `${props.filterOpacity}`);
+  const element = elements[i];
+  if (element)
+    element.style.opacity = "1";
+}
 </script>
 
 <template>
@@ -72,7 +91,7 @@ const totalValue = computed(() => props.data.reduce((prev, curr) => {
       />
 
       <VisDonut
-        :value="(d: Data) => d[category]"
+        :value="(d: Data) => Number(d[category] ?? 0)"
         :sort-function="sortFunction"
         :color="colors"
         :arc-width="type === 'donut' ? 20 : 0"
@@ -80,17 +99,7 @@ const totalValue = computed(() => props.data.reduce((prev, curr) => {
         :central-label="type === 'donut' ? valueFormatter(totalValue) : ''"
         :events="{
           [Donut.selectors.segment]: {
-            click: (d: Data, ev: PointerEvent, i: number, elements: HTMLElement[]) => {
-              if (d?.data?.[index] === activeSegmentKey) {
-                activeSegmentKey = undefined
-                elements.forEach(el => el.style.opacity = '1')
-              }
-              else {
-                activeSegmentKey = d?.data?.[index]
-                elements.forEach(el => el.style.opacity = `${filterOpacity}`)
-                elements[i].style.opacity = '1'
-              }
-            },
+            click: onSegmentClick,
           },
         }"
       />

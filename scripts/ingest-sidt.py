@@ -5,12 +5,15 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import io
 import itertools
+import re
 import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterable, Iterator
+from typing import Iterable, Iterator, Mapping
 
 
 ROOT = Path(__file__).resolve().parent
@@ -18,6 +21,7 @@ PREPARE_SQL = ROOT / 'ingest-sidt-prepare.sql'
 BATCH_START_SQL = ROOT / 'ingest-sidt-batch-start.sql'
 BATCH_END_SQL = ROOT / 'ingest-sidt-batch-end.sql'
 REFRESH_DASHBOARD_SQL = ROOT / 'refresh-dashboard-snapshots.sql'
+ENQUEUE_REBUILD_SQL = ROOT / 'enqueue-analytics-rebuild.sql'
 EXPECTED_COLUMNS = [
     'id_data_badan_usaha', 'nik_pengusaha', 'nama_pengusaha', 'nib', 'jenis_kelamin',
     'is_disabilitas', 'tanggal_lahir', 'pendidikan_formal', 'kontak_hp', 'prov_pengusaha',
@@ -44,6 +48,50 @@ test "$available_kb" -ge 5242880
 '''
 
 
+
+_SOURCE_TIME_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T.*(?:Z|[+-]\d{2}:\d{2})$")
+
+
+def parse_source_timestamp(value: str | None) -> datetime | None:
+    """Return UTC for an explicit RFC3339 timestamp; never use local time."""
+    if not value or not _SOURCE_TIME_RE.match(value.strip()):
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return None
+    return parsed.astimezone(timezone.utc)
+
+
+def source_hash(row: Mapping[str, str]) -> str:
+    canonical = "|".join(f"{key}={row.get(key, '')}" for key in EXPECTED_COLUMNS)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def incoming_is_newer(existing: Mapping[str, object] | None, incoming: Mapping[str, object]) -> bool:
+    """Apply source precedence without allowing invalid/NULL time to regress state."""
+    if not existing:
+        return True
+    if existing.get("source_hash") == incoming.get("source_hash"):
+        return False
+    incoming_updated = incoming.get("source_updated_at")
+    incoming_pulled = incoming.get("source_pulled_at")
+    existing_updated = existing.get("source_updated_at")
+    existing_pulled = existing.get("source_pulled_at")
+    if incoming_updated is not None:
+        return existing_updated is None or incoming_updated >= existing_updated
+    if incoming_pulled is not None:
+        return existing_updated is None and (existing_pulled is None or incoming_pulled >= existing_pulled)
+    return existing_updated is None and existing_pulled is None
+
+
+def safe_nib(candidate: str | None, batch_candidates: Iterable[str | None], existing_owners: Mapping[str, str]) -> str | None:
+    if not candidate or sum(1 for value in batch_candidates if value == candidate) != 1:
+        return None
+    return candidate if candidate not in existing_owners else None
+
 def batches(rows: Iterable[list[str]], size: int) -> Iterator[Iterable[list[str]]]:
     iterator = iter(rows)
     while True:
@@ -64,7 +112,12 @@ def import_batch(target: str, header: list[str], rows: Iterable[list[str]], dry_
     )
     assert process.stdin is not None
     stream = io.TextIOWrapper(process.stdin, encoding='utf-8', newline='')
-    stream.write(BATCH_START_SQL.read_text())
+    batch_start = BATCH_START_SQL.read_text().replace(
+        "COPY sidt_raw FROM STDIN WITH (FORMAT csv, HEADER true);",
+        "SET LOCAL diskuk.analytics_bulk_ingest = 'on';\n\nCOPY sidt_raw FROM STDIN WITH (FORMAT csv, HEADER true);",
+    )
+    stream.write(batch_start)
+    # DB triggers coalesce the batch into one rebuild job and do not emit one job per row.
     writer = csv.writer(stream, lineterminator='\n')
     writer.writerow(header)
     count = 0
@@ -88,6 +141,12 @@ def self_check() -> None:
     assert [list(batch) for batch in batches([['a'], ['b'], ['c']], 2)] == [[['a'], ['b']], [['c']]]
     assert len(EXPECTED_COLUMNS) == 49
     assert 'COMMIT;' in BATCH_END_SQL.read_text()
+    assert ENQUEUE_REBUILD_SQL.exists()
+    batch_sql = BATCH_END_SQL.read_text()
+    assert 'CREATE TEMP TABLE sidt_stage' in batch_sql
+    assert 'source_pulled_at' in batch_sql and 'source_updated_at' in batch_sql
+    assert 'ON CONFLICT (sumber_id) DO UPDATE' in batch_sql
+    assert 'NOT EXISTS (' not in batch_sql.split('CREATE TEMP TABLE sidt_stage', 1)[1].split('ANALYZE', 1)[0]
     refresh_sql = REFRESH_DASHBOARD_SQL.read_text()
     assert 'TRUNCATE usaha_tabular' in refresh_sql
     assert 'FROM usaha_tabular' in refresh_sql
@@ -95,6 +154,8 @@ def self_check() -> None:
     assert 'ROLLBACK' not in refresh_sql
     assert refresh_sql.count('BEGIN;') == refresh_sql.count('COMMIT;') == 1
     assert "RAISE EXCEPTION 'dashboard snapshot" in refresh_sql
+    assert parse_source_timestamp('2026-08-16T23:30:00Z') is not None
+    assert parse_source_timestamp('2026-08-16T23:30:00') is None
 
 
 def main() -> int:
@@ -105,6 +166,7 @@ def main() -> int:
     parser.add_argument('--from-batch', type=int, default=1)
     parser.add_argument('--max-batches', type=int)
     parser.add_argument('--dry-run', action='store_true')
+    parser.add_argument('--legacy-refresh', action='store_true', help='explicit compatibility-only snapshot refresh')
     parser.add_argument('--self-check', action='store_true')
     args = parser.parse_args()
 
@@ -139,9 +201,14 @@ def main() -> int:
             completed_rows += import_batch(args.ssh_target, header, rows, args.dry_run)
             print(f'SIDT batch {batch_number} completed ({completed_rows} rows this run)', flush=True)
     if not args.dry_run:
-        print('Publishing dashboard snapshots', flush=True)
-        with REFRESH_DASHBOARD_SQL.open('rb') as refresh:
-            ssh(args.ssh_target, REMOTE_PSQL, stdin=refresh)
+        if args.legacy_refresh:
+            print('Running explicit legacy dashboard refresh', flush=True)
+            with REFRESH_DASHBOARD_SQL.open('rb') as refresh:
+                ssh(args.ssh_target, REMOTE_PSQL, stdin=refresh)
+        else:
+            print('Enqueuing analytics current-model rebuild', flush=True)
+            with ENQUEUE_REBUILD_SQL.open('rb') as enqueue:
+                ssh(args.ssh_target, REMOTE_PSQL, stdin=enqueue)
     print(f'SIDT import complete: {completed_rows} rows')
     return 0
 

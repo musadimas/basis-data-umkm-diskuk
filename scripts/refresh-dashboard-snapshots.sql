@@ -8,7 +8,8 @@ INSERT INTO usaha_tabular (
   id, nama, skala, produk_utama, kegiatan_utama,
   kode_kbli, kategori_kbli, deskripsi_kbli,
   kota_id, kota_nama, kecamatan_id, kecamatan_nama, kelurahan_id, kelurahan_nama,
-  tenaga_kerja_laki_laki, tenaga_kerja_perempuan
+  tenaga_kerja_laki_laki, tenaga_kerja_perempuan,
+  latitude, longitude
 )
 SELECT
   u.id,
@@ -20,11 +21,11 @@ SELECT
   kk.kategori,
   kk.deskripsi,
   ko.id,
-  ko.nama,
+  COALESCE(ko.nama, 'Tidak diketahui'),
   kc.id,
-  kc.nama,
+  COALESCE(kc.nama, 'Tidak diketahui'),
   kl.id,
-  kl.nama,
+  COALESCE(kl.nama, 'Tidak diketahui'),
   COALESCE(stk.dibayar_laki_laki, 0) +
     COALESCE(stk.tidak_dibayar_laki_laki, 0) +
     COALESCE(stk.disabilitas_dibayar_laki_laki, 0) +
@@ -32,16 +33,18 @@ SELECT
   COALESCE(stk.dibayar_perempuan, 0) +
     COALESCE(stk.tidak_dibayar_perempuan, 0) +
     COALESCE(stk.disabilitas_dibayar_perempuan, 0) +
-    COALESCE(stk.disabilitas_tidak_dibayar_perempuan, 0)
+    COALESCE(stk.disabilitas_tidak_dibayar_perempuan, 0),
+  u.latitude,
+  u.longitude
 FROM usaha u
-JOIN alamat a ON a.id = u.alamat
-JOIN kelurahan kl ON kl.id = a.kelurahan
-JOIN kecamatan kc ON kc.id = kl.kecamatan
-JOIN kota ko ON ko.id = kc.kota
-JOIN provinsi p ON p.id = ko.provinsi
+LEFT JOIN alamat a ON a.id = u.alamat
+LEFT JOIN kelurahan kl ON kl.id = a.kelurahan
+LEFT JOIN kecamatan kc ON kc.id = kl.kecamatan
+LEFT JOIN kota ko ON ko.id = kc.kota
+LEFT JOIN provinsi p ON p.id = ko.provinsi
 LEFT JOIN klasifikasi_usaha kk ON kk.id = u.klasifikasi
 LEFT JOIN statistik_tenaga_kerja stk ON stk.usaha = u.id
-WHERE LOWER(p.nama) = 'jawa barat';
+WHERE u.status = 'active' AND (p.id IS NULL OR LOWER(p.nama) = 'jawa barat');
 
 WITH usaha_jawa_barat AS MATERIALIZED (
   SELECT
@@ -50,8 +53,8 @@ WITH usaha_jawa_barat AS MATERIALIZED (
     kode_kbli,
     kategori_kbli,
     deskripsi_kbli,
-    kota_id::text AS kota_id,
-    kota_nama,
+    COALESCE(kota_id::text, 'unknown') AS kota_id,
+    COALESCE(kota_nama, 'Tidak diketahui') AS kota_nama,
     tenaga_kerja_laki_laki AS male,
     tenaga_kerja_perempuan AS female
   FROM usaha_tabular
@@ -137,7 +140,7 @@ sectors AS (
       mikro,
       kecil,
       menengah,
-      COALESCE(ROUND(total * 100.0 / NULLIF(MAX(total) OVER (), 0), 1), 0) AS percentage
+      COALESCE(ROUND(total * 100.0 / NULLIF((SELECT COUNT(*) FROM usaha_jawa_barat), 0), 1), 0) AS percentage
     FROM sektor_rows
   ) AS normalized
 ),
@@ -205,6 +208,7 @@ DO $$
 DECLARE
   infographic_total integer;
   tabular_total integer;
+  source_total integer;
   sector_total integer;
   unclassified_total integer;
   sector_count integer;
@@ -222,9 +226,17 @@ BEGIN
   WHERE id = 1;
 
   SELECT COUNT(*)::integer INTO tabular_total FROM usaha_tabular;
+  SELECT COUNT(*)::integer INTO source_total
+  FROM usaha u
+  LEFT JOIN alamat a ON a.id = u.alamat
+  LEFT JOIN kelurahan kl ON kl.id = a.kelurahan
+  LEFT JOIN kecamatan kc ON kc.id = kl.kecamatan
+  LEFT JOIN kota ko ON ko.id = kc.kota
+  LEFT JOIN provinsi p ON p.id = ko.provinsi
+  WHERE u.status = 'active' AND (p.id IS NULL OR LOWER(p.nama) = 'jawa barat');
 
-  IF infographic_total IS NULL OR infographic_total <> tabular_total THEN
-    RAISE EXCEPTION 'dashboard snapshot total mismatch: infographic %, tabular %', infographic_total, tabular_total;
+  IF infographic_total IS NULL OR infographic_total <> tabular_total OR tabular_total <> source_total THEN
+    RAISE EXCEPTION 'dashboard snapshot total mismatch: infographic %, tabular %, source %', infographic_total, tabular_total, source_total;
   END IF;
 
   IF sector_count <> 21 OR sector_total + unclassified_total <> tabular_total THEN

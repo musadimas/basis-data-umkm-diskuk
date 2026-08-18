@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Menu, X, User } from "@lucide/vue";
+import { Menu, User } from "@lucide/vue";
 import type { NavLink } from "@/types/landing";
 
 const navLinks: NavLink[] = [
@@ -47,9 +47,6 @@ function isActive(to: string) {
           <UiButton variant="ghost" size="sm" as-child>
             <NuxtLink to="/sign-in">Masuk</NuxtLink>
           </UiButton>
-          <UiButton size="sm" as-child>
-            <NuxtLink to="/sign-in">Daftar</NuxtLink>
-          </UiButton>
         </div>
 
         <div class="flex lg:hidden items-center gap-2">
@@ -84,9 +81,6 @@ function isActive(to: string) {
               <div class="mt-8 flex flex-col gap-2">
                 <UiButton variant="outline" as-child>
                   <NuxtLink to="/sign-in" @click="mobileOpen = false">Masuk</NuxtLink>
-                </UiButton>
-                <UiButton as-child>
-                  <NuxtLink to="/sign-in" @click="mobileOpen = false">Daftar</NuxtLink>
                 </UiButton>
               </div>
             </UiSheetContent>

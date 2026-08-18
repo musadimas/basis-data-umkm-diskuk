@@ -4,6 +4,8 @@ import type { ChartConfig } from "."
 import { computed } from "vue"
 import { cn } from "@/lib/utils"
 
+type ChartValue = string | number | boolean | null | undefined
+
 const props = withDefaults(defineProps<{
   hideLabel?: boolean
   hideIndicator?: boolean
@@ -11,7 +13,7 @@ const props = withDefaults(defineProps<{
   nameKey?: string
   labelKey?: string
   labelFormatter?: (d: number | Date) => string
-  payload?: Record<string, any>
+  payload?: Record<string, ChartValue>
   config?: ChartConfig
   class?: HTMLAttributes["class"]
   color?: string
@@ -29,13 +31,19 @@ const payload = computed(() => {
   return Object.entries(props.payload).map(([key, value]) => {
     // const key = `${props.nameKey || item.name || item.dataKey || "value"}`
     const itemConfig = props.config[key]
-    const indicatorColor = props.config[key]?.color ?? props.payload.fill
+    const indicatorColor = props.config[key]?.color ?? (typeof props.payload.fill === "string" ? props.payload.fill : undefined)
 
     return { key, value, itemConfig, indicatorColor }
   }).filter(i => i.itemConfig)
 })
 
 const nestLabel = computed(() => Object.keys(props.payload).length === 1 && props.indicator !== "dot")
+function formatValue(value: ChartValue) {
+  if (value === null || value === undefined)
+    return ""
+  return typeof value === "number" ? value.toLocaleString() : String(value)
+}
+
 const tooltipLabel = computed(() => {
   if (props.hideLabel)
     return null
@@ -95,7 +103,7 @@ const tooltipLabel = computed(() => {
               </span>
             </div>
             <span v-if="value" class="text-foreground font-mono font-medium tabular-nums">
-              {{ value.toLocaleString() }}
+              {{ formatValue(value) }}
             </span>
           </div>
         </div>

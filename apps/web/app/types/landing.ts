@@ -13,7 +13,7 @@ export interface FaqItem {
 
 export interface TermItem {
   title: string
-  content: string
+  items: string[]
 }
 
 export interface NavLink {

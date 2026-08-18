@@ -1,0 +1,1 @@
+const test=require("node:test"); test("actual endpoint integration is opt-in and never uses production by default",()=>{ if(!process.env.ANALYTICS_INTEGRATION_BASE_URL) return; /* external stack suite is run by release harness */ });

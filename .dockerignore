@@ -1,0 +1,17 @@
+# Keep build contexts free of credentials, runtime state, and local data.
+.git
+.git/**
+**/node_modules
+**/.nuxt
+**/.output
+**/dist
+services/caddy/data
+services/caddy/config
+services/storage/postgis/data
+services/storage/minio/data
+services/storage/minioclient/data
+.env
+.env.*
+!.env.example
+**/test-results
+**/playwright-report

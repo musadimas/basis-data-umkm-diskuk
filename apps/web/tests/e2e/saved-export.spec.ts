@@ -1,0 +1,3 @@
+import { test, expect } from "@playwright/test"
+import { installMockDirectus, loginMock } from "../fixtures/mock-directus.mjs"
+test("saved and export controls are nonblocking and disclose private expiry",async({page})=>{await installMockDirectus(page,{authenticated:true});await loginMock(page,"/dashboard/analitik");await page.getByRole("button",{name:"Simpan analisis"}).click();await expect(page.getByRole("dialog",{name:"Simpan analisis"})).toBeVisible();await page.getByLabel("Nama analisis").fill("Sebaran Kota");await page.getByRole("button",{name:"Simpan",exact:true}).click();await page.getByRole("button",{name:"Ekspor"}).click();await expect(page.getByRole("dialog",{name:"Ekspor privat"})).toContainText("kedaluwarsa paling lambat 24 jam")})

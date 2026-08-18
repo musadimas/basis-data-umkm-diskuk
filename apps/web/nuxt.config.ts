@@ -6,10 +6,13 @@ export default defineNuxtConfig({
   devtools: { enabled: true },
   pages: true,
   css: ["~/assets/css/tailwind.css"],
-  modules: ["@nuxtjs/tailwindcss", "shadcn-nuxt", "@nuxt/image", "@pinia/nuxt", "@vite-pwa/nuxt", "nuxt-svgo"],
-  routeRules: {
-    "/panel/**": {
-      proxy: `${process.env.NUXT_PUBLIC_PANEL_URL}/**`,
+  modules: ["@nuxt/eslint", "@nuxtjs/tailwindcss", "shadcn-nuxt", "@nuxt/image", "@pinia/nuxt", "@vite-pwa/nuxt", "nuxt-svgo"],
+  runtimeConfig: {
+    directusInternalUrl: process.env.NUXT_DIRECTUS_INTERNAL_URL || "http://directus:8055",
+    sessionPolicySecret: process.env.NUXT_SESSION_POLICY_SECRET || "",
+    public: {
+      panelUrl: process.env.NUXT_PUBLIC_PANEL_URL || "/panel",
+      enableWorkforce: process.env.ANALYTICS_ENABLE_WORKFORCE === "true",
     },
   },
   pwa: {
@@ -23,16 +26,6 @@ export default defineNuxtConfig({
       // Nuxt handles routing server-side — no SPA fallback needed
       navigateFallback: undefined,
       runtimeCaching: [
-        {
-          // Directus asset images (/panel/assets/…) — served via Nuxt proxy
-          urlPattern: ({ url }: { url: URL }) => url.pathname.startsWith("/panel/assets/"),
-          handler: "CacheFirst" as const,
-          options: {
-            cacheName: "diskuk-assets",
-            expiration: { maxEntries: 500, maxAgeSeconds: 60 * 60 * 24 * 30 },
-            cacheableResponse: { statuses: [0, 200] },
-          },
-        },
         {
           // Static app images (/images/…)
           urlPattern: ({ url }: { url: URL }) => url.pathname.startsWith("/images/"),

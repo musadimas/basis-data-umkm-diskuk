@@ -25,6 +25,32 @@ export interface TabularRowsResponse {
   }
 }
 
+/** Satu titik spasial dari endpoint /panel/tabular/spasial. */
+export interface TabularSpasialPoint {
+  id: string
+  nama: string
+  skala: TabularSkalaApi
+  produkUtama: string | null
+  kegiatanUtama: string | null
+  kodeKbli: string | null
+  kategoriKbli: string | null
+  kota: string
+  kecamatan: string
+  latitude: number
+  longitude: number
+}
+
+export interface TabularSpasialResponse {
+  data: TabularSpasialPoint[]
+  meta: {
+    filterCount: number
+    mikro: number
+    kecil: number
+    menengah: number
+    limit: number
+  }
+}
+
 export interface TabularKotaOption {
   id: number
   nama: string
