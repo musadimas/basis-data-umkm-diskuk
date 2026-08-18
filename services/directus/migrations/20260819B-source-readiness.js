@@ -35,13 +35,19 @@ export const up = async (knex) => {
     `);
     for (const [field, iface, readonly, hidden, sort, note] of newFields) {
       await trx.raw(`
+        UPDATE directus_fields
+        SET interface = ?, readonly = ?, hidden = ?, sort = ?, note = ?
+        WHERE collection = 'usaha' AND field = ?;
+      `, [iface, readonly, hidden, sort, note, field]);
+      await trx.raw(`
         INSERT INTO directus_fields
           (collection, field, interface, readonly, hidden, sort, width, note, required)
-        VALUES ('usaha', ?, ?, ?, ?, ?, 'half', ?, FALSE)
-        ON CONFLICT (collection, field) DO UPDATE SET
-          interface = EXCLUDED.interface, readonly = EXCLUDED.readonly,
-          hidden = EXCLUDED.hidden, note = EXCLUDED.note;
-      `, [field, iface, readonly, hidden, sort, note]);
+        SELECT 'usaha', ?, ?, ?, ?, ?, 'half', ?, FALSE
+        WHERE NOT EXISTS (
+          SELECT 1 FROM directus_fields
+          WHERE collection = 'usaha' AND field = ?
+        );
+      `, [field, iface, readonly, hidden, sort, note, field]);
     }
   });
 };

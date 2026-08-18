@@ -43,11 +43,15 @@ EOF
 cat >/tmp/analytics-export-policy.json <<EOF
 {
   "Version":"2012-10-17",
-  "Statement":[{"Effect":"Allow","Action":["s3:GetBucketLocation","s3:ListBucket"],"Resource":["arn:aws:s3:::$ANALYTICS_EXPORT_BUCKET"],"Condition":{"StringLike":{"s3:prefix":["exports/*"]}}},{"Effect":"Allow","Action":["s3:GetObject","s3:PutObject","s3:DeleteObject"],"Resource":["arn:aws:s3:::$ANALYTICS_EXPORT_BUCKET/exports/*"]}]
+  "Statement":[
+    {"Effect":"Allow","Action":["s3:GetBucketLocation"],"Resource":["arn:aws:s3:::$ANALYTICS_EXPORT_BUCKET"]},
+    {"Effect":"Allow","Action":["s3:ListBucket"],"Resource":["arn:aws:s3:::$ANALYTICS_EXPORT_BUCKET"],"Condition":{"StringLike":{"s3:prefix":["exports/*"]}}},
+    {"Effect":"Allow","Action":["s3:GetObject","s3:PutObject","s3:DeleteObject"],"Resource":["arn:aws:s3:::$ANALYTICS_EXPORT_BUCKET/exports/*"]}
+  ]
 }
 EOF
-mc admin policy create myminio diskuk-directus-storage /tmp/directus-storage-policy.json >/dev/null 2>&1 || true
-mc admin policy create myminio diskuk-analytics-export /tmp/analytics-export-policy.json >/dev/null 2>&1 || true
+mc admin policy create myminio diskuk-directus-storage /tmp/directus-storage-policy.json >/dev/null
+mc admin policy create myminio diskuk-analytics-export /tmp/analytics-export-policy.json >/dev/null
 ensure_user "$DIRECTUS_STORAGE_ACCESS_KEY" "$DIRECTUS_STORAGE_SECRET_KEY" diskuk-directus-storage
 ensure_user "$ANALYTICS_EXPORT_ACCESS_KEY" "$ANALYTICS_EXPORT_SECRET_KEY" diskuk-analytics-export
 rm -f /tmp/directus-storage-policy.json /tmp/analytics-export-policy.json

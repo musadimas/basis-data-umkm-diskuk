@@ -24,6 +24,7 @@ COPY --from=builder /directus/node_modules /directus/node_modules
 COPY --from=builder /directus/extensions /directus/extensions
 COPY --from=builder /directus/migrations /directus/migrations
 COPY --from=builder /directus/scripts /directus/scripts
+COPY services/directus/analytics-shared /directus/analytics-shared
 COPY services/directus/templates /directus/templates
 COPY services/directus/init.sh /usr/local/bin/init.sh
 RUN sed -i 's/\r$//' /usr/local/bin/init.sh && chmod +x /usr/local/bin/init.sh \
