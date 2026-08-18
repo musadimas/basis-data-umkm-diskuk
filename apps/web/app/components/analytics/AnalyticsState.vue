@@ -1,0 +1,4 @@
+<script setup lang="ts">
+defineProps<{ pending: boolean; error?: unknown; warning?: boolean; hasData: boolean; status?: string }>()
+</script>
+<template><div aria-live="polite"><p v-if="warning" class="mb-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm">Sebagian state URL tidak dikenali; konfigurasi aman digunakan.</p><p v-if="pending && !hasData" class="rounded-md border bg-muted/30 p-6 text-sm">Memuat hasil analitik…</p><p v-else-if="error && !hasData" class="rounded-md border border-destructive/30 bg-destructive/5 p-6 text-sm text-destructive">Hasil analitik belum dapat dimuat. Silakan coba lagi.</p><p v-else-if="!pending && !hasData" class="rounded-md border bg-muted/30 p-6 text-sm">Belum ada hasil untuk filter ini.</p><p v-if="status==='stale_last_good'" class="mt-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm">Data terakhir yang berhasil diproses sedang ditampilkan.</p></div></template>

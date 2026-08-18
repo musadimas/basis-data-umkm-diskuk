@@ -60,7 +60,7 @@ onUnmounted(() => ctx?.revert());
 </script>
 
 <template>
-  <section ref="root" id="section-faq" role="region" aria-label="Pertanyaan yang Sering Diajukan" class="relative isolate overflow-x-clip py-16 lg:py-20">
+  <section id="section-faq" ref="root" role="region" aria-label="Pertanyaan yang Sering Diajukan" class="relative isolate overflow-x-clip py-16 lg:py-20">
     <div class="mx-auto max-w-7xl px-3 lg:px-12 xl:px-0">
       <div class="grid gap-8 lg:grid-cols-12 lg:gap-16">
         <!-- Image — bleeds to left viewport edge on xl+ -->

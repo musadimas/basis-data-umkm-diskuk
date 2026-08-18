@@ -1,52 +1,33 @@
-# ----------------------------------------------------
-# Builder stage - compile native modules and prepare extensions
-# ----------------------------------------------------
+# Build the tracked extensions from their sources, then run the pinned Directus image.
 FROM node:20-alpine AS builder
-
-# Install build tools
-RUN apk add --no-cache python3 g++ make bash
-
-# Set working directory
+RUN apk add --no-cache python3 g++ make bash postgresql-client \
+    && corepack enable \
+    && corepack prepare pnpm@9.15.9 --activate
 WORKDIR /directus
-
-# Copy package.json (for argon2) and install dependencies
-RUN npm init -y
-RUN npm install argon2
-
-# Copy Directus custom extensions and migrations
+RUN npm init -y && npm install --no-save argon2
 COPY services/directus/extensions /directus/extensions
 COPY services/directus/migrations /directus/migrations
+COPY services/directus/package.json services/directus/pnpm-lock.yaml /directus/service-package/
 COPY scripts/refresh-dashboard-snapshots.sql /directus/scripts/refresh-dashboard-snapshots.sql
-
-# Build the tabular endpoint extension (plain CJS, no bundling: src -> dist)
-RUN cd /directus/extensions/directus-extension-tabular && npm run build \
+RUN cd /directus/extensions/directus-extension-infografis && pnpm run build
+RUN cd /directus/extensions/directus-extension-tabular && pnpm run build \
     && cp /directus/scripts/refresh-dashboard-snapshots.sql dist/publish.sql
+# The docs extension has its own lockfile and TypeScript build.
+RUN cd /directus/extensions/docs && pnpm install --frozen-lockfile && pnpm run build
+RUN cd /directus/extensions/directus-extension-analytics-watchdog && pnpm run build
+RUN cd /directus/extensions/directus-extension-analitik && pnpm run build
 
-# ----------------------------------------------------
-# Runtime stage - official Directus image
-# ----------------------------------------------------
-FROM directus/directus:11
-
-# Switch to root to copy compiled modules
+FROM directus/directus:11.17.4
 USER root
-
-# Install PostgreSQL client and bash for init script
 RUN apk add --no-cache postgresql-client bash
-
-# Copy compiled node_modules and Directus extensions/migrations from builder
 COPY --from=builder /directus/node_modules /directus/node_modules
 COPY --from=builder /directus/extensions /directus/extensions
 COPY --from=builder /directus/migrations /directus/migrations
-
-# Copy email templates
+COPY --from=builder /directus/scripts /directus/scripts
 COPY services/directus/templates /directus/templates
-
-# Copy init script
 COPY services/directus/init.sh /usr/local/bin/init.sh
-RUN sed -i 's/\r$//' /usr/local/bin/init.sh && chmod +x /usr/local/bin/init.sh
-
-# Switch back to node user
+RUN sed -i 's/\r$//' /usr/local/bin/init.sh && chmod +x /usr/local/bin/init.sh \
+    && mkdir -p /var/lib/directus/analytics-exports \
+    && chown -R node:node /var/lib/directus/analytics-exports
 USER node
-
-# Set init.sh as entrypoint
 ENTRYPOINT ["/usr/local/bin/init.sh"]

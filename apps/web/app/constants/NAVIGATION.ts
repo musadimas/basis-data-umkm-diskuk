@@ -18,6 +18,12 @@ export const NAVIGATION_LINKS = {
       icon: ChartColumnDecreasing,
     },
     {
+      id: "analitik",
+      label: "Analitik",
+      to: "/dashboard/analitik",
+      icon: ChartColumnDecreasing,
+    },
+    {
       id: "tabular",
       label: "Data Tabular UMKM",
       to: "/dashboard/tabular",

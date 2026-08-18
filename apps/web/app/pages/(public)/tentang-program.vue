@@ -15,5 +15,5 @@ const preloaderDone = ref(false);
 
 <template>
   <LandingPreloader @done="preloaderDone = true" />
-  <div class="h-dvh"></div>
+  <div class="h-dvh"/>
 </template>

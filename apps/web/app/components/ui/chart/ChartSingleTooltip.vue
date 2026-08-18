@@ -6,6 +6,8 @@ import { VisTooltip } from "@unovis/vue";
 import { createApp } from "vue";
 import { ChartTooltip } from ".";
 
+type Datum = Record<string, unknown>;
+
 const props = defineProps<{
   selector: string;
   index: string;
@@ -15,42 +17,66 @@ const props = defineProps<{
 }>();
 
 // Use weakmap to store reference to each datapoint for Tooltip
-const wm = new WeakMap();
-function template(d: any, i: number, elements: (HTMLElement | SVGElement)[]) {
+const wm = new WeakMap<object, string>();
+function isDatum(value: unknown): value is Datum {
+  return typeof value === "object" && value !== null;
+}
+
+function legendColor(item: BulletLegendItemInterface | undefined) {
+  if (typeof item?.color === "string")
+    return item.color;
+  return item?.color?.[0] ?? "transparent";
+}
+
+function tooltipData(items: BulletLegendItemInterface[] | undefined, data: Datum, index: string, valueFormatter: (tick: number) => string) {
+  return Object.entries(omit(data, [index])).map(([key, value]) => {
+    const legendReference = items?.find(i => i.name === key);
+    return {
+      name: String(legendReference?.name ?? key),
+      color: legendColor(legendReference),
+      value: valueFormatter(Number(value)),
+    };
+  });
+}
+
+function template(d: unknown, i: number, elements: (HTMLElement | SVGElement)[]) {
   const valueFormatter = props.valueFormatter ?? ((tick: number) => `${tick}`);
+  if (!isDatum(d))
+    return;
+
   if (props.index in d) {
-    if (wm.has(d)) {
+    if (wm.has(d))
       return wm.get(d);
-    }
-    else {
-      const componentDiv = document.createElement("div");
-      const omittedData = Object.entries(omit(d, [props.index])).map(([key, value]) => {
-        const legendReference = props.items?.find(i => i.name === key);
-        return { ...legendReference, value: valueFormatter(value as number) };
-      });
-      const TooltipComponent = props.customTooltip ?? ChartTooltip;
-      createApp(TooltipComponent, { title: d[props.index], data: omittedData }).mount(componentDiv);
-      wm.set(d, componentDiv.innerHTML);
-      return componentDiv.innerHTML;
-    }
+
+    const componentDiv = document.createElement("div");
+    const omittedData = tooltipData(props.items, d, props.index, valueFormatter);
+    const TooltipComponent = props.customTooltip ?? ChartTooltip;
+    createApp(TooltipComponent, { title: String(d[props.index] ?? ""), data: omittedData }).mount(componentDiv);
+    wm.set(d, componentDiv.innerHTML);
+    return componentDiv.innerHTML;
   }
 
-  else {
-    const data = d.data;
+  const data = d.data;
+  if (!isDatum(data))
+    return;
+  if (wm.has(data))
+    return wm.get(data);
 
-    if (wm.has(data)) {
-      return wm.get(data);
-    }
-    else {
-      const style = getComputedStyle(elements[i]);
-      const omittedData = [{ name: data.name, value: valueFormatter(data[props.index]), color: style.fill }];
-      const componentDiv = document.createElement("div");
-      const TooltipComponent = props.customTooltip ?? ChartTooltip;
-      createApp(TooltipComponent, { title: d[props.index], data: omittedData }).mount(componentDiv);
-      wm.set(d, componentDiv.innerHTML);
-      return componentDiv.innerHTML;
-    }
-  }
+  const element = elements[i];
+  if (!element)
+    return;
+
+  const style = getComputedStyle(element);
+  const omittedData = [{
+    name: String(data.name ?? ""),
+    value: valueFormatter(Number(data[props.index])),
+    color: style.fill,
+  }];
+  const componentDiv = document.createElement("div");
+  const TooltipComponent = props.customTooltip ?? ChartTooltip;
+  createApp(TooltipComponent, { title: String(d[props.index] ?? ""), data: omittedData }).mount(componentDiv);
+  wm.set(data, componentDiv.innerHTML);
+  return componentDiv.innerHTML;
 }
 </script>
 

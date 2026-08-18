@@ -87,7 +87,7 @@ onUnmounted(() => ctx?.revert());
 </script>
 
 <template>
-  <section ref="root" id="section-hero" aria-label="Beranda" class="relative isolate min-h-svh overflow-x-clip bg-sky-300 pt-16">
+  <section id="section-hero" ref="root" aria-label="Beranda" class="relative isolate min-h-svh overflow-x-clip bg-sky-300 pt-16">
     <!-- Parallax background -->
     <div ref="parallax" class="absolute inset-x-[-80%] top-0 -z-10 overflow-clip opacity-30 mask-[linear-gradient(black,transparent)] lg:inset-0" aria-hidden="true">
       <NuxtImg src="/images/gedung-sate.webp" alt="" draggable="false" class="w-full object-contain grayscale lg:size-full lg:object-cover" />

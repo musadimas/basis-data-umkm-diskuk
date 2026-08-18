@@ -8,6 +8,7 @@ import type {
 } from "~/types/dashboard";
 import type { InfografisData } from "~/types/infografis";
 import { DASHBOARD_SECTIONS } from "~/constants/DASHBOARD";
+import { defaultAnalysis, serializeAnalysisUrl } from "~/lib/analytics-query"
 
 definePageMeta({
   layout: "dashboard",
@@ -19,6 +20,12 @@ useSeoMeta({
     "Dashboard infografis statistik sebaran UMKM, skala usaha, kluster holding UMKM, dan klasifikasi KBLI Provinsi Jawa Barat.",
 });
 
+const router = useRouter();
+const runtimeConfig = useRuntimeConfig();
+function openAnalytics(fieldId: string, value: string) { const config = { ...defaultAnalysis, groupBy: fieldId, filters: [{ fieldId, operator: "eq" as const, value }] }; router.push(`/dashboard/analitik?${serializeAnalysisUrl(config)}`) }
+function openRegion(region: { id: string }) { openAnalytics("kota_id", region.id) }
+function openKbli(item?: TopCategoryItem) { if (item?.code) openAnalytics("kbli_kode", item.code) }
+const workforceEnabled = computed(() => runtimeConfig.public.enableWorkforce === true);
 const { data, error } = await useFetch<{ data: InfografisData }>(
   "/panel/infografis/",
 );
@@ -124,6 +131,7 @@ const kbliItems = computed<KbliCategoryItem[]>(() =>
     <!-- Section 1: Jumlah Usaha Berdasarkan Skala Usaha -->
     <DashboardCardSection
       v-bind="DASHBOARD_SECTIONS.scale"
+      title="Skala yang dilaporkan"
       card-class="p-3!"
       header-class="mb-3!"
     >
@@ -142,7 +150,7 @@ const kbliItems = computed<KbliCategoryItem[]>(() =>
 
     <!-- Section 2: Peta Sebaran Usaha Berdasarkan Wilayah -->
     <DashboardCardSection v-bind="DASHBOARD_SECTIONS.regionalMap">
-      <DashboardMapInfographic />
+      <DashboardMapInfographic :regions="infografis?.regions" @select="openRegion" />
     </DashboardCardSection>
 
     <!-- Section 3: Jumlah UMKM Berdasarkan Kategori Lapangan Usaha -->
@@ -156,11 +164,12 @@ const kbliItems = computed<KbliCategoryItem[]>(() =>
         v-bind="DASHBOARD_SECTIONS.topCategories"
         card-class="flex flex-col justify-between h-full"
       >
-        <DashboardChartTopCategories :items="topCategoryItems" />
+        <DashboardChartTopCategories :items="topCategoryItems" @click:action="openKbli" />
       </DashboardCardSection>
 
       <!-- Gender Distribution -->
       <DashboardCardSection
+        v-if="workforceEnabled"
         v-bind="DASHBOARD_SECTIONS.gender"
         card-class="flex flex-col justify-between h-full"
       >

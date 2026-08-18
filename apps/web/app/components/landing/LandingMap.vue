@@ -70,7 +70,7 @@ onUnmounted(() => ctx?.revert());
 </script>
 
 <template>
-  <section ref="root" id="section-map" role="region" aria-label="Sebaran UMKM Jawa Barat" class="relative isolate overflow-x-clip py-16 lg:py-20">
+  <section id="section-map" ref="root" role="region" aria-label="Sebaran UMKM Jawa Barat" class="relative isolate overflow-x-clip py-16 lg:py-20">
     <div class="mx-auto max-w-7xl px-3 lg:px-12 xl:px-0">
       <div class="grid gap-8 lg:grid-cols-12">
         <!-- Heading -->

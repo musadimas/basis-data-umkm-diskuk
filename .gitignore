@@ -1,4 +1,9 @@
 node_modules
 .env*
-.env.example!
+!.env.example
 design
+.agents/
+services/caddy/data/
+services/caddy/config/
+apps/web/test-results/
+apps/web/playwright-report/

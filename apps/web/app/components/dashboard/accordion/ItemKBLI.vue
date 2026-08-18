@@ -23,15 +23,8 @@ const formattedTotal = computed(() => {
   return props.item.totalUmkm;
 });
 
-const defaultSubItems = computed(() => {
-  return (
-    props.item.subItems || [
-      { title: "Title", value: "9.999.999", category: "mikro" as const },
-      { title: "Title", value: "9.999.999", category: "kecil" as const },
-      { title: "Title", value: "9.999.999", category: "menengah" as const },
-    ]
-  );
-});
+// Sub-item skala usaha; kosong apabila data kategori belum memuat rinciannya.
+const subItems = computed(() => props.item.subItems ?? []);
 </script>
 
 <template>
@@ -100,10 +93,10 @@ const defaultSubItems = computed(() => {
       <div
         class="flex flex-col lg:flex-row lg:items-center justify-between gap-4"
       >
-        <!-- 3 Sub Scale Cards -->
+        <!-- Sub Scale Cards -->
         <div class="grid flex-1 grid-cols-1 gap-3 sm:grid-cols-3">
           <DashboardCardScaleStat
-            v-for="(sub, idx) in defaultSubItems"
+            v-for="(sub, idx) in subItems"
             :key="idx"
             :title="sub.title"
             :value="sub.value"

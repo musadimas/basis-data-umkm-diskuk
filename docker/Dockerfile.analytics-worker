@@ -1,0 +1,11 @@
+FROM node:22-alpine
+RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
+WORKDIR /app
+COPY services/analytics-worker/package.json services/analytics-worker/pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile --prod
+COPY services/analytics-worker/src ./src
+COPY services/directus/analytics-shared /directus/analytics-shared
+RUN chown -R node:node /app /directus
+USER node
+ENV NODE_ENV=production
+CMD ["node", "src/index.js"]

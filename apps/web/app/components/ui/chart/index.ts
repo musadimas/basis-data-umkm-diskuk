@@ -15,4 +15,5 @@ export function defaultColors(count: number = 3) {
   ];
 }
 
+export * from "./context";
 export * from "./interface";

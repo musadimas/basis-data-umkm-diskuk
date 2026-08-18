@@ -1,0 +1,3 @@
+import { test, expect } from "@playwright/test"
+import { installMockDirectus, loginMock } from "../fixtures/mock-directus.mjs"
+test("profile exposes masked fields and a return path without raw PII",async({page})=>{await installMockDirectus(page,{authenticated:true});await loginMock(page,"/dashboard/umkm/11111111-1111-4111-8111-111111111111");await expect(page.getByRole("heading",{name:"Usaha Canari"})).toBeVisible();await expect(page.getByText("************1234")).toBeVisible();await expect(page.getByText("1234567890123456")).toHaveCount(0);expect(page.url()).not.toMatch(/nik|phone|telepon/i);await expect(page.getByRole("button",{name:"Archive"})).toBeVisible()})

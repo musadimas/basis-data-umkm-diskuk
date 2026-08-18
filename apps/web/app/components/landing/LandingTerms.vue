@@ -5,25 +5,25 @@ import type { TermItem } from "@/types/landing";
 const terms: TermItem[] = [
   {
     title: "Persyaratan Program UMKM Naik Kelas Bagi Pengusaha",
-    content: `<ol class="list-decimal pl-5 space-y-2 text-sm leading-relaxed">
-      <li>Penduduk Jawa Barat;</li>
-      <li>Minimal usia 20 tahun dan maksimal usia 40 tahun;</li>
-      <li>Memiliki motivasi tinggi dan terbiasa menggunakan sarana digital;</li>
-      <li>Omzet usaha lebih dari Rp100.000.000,00/tahun;</li>
-      <li>Memiliki perizinan minimal Nomor Induk Berusaha (NIB);</li>
-      <li>Memiliki usaha minimal selama 2 tahun.</li>
-    </ol>`,
+    items: [
+      "Penduduk Jawa Barat;",
+      "Minimal usia 20 tahun dan maksimal usia 40 tahun;",
+      "Memiliki motivasi tinggi dan terbiasa menggunakan sarana digital;",
+      "Omzet usaha lebih dari Rp100.000.000,00/tahun;",
+      "Memiliki perizinan minimal Nomor Induk Berusaha (NIB);",
+      "Memiliki usaha minimal selama 2 tahun.",
+    ],
   },
   {
     title: "Persyaratan Program UMKM Naik Kelas Bagi Pendamping",
-    content: `<ol class="list-decimal pl-5 space-y-2 text-sm leading-relaxed">
-      <li>Warga Jawa Barat dibuktikan dengan KTP;</li>
-      <li>Usia 20 – 50 tahun, sehat jasmani dan rohani;</li>
-      <li>Bukan Aparatur Sipil Negara (ASN);</li>
-      <li>Tidak menjadi pengurus partai politik;</li>
-      <li>Memiliki kemampuan dan/atau terbiasa menggunakan sarana digital;</li>
-      <li>Bersedia melakukan kunjungan lapangan ke tempat UMKM.</li>
-    </ol>`,
+    items: [
+      "Warga Jawa Barat dibuktikan dengan KTP;",
+      "Usia 20 – 50 tahun, sehat jasmani dan rohani;",
+      "Bukan Aparatur Sipil Negara (ASN);",
+      "Tidak menjadi pengurus partai politik;",
+      "Memiliki kemampuan dan/atau terbiasa menggunakan sarana digital;",
+      "Bersedia melakukan kunjungan lapangan ke tempat UMKM.",
+    ],
   },
 ];
 
@@ -53,7 +53,7 @@ onUnmounted(() => ctx?.revert());
 </script>
 
 <template>
-  <section ref="root" id="section-terms" role="region" aria-label="Syarat dan Ketentuan" class="relative isolate -mt-px overflow-x-clip bg-sky-300 py-16 lg:mb-16 lg:py-20">
+  <section id="section-terms" ref="root" role="region" aria-label="Syarat dan Ketentuan" class="relative isolate -mt-px overflow-x-clip bg-sky-300 py-16 lg:mb-16 lg:py-20">
     <div class="mx-auto max-w-7xl px-3 lg:px-12 xl:px-0">
       <div class="grid gap-8 lg:grid-cols-12 lg:gap-16">
         <!-- Mobile-only heading -->
@@ -108,7 +108,9 @@ onUnmounted(() => ctx?.revert());
                     <UiDialogHeader>
                       <UiDialogTitle class="text-base leading-snug">{{ term.title }}</UiDialogTitle>
                     </UiDialogHeader>
-                    <div class="mt-4 text-muted-foreground" v-html="term.content" />
+                    <ol class="mt-4 list-decimal space-y-2 pl-5 text-muted-foreground">
+                      <li v-for="item in term.items" :key="item">{{ item }}</li>
+                    </ol>
                     <div class="mt-6 flex justify-end">
                       <UiDialogClose as-child>
                         <UiButton variant="outline" size="sm">Tutup</UiButton>

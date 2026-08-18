@@ -1,3 +1,20 @@
 FROM postgis/postgis:15-3.3
 
+ARG WALG_VERSION=v3.0.8
+ARG TARGETARCH
+ARG WALG_SHA256_AMD64=b0df1b484035eb5f131db7bbd303d1a460391848fdcce34ba1e0a564cca493e9
+ARG WALG_SHA256_ARM64=048b5033c34c1487dc1fccc0572db030e323230984ccc093e80e4e4081c797d1
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates curl \
+    && case "$TARGETARCH" in amd64) asset_arch=amd64; expected="$WALG_SHA256_AMD64";; arm64) asset_arch=aarch64; expected="$WALG_SHA256_ARM64";; *) echo "unsupported architecture" >&2; exit 1;; esac \
+    && curl --fail --location --retry 3 "https://github.com/wal-g/wal-g/releases/download/${WALG_VERSION}/wal-g-pg-22.04-${asset_arch}.tar.gz" --output /tmp/wal-g.tar.gz \
+    && echo "$expected  /tmp/wal-g.tar.gz" | sha256sum -c - \
+    && tar -xzf /tmp/wal-g.tar.gz -C /usr/local/bin \
+    && mv "/usr/local/bin/wal-g-pg-22.04-${asset_arch}" /usr/local/bin/wal-g \
+    && chmod 0755 /usr/local/bin/wal-g \
+    && rm -f /tmp/wal-g.tar.gz \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY services/storage/pg/init-scripts/ /docker-entrypoint-initdb.d/
+COPY docker/wal-g-backup.sh docker/restore-pitr.sh /usr/local/bin/
+RUN chmod 0755 /usr/local/bin/wal-g-backup.sh /usr/local/bin/restore-pitr.sh

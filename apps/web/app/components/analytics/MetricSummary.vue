@@ -1,0 +1,7 @@
+<script setup lang="ts">
+import type { AnalyticsMeta, AnalyticsQueryResponse } from "~/types/analytics"
+import { formatAnalyticsNumber, formatAnalyticsPercent } from "~/lib/analytics-format"
+const props = defineProps<{ response?: AnalyticsQueryResponse | null; meta?: AnalyticsMeta | null }>()
+const coverage = computed(() => { const total = Number(props.meta?.coverage?.total || props.meta?.matched || 0); const matched = Number(props.meta?.coverage?.matched ?? props.meta?.matched ?? 0); return total ? matched * 100 / total : 0 })
+</script>
+<template><section class="grid gap-3 sm:grid-cols-3" aria-label="Ringkasan metrik"><article class="rounded-lg border bg-card p-4"><p class="text-xs text-muted-foreground">{{ response?.data?.metric?.label || 'Jumlah UMKM' }}</p><p class="mt-1 text-2xl font-bold">{{ formatAnalyticsNumber(meta?.matched) }}</p><p class="text-xs text-muted-foreground">hasil pada filter aktif</p></article><article class="rounded-lg border bg-card p-4"><p class="text-xs text-muted-foreground">Cakupan hasil</p><p class="mt-1 text-2xl font-bold">{{ formatAnalyticsPercent(coverage) }}</p><p class="text-xs text-muted-foreground">denominator: total terfilter</p></article><article class="rounded-lg border bg-card p-4"><p class="text-xs text-muted-foreground">Unknown / tidak terpetakan</p><p class="mt-1 text-2xl font-bold">{{ formatAnalyticsNumber(meta?.coverage?.unknown) }}</p><p class="text-xs text-muted-foreground">tetap dihitung, tidak dihilangkan</p></article></section></template>

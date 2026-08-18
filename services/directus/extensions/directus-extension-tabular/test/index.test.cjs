@@ -31,7 +31,7 @@ const fakeResponse = () => {
 const run = async (routes, path, query, request = {}) => {
   const res = fakeResponse();
   await routes[path](
-    { ...request, query },
+    { accountability: { user: "test-user", role: "7d6d493c-1a6d-4c59-9e74-40d42a7862eb" }, ...request, query },
     res,
     (error) => {
       throw error instanceof Error ? error : new Error(String(error));
@@ -41,6 +41,13 @@ const run = async (routes, path, query, request = {}) => {
 };
 
 const rows = (list) => ({ rows: list });
+
+const runWithError = async (routes, path, query, request = {}) => {
+  const res = fakeResponse();
+  let error;
+  await routes[path]({ ...request, query }, res, (value) => { error = value; });
+  return { res, error };
+};
 
 test("tabular: returns paginated rows with filter count", async () => {
   const router = captureRouter();
@@ -90,6 +97,57 @@ test("tabular: ignores invalid filter params and clamps page_size", async () => 
   assert.deepEqual(selectCall.params, [1000, 0]);
 });
 
+test("tabular: returns coordinate points with scale recap", async () => {
+  const router = captureRouter();
+  const rawCalls = [];
+  const raw = async (sql, params = []) => {
+    rawCalls.push({ sql, params });
+    if (sql.includes("COUNT(*)")) {
+      return rows([{ filterCount: "42", mikro: "30", kecil: "8", menengah: "4" }]);
+    }
+    return rows([
+      {
+        id: "u1", nama: "Toko Sembako", skala: "micro", produkUtama: null,
+        kegiatanUtama: "jualan", kodeKbli: "47112", kategoriKbli: "PERDAGANGAN",
+        kota: "KAB. GARUT", kecamatan: "BANJARWANGI",
+        latitude: -7.0123, longitude: 107.9876,
+      },
+    ]);
+  };
+  extension.handler(router, { database: { raw }, logger: { error: () => assert.fail("no errors expected") } });
+
+  const res = await run(router.routes, "/spasial", {
+    kota: "38", skala: "micro", limit: "50",
+  });
+
+  assert.deepEqual(res.body.meta, { filterCount: 42, mikro: 30, kecil: 8, menengah: 4, limit: 50 });
+  assert.equal(res.body.data[0].latitude, -7.0123);
+
+  const [pointCall, countCall] = rawCalls;
+  assert.match(pointCall.sql, /t\.latitude IS NOT NULL AND t\.longitude IS NOT NULL/);
+  assert.deepEqual(pointCall.params, [38, "micro", 50]);
+  assert.deepEqual(countCall.params, [38, "micro"]);
+});
+
+test("tabular: spasial ignores invalid filters and clamps limit", async () => {
+  const router = captureRouter();
+  const rawCalls = [];
+  const raw = async (sql, params = []) => {
+    rawCalls.push({ sql, params });
+    if (sql.includes("COUNT(*)")) return rows([{ filterCount: "0", mikro: "0", kecil: "0", menengah: "0" }]);
+    return rows([]);
+  };
+  extension.handler(router, { database: { raw }, logger: { error: () => assert.fail("no errors expected") } });
+
+  const res = await run(router.routes, "/spasial", {
+    kota: "abc", skala: "raksasa", limit: "99999",
+  });
+
+  assert.deepEqual(res.body.meta, { filterCount: 0, mikro: 0, kecil: 0, menengah: 0, limit: 5000 });
+  const [pointCall] = rawCalls;
+  assert.deepEqual(pointCall.params, [5000]);
+});
+
 test("tabular: returns filter options mapped to camelCase", async () => {
   const router = captureRouter();
   const raw = async (sql) => {
@@ -135,7 +193,7 @@ test("tabular: requires kecamatan param for kelurahan", async () => {
   assert.ok(res.body.errors[0].message.includes("kecamatan"));
 });
 
-test("tabular: public reads do not join mutable source tables", async () => {
+test("tabular: private reads do not join mutable source tables", async () => {
   const router = captureRouter();
   const sqlCalls = [];
   const raw = async (sql) => {
@@ -145,6 +203,7 @@ test("tabular: public reads do not join mutable source tables", async () => {
   extension.handler(router, { database: { raw }, logger: { error: () => assert.fail("no errors expected") } });
 
   await run(router.routes, "/", {});
+  await run(router.routes, "/spasial", {});
   await run(router.routes, "/options", {});
   await run(router.routes, "/kelurahan", { kecamatan: "5" });
 
@@ -158,24 +217,31 @@ test("tabular: rejects publish from non-admin users", async () => {
     logger: { error: () => assert.fail("no errors expected") },
   });
 
-  const res = await run(router.routes, "/publish", {}, { accountability: { admin: false } });
+  const { error } = await runWithError(router.routes, "/publish", {}, { accountability: { user: "u1", role: "other", admin: false } });
 
-  assert.equal(res.statusCode, 403);
+  assert.equal(error.statusCode, 403);
 });
 
-test("tabular: admin publish runs the atomic SQL and returns its status", async () => {
-  const router = captureRouter();
-  const rawCalls = [];
-  const raw = async (sql) => {
-    rawCalls.push(sql);
-    if (sql.includes("BEGIN;")) return rows([]);
-    return rows([{ refreshedAt: "2026-08-16T12:00:00.000Z", total: 3 }]);
-  };
+test("tabular: admin publish enqueues a rebuild without running legacy SQL", async () => {
+  const router = captureRouter(); const rawCalls = [];
+  const raw = async (sql) => { rawCalls.push(sql); return rows([{ id: "job-1" }]); };
   extension.handler(router, { database: { raw }, logger: { error: () => assert.fail("no errors expected") } });
+  const res = await run(router.routes, "/publish", {}, { accountability: { user: "admin", admin: true, role: "admin" } });
+  assert.equal(res.statusCode, 202); assert.deepEqual(res.body, { data: { jobId: "job-1", status: "queued" } });
+  assert.match(rawCalls[0], /analitik_enqueue_job/); assert.doesNotMatch(rawCalls[0], /TRUNCATE|publish\.sql/i);
+});
 
-  const res = await run(router.routes, "/publish", {}, { accountability: { admin: true } });
 
-  assert.match(rawCalls[0], /TRUNCATE usaha_tabular/);
-  assert.match(rawCalls[0], /INSERT INTO infografis_snapshot/);
-  assert.deepEqual(res.body.data, { refreshedAt: "2026-08-16T12:00:00.000Z", total: 3 });
+
+test("tabular: rejects anonymous and wrong-role requests before any query", async () => {
+  const router = captureRouter();
+  let calls = 0;
+  extension.handler(router, { database: { raw: async () => { calls += 1; } }, logger: { error() {} } });
+  for (const path of ["/status", "/", "/spasial", "/options", "/kelurahan", "/publish"]) {
+    const anonymous = await runWithError(router.routes, path, {}, {});
+    assert.equal(anonymous.error.statusCode, 401, path);
+    const wrongRole = await runWithError(router.routes, path, {}, { accountability: { user: "u1", role: "other", admin: false } });
+    assert.equal(wrongRole.error.statusCode, 403, path);
+  }
+  assert.equal(calls, 0);
 });
