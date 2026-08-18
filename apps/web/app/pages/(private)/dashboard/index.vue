@@ -150,7 +150,12 @@ const kbliItems = computed<KbliCategoryItem[]>(() =>
 
     <!-- Section 2: Peta Sebaran Usaha Berdasarkan Wilayah -->
     <DashboardCardSection v-bind="DASHBOARD_SECTIONS.regionalMap">
-      <DashboardMapInfographic :regions="infografis?.regions" @select="openRegion" />
+      <DashboardMapInfographic
+        :regions="infografis?.regions"
+        :geometry-ready="infografis?.geometryReady"
+        :geometry-source="infografis?.geometrySource"
+        @select="openRegion"
+      />
     </DashboardCardSection>
 
     <!-- Section 3: Jumlah UMKM Berdasarkan Kategori Lapangan Usaha -->

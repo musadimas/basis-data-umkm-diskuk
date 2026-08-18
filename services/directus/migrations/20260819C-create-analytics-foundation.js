@@ -88,9 +88,9 @@ export const up = async (knex) => {
       CREATE OR REPLACE FUNCTION analitik_validate_json_config() RETURNS trigger
       LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
       BEGIN
-        IF TG_TABLE_NAME = 'analitik_view' AND COALESCE(NEW.config::text, '') ~* '(nik|telepon|phone|birth_date|password|secret|token|cookie|result|rows|record_id|signed_url)' THEN
+        IF TG_TABLE_NAME = 'analitik_view' AND COALESCE(to_jsonb(NEW)->>'config', '') ~* '(nik|telepon|phone|birth_date|password|secret|token|cookie|result|rows|record_id|signed_url)' THEN
           RAISE EXCEPTION 'analytics config contains restricted data' USING ERRCODE='check_violation';
-        ELSIF TG_TABLE_NAME = 'analitik_job' AND COALESCE(NEW.request::text, '') ~* '(nik|telepon|phone|birth_date|password|secret|token|cookie|result|rows|record_id|signed_url)' THEN
+        ELSIF TG_TABLE_NAME = 'analitik_job' AND COALESCE(to_jsonb(NEW)->>'request', '') ~* '(nik|telepon|phone|birth_date|password|secret|token|cookie|result|rows|record_id|signed_url)' THEN
           RAISE EXCEPTION 'analytics request contains restricted data' USING ERRCODE='check_violation';
         END IF;
         RETURN NEW;
@@ -143,7 +143,8 @@ export const up = async (knex) => {
     `);
     for (const table of ["usaha", "pelaku_usaha", "alamat", "provinsi", "kota", "kecamatan", "kelurahan", "klasifikasi_usaha", "statistik_tenaga_kerja"]) {
       const trigger = `trg_analitik_capture_${table}`;
-      await trx.raw(`DROP TRIGGER IF EXISTS ?? ON ??; CREATE TRIGGER ?? AFTER INSERT OR UPDATE OR DELETE ON ?? FOR EACH ROW EXECUTE FUNCTION analitik_capture_source_change();`, [trigger, table, trigger, table]);
+      await trx.raw(`DROP TRIGGER IF EXISTS ?? ON ??`, [trigger, table]);
+      await trx.raw(`CREATE TRIGGER ?? AFTER INSERT OR UPDATE OR DELETE ON ?? FOR EACH ROW EXECUTE FUNCTION analitik_capture_source_change()`, [trigger, table]);
     }
     await trx.raw(`
       INSERT INTO directus_collections(collection, icon, note, display_template, hidden, singleton, archive_app_filter, sort)
@@ -154,6 +155,8 @@ export const up = async (knex) => {
         ('analitik_health','monitor_heart','Internal analytics health',NULL,TRUE,FALSE,TRUE,103),
         ('analitik_generation','layers','Analytics read-model generations',NULL,TRUE,FALSE,TRUE,104)
       ON CONFLICT (collection) DO NOTHING;
+    `);
+    await trx.raw(`
       INSERT INTO directus_permissions(collection, action, permissions, validation, presets, fields, policy)
       VALUES
         ('analitik_view','read','{"owner":{"_eq":"$CURRENT_USER"}}'::jsonb,'{}'::jsonb,'{}'::jsonb,'id,owner,name,schema_version,config,date_created,date_updated',? ),
@@ -172,30 +175,17 @@ export const down = async (knex) => {
     const result = await trx.raw(`SELECT (SELECT COUNT(*) FROM analitik_job)+(SELECT COUNT(*) FROM analitik_view)+(SELECT COUNT(*) FROM analitik_generation)+(SELECT COUNT(*) FROM analitik_usaha_current) AS count`);
     const count = Number(result.rows?.[0]?.count ?? result[0]?.count ?? 0);
     if (count > 0) throw new Error("Refusing analytics foundation rollback while analytics data exists");
-    await trx.raw(`
-      DROP TRIGGER IF EXISTS trg_analitik_capture_usaha ON usaha;
-      DROP TRIGGER IF EXISTS trg_analitik_capture_pelaku_usaha ON pelaku_usaha;
-      DROP TRIGGER IF EXISTS trg_analitik_capture_alamat ON alamat;
-      DROP TRIGGER IF EXISTS trg_analitik_capture_provinsi ON provinsi;
-      DROP TRIGGER IF EXISTS trg_analitik_capture_kota ON kota;
-      DROP TRIGGER IF EXISTS trg_analitik_capture_kecamatan ON kecamatan;
-      DROP TRIGGER IF EXISTS trg_analitik_capture_kelurahan ON kelurahan;
-      DROP TRIGGER IF EXISTS trg_analitik_capture_klasifikasi_usaha ON klasifikasi_usaha;
-      DROP TRIGGER IF EXISTS trg_analitik_capture_statistik_tenaga_kerja ON statistik_tenaga_kerja;
-      DROP FUNCTION IF EXISTS analitik_capture_source_change();
-      DROP FUNCTION IF EXISTS analitik_enqueue_job(TEXT,TEXT,UUID);
-      DROP FUNCTION IF EXISTS analitik_require_reconciled_generation();
-      DROP FUNCTION IF EXISTS analitik_validate_json_config();
-      DELETE FROM directus_permissions WHERE policy = ? AND collection IN ('analitik_view','usaha');
-      DELETE FROM directus_collections WHERE collection IN ('analitik_field','analitik_view','analitik_job','analitik_health','analitik_generation');
-      DROP TABLE IF EXISTS analitik_usaha_current;
-      DROP TABLE IF EXISTS analitik_active_generation;
-      DROP TABLE IF EXISTS analitik_generation;
-      DROP TABLE IF EXISTS analitik_health;
-      DROP TABLE IF EXISTS analitik_job;
-      DROP TABLE IF EXISTS analitik_view;
-      DROP TABLE IF EXISTS analitik_field;
-      DROP TABLE IF EXISTS analitik_kbli_sector;
-    `, [POLICY_ID]);
+    for (const table of ["usaha", "pelaku_usaha", "alamat", "provinsi", "kota", "kecamatan", "kelurahan", "klasifikasi_usaha", "statistik_tenaga_kerja"]) {
+      await trx.raw(`DROP TRIGGER IF EXISTS ?? ON ??`, [`trg_analitik_capture_${table}`, table]);
+    }
+    await trx.raw(`DROP FUNCTION IF EXISTS analitik_capture_source_change()`);
+    await trx.raw(`DROP FUNCTION IF EXISTS analitik_enqueue_job(TEXT,TEXT,UUID)`);
+    await trx.raw(`DROP FUNCTION IF EXISTS analitik_require_reconciled_generation()`);
+    await trx.raw(`DROP FUNCTION IF EXISTS analitik_validate_json_config()`);
+    await trx.raw(`DELETE FROM directus_permissions WHERE policy = ? AND collection IN ('analitik_view','usaha')`, [POLICY_ID]);
+    await trx.raw(`DELETE FROM directus_collections WHERE collection IN ('analitik_field','analitik_view','analitik_job','analitik_health','analitik_generation')`);
+    for (const table of ["analitik_usaha_current", "analitik_active_generation", "analitik_generation", "analitik_health", "analitik_job", "analitik_view", "analitik_field", "analitik_kbli_sector"]) {
+      await trx.raw(`DROP TABLE IF EXISTS ??`, [table]);
+    }
   });
 };

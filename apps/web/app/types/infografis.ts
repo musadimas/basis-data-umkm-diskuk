@@ -18,6 +18,17 @@ export interface InfografisSectorItem {
   percentage: number
 }
 
+export interface InfografisRegion {
+  id: string
+  name: string
+  value: number
+  code?: string
+  geometry?: {
+    type: "Polygon" | "MultiPolygon"
+    coordinates: unknown[]
+  }
+}
+
 export interface InfografisData {
   scales: {
     total: number
@@ -25,7 +36,14 @@ export interface InfografisData {
     kecil: number
     menengah: number
   }
-  regions: Array<{ id: string; name: string; value: number }>
+  regions: InfografisRegion[]
+  geometryReady?: boolean
+  geometrySource?: {
+    name: string
+    edition: string
+    url: string
+    regions: number
+  }
   sectors: InfografisSectorItem[]
   topKbli: InfografisKbliItem[]
   kbli: InfografisKbliItem[]

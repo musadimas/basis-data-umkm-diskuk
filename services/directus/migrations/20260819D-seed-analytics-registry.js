@@ -31,6 +31,18 @@ const FIELD_SEEDS = [
 ];
 export const up = async (knex) => {
   await knex.transaction(async (trx) => {
+    await trx.raw(`
+      CREATE OR REPLACE FUNCTION analitik_validate_json_config() RETURNS trigger
+      LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+      BEGIN
+        IF TG_TABLE_NAME = 'analitik_view' AND COALESCE(to_jsonb(NEW)->>'config', '') ~* '(nik|telepon|phone|birth_date|password|secret|token|cookie|result|rows|record_id|signed_url)' THEN
+          RAISE EXCEPTION 'analytics config contains restricted data' USING ERRCODE='check_violation';
+        ELSIF TG_TABLE_NAME = 'analitik_job' AND COALESCE(to_jsonb(NEW)->>'request', '') ~* '(nik|telepon|phone|birth_date|password|secret|token|cookie|result|rows|record_id|signed_url)' THEN
+          RAISE EXCEPTION 'analytics request contains restricted data' USING ERRCODE='check_violation';
+        END IF;
+        RETURN NEW;
+      END; $$;
+    `);
     for (const [code,name,lo,hi] of KBLI_SECTORS) {
       await trx.raw(`INSERT INTO analitik_kbli_sector(schema_version,code,name,division_start,division_end) VALUES (?,?,?,?,?) ON CONFLICT(schema_version,code) DO UPDATE SET name=EXCLUDED.name,division_start=EXCLUDED.division_start,division_end=EXCLUDED.division_end`, [SCHEMA_VERSION, code, name, lo, hi]);
     }
@@ -44,6 +56,8 @@ export const up = async (knex) => {
 };
 export const down = async (knex) => {
   await knex.transaction(async (trx) => {
-    await trx.raw(`DELETE FROM analitik_job WHERE dedupe_key='rebuild_current_model' AND status='queued'; DELETE FROM analitik_field WHERE semantic_id IN (${FIELD_SEEDS.map(() => '?').join(',')}); DELETE FROM analitik_kbli_sector WHERE schema_version=?`, [...FIELD_SEEDS.map((row) => row[1]), SCHEMA_VERSION]);
+    await trx.raw(`DELETE FROM analitik_job WHERE dedupe_key='rebuild_current_model' AND status='queued'`);
+    await trx.raw(`DELETE FROM analitik_field WHERE semantic_id IN (${FIELD_SEEDS.map(() => '?').join(',')})`, FIELD_SEEDS.map((row) => row[1]));
+    await trx.raw(`DELETE FROM analitik_kbli_sector WHERE schema_version=?`, [SCHEMA_VERSION]);
   });
 };

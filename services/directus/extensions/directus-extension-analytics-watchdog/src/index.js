@@ -1,5 +1,5 @@
 const { sanitizeError } = require("../../shared/auth.cjs")
-module.exports = { id: "analytics-watchdog", handler: ({ schedule }, { database, logger }) => {
+module.exports = ({ schedule }, { database, logger }) => {
   const run = async () => {
     try {
       const health = await database.raw(`SELECT component,status,heartbeat_at,queue_age_seconds,(SELECT COALESCE(EXTRACT(EPOCH FROM (NOW()-MIN(available_at))),0)::integer FROM analitik_job WHERE status IN ('queued','retry')) AS oldest_job_age,(SELECT COUNT(*)::integer FROM analitik_job WHERE status='processing' AND lease_until < NOW()) AS expired_leases FROM analitik_health WHERE health_kind='component_status' ORDER BY updated_at DESC`)
@@ -9,7 +9,7 @@ module.exports = { id: "analytics-watchdog", handler: ({ schedule }, { database,
       const queueAge = Number(worker?.oldest_job_age || 0)
       const status = stale || queueAge > 300 ? "degraded" : "healthy"
       await database.raw(`UPDATE analitik_job SET status='retry',lease_until=NULL,lease_owner=NULL,available_at=NOW(),updated_at=NOW() WHERE status='processing' AND lease_until < NOW() AND attempts < max_attempts; UPDATE analitik_job SET status='dead',lease_until=NULL,lease_owner=NULL,error_code='LEASE_EXHAUSTED',error_message='Job lease expired too many times',updated_at=NOW() WHERE status='processing' AND lease_until < NOW() AND attempts >= max_attempts`)
-      await database.raw(`INSERT INTO analitik_health(health_kind,component,status,queue_age_seconds,check_name,check_data,updated_at) VALUES ('component_status','watchdog',$1,$2,'worker_watchdog',$3::jsonb,NOW()) ON CONFLICT(health_kind,component) WHERE health_kind='component_status' DO UPDATE SET status=EXCLUDED.status,queue_age_seconds=EXCLUDED.queue_age_seconds,check_data=EXCLUDED.check_data,updated_at=NOW()`, [status, queueAge, JSON.stringify({ stale, expiredLeases: Number(worker?.expired_leases || 0) })])
+      await database.raw(`INSERT INTO analitik_health(health_kind,component,status,queue_age_seconds,check_name,check_data,updated_at) VALUES ('component_status','watchdog',?,?,'worker_watchdog',?::jsonb,NOW()) ON CONFLICT(health_kind,component) WHERE health_kind='component_status' DO UPDATE SET status=EXCLUDED.status,queue_age_seconds=EXCLUDED.queue_age_seconds,check_data=EXCLUDED.check_data,updated_at=NOW()`, [status, queueAge, JSON.stringify({ stale, expiredLeases: Number(worker?.expired_leases || 0) })])
       if (status === "degraded") await database.raw(`INSERT INTO analitik_health(health_kind,component,status,fingerprint,error_code,error_message,updated_at) VALUES ('incident','analytics-worker','open','watchdog:degraded','WORKER_DEGRADED','Analytics worker health degraded',NOW()) ON CONFLICT(health_kind,component,fingerprint) WHERE health_kind='incident' AND status='open' DO UPDATE SET updated_at=NOW()`)
       else await database.raw(`UPDATE analitik_health SET status='resolved',updated_at=NOW() WHERE health_kind='incident' AND component='analytics-worker' AND fingerprint='watchdog:degraded' AND status='open'`)
       return { status, stale, queueAge }
@@ -26,4 +26,4 @@ module.exports = { id: "analytics-watchdog", handler: ({ schedule }, { database,
   schedule("0 0 * * *", cleanup)
   schedule("0 15 * * *", reconcile)
   return { run, cleanup, reconcile }
-} }
+}

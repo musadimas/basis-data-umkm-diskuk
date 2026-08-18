@@ -24,8 +24,8 @@ classified AS (
   FROM source_scope s LEFT JOIN sector_def sd ON s.kode_kbli ~ '^[0-9]{2,5}$' AND left(s.kode_kbli,2)::integer BETWEEN sd.lo AND sd.hi
 ),
 geometry AS (
-  SELECT count(*) FILTER (WHERE lower(p.nama)='jawa barat') AS city_count,
-         count(*) FILTER (WHERE lower(p.nama)='jawa barat' AND nullif(btrim(k.kode),'') IS NOT NULL AND k.geom IS NOT NULL) AS city_geometry_ready
+  SELECT count(*) FILTER (WHERE lower(p.nama)='jawa barat' AND lower(k.nama)<>'tidak diketahui') AS city_count,
+         count(*) FILTER (WHERE lower(p.nama)='jawa barat' AND lower(k.nama)<>'tidak diketahui' AND nullif(btrim(k.kode),'') IS NOT NULL AND k.geom IS NOT NULL AND ST_IsValid(k.geom)) AS city_geometry_ready
   FROM kota k JOIN provinsi p ON p.id=k.provinsi
 ),
 counts AS (
