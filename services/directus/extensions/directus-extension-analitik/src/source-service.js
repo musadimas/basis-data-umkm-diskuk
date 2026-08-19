@@ -29,7 +29,7 @@ async function resolveAnalyticsSource(database) {
       kind: "generation",
     };
   }
-  const snapshotResult = await database.raw(`SELECT refreshed_at,(payload->'scales'->>'total')::integer AS population,payload->'regions' AS regions FROM infografis_snapshot WHERE id = 1`);
+  const snapshotResult = await database.raw(`SELECT refreshed_at,(payload->'scales'->>'total')::integer AS population,payload->'scales' AS scales,payload->'regions' AS regions FROM infografis_snapshot WHERE id = 1`);
   const snapshot = (snapshotResult.rows ?? snapshotResult[0] ?? [])[0];
   if (!snapshot) return null;
   return {
@@ -41,6 +41,7 @@ async function resolveAnalyticsSource(database) {
     warnings: ["Read-model analitik belum aktif; snapshot dashboard terpublikasi sedang digunakan."],
     kind: "snapshot",
     population: Number(snapshot.population || 0),
+    scales: snapshot.scales || {},
     regions: Array.isArray(snapshot.regions) ? snapshot.regions : [],
   };
 }
