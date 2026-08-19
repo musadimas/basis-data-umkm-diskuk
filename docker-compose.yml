@@ -17,11 +17,6 @@ services:
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: ${DB_DATABASE}
-      WALG_S3_PREFIX: ${WALG_S3_PREFIX}
-      WALG_S3_REGION: ${WALG_S3_REGION:-ap-southeast-1}
-      WALG_S3_ACCESS_KEY: ${WALG_S3_ACCESS_KEY}
-      WALG_S3_SECRET_KEY: ${WALG_S3_SECRET_KEY}
-    command: postgres -c wal_level=replica -c archive_mode=on -c archive_timeout=60s -c archive_command='wal-g wal-push %p'
     ports:
       - "127.0.0.1:5432:5432"
     volumes:
