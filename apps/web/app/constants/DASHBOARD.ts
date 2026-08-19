@@ -20,14 +20,28 @@ export const DASHBOARD_SECTIONS = {
     tooltip:
       "Kategori A–U berdasarkan Klasifikasi Baku Lapangan Usaha Indonesia (KBLI)",
   },
+  nib: {
+    title: "Kepemilikan NIB",
+    description:
+      "Berikut ini adalah data perbandingan antara UMKM yang memiliki NIB dan tidak memiliki NIB.",
+    tooltip: "Perbandingan UMKM yang memiliki dan belum memiliki NIB",
+  },
+  marketing: {
+    title: "Metode Pemasaran",
+    description:
+      "Berikut ini adalah data agregasi UMKM berdasarkan metode pemasarannya.",
+    tooltip: "Distribusi UMKM berdasarkan metode pemasaran",
+  },
   topCategories: {
     title: "Lima Kategori Lapangan Usaha Teratas",
-    description: "Description",
+    description:
+      "Menyajikan jumlah data usaha berdasarkan Klasifikasi Baku Lapangan Usaha Indonesia (KBLI) 2020.",
     tooltip: "5 Kategori KBLI dengan populasi usaha tertinggi",
   },
   gender: {
     title: "Persentase Tenaga Kerja Berdasarkan Gender",
-    description: "Description",
+    description:
+      "Berikut ini adalah perbandingan Pengusaha berdasarkan Jenis Kelamin.",
     tooltip: "Perbandingan demografi tenaga kerja UMKM",
   },
   kbliAccordion: {

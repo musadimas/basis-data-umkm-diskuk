@@ -16,7 +16,7 @@ export async function installMockDirectus(page, { authenticated = false } = {}) 
     }
     if (!loggedIn) { await route.fulfill({ status: 401, contentType: "application/json", body: JSON.stringify({ errors: [{ message: "unauthorized" }] }) }); return; }
     if (path === "/panel/infografis/") {
-      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: { scales: { total: 3, mikro: 2, kecil: 1, menengah: 0 }, regions: [], sectors: [], topKbli: [], kbli: [], dataAsOf: "2026-08-17T00:30:00Z" } }) });
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: { scales: { total: 3, mikro: 2, kecil: 1, menengah: 0 }, regions: [], sectors: [], topKbli: [], kbli: [], nib: { total: 3, withNib: 2, withoutNib: 1, withPercentage: 66.7, withoutPercentage: 33.3 }, marketingMethods: [{ key: "non-digital", label: "Non-digital", value: 2, percentage: 66.7 }, { key: "digital", label: "Digital", value: 1, percentage: 33.3 }], dataAsOf: "2026-08-17T00:30:00Z" } }) });
       return;
     }
     if (path === "/panel/analitik/metadata") { await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ schemaVersion: 1, fields: [{ id: "kota_nama", key: "kota_nama", label: "Kabupaten/kota", group: "Wilayah", order: 1, role: "dimension", type: "text", status: "active", privacy: "aggregate", capabilities: ["group"], schemaVersion: 1 }, { id: "skala_dilaporkan", key: "skala_dilaporkan", label: "Skala", group: "Usaha", order: 2, role: "dimension", type: "text", status: "active", privacy: "aggregate", capabilities: ["group", "filter"], schemaVersion: 1 }], warnings: [] }) } ); return; }
