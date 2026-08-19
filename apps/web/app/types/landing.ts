@@ -25,3 +25,8 @@ export interface SocialLink {
   label: string
   href: string
 }
+
+export interface GalleryItem {
+  image: string
+  alt: string
+}
