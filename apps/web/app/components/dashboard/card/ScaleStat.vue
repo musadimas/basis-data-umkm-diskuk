@@ -29,13 +29,13 @@ const formattedValue = computed(() => {
 const variantClasses = computed(() => {
   switch (props.category) {
     case "mikro":
-      return "bg-emerald-500 border-emerald-500 text-emerald-950";
+      return "bg-brand-green border-brand-green text-brand-green-foreground";
     case "kecil":
-      return "bg-sky-500 border-sky-500 text-sky-950";
+      return "bg-sky-500 border-sky-500 text-brand-green-foreground";
     case "menengah":
-      return "bg-amber-400 border-amber-400 text-amber-950";
+      return "bg-amber-400 border-amber-400 text-brand-green-foreground";
     case "total":
-      return "bg-transparent text-foreground";
+      return "bg-transparent text-brand-green-foreground";
     default:
       return "bg-white border-border text-foreground shadow-2xs dark:bg-card";
   }
@@ -48,13 +48,13 @@ const isFilledCategory = computed(() =>
 const iconColorClasses = computed(() => {
   switch (props.category) {
     case "mikro":
-      return "text-emerald-700 stroke-emerald-700 dark:text-emerald-400";
+      return "text-brand-green-foreground stroke-brand-green-foreground";
     case "kecil":
       return "text-blue-700 stroke-blue-700 dark:text-blue-400";
     case "menengah":
       return "text-orange-500 stroke-orange-500 dark:text-orange-400";
     default:
-      return "text-emerald-600 stroke-emerald-600";
+      return "text-brand-green-foreground stroke-brand-green-foreground";
   }
 });
 </script>
@@ -66,7 +66,7 @@ const iconColorClasses = computed(() => {
       variantClasses,
       category === 'total'
         ? 'rounded-none border-0 shadow-none hover:shadow-none'
-        : 'rounded-xl border hover:shadow-sm',
+        : 'rounded-lg border hover:shadow-sm',
       size === 'sm' ? 'min-h-37.5' : 'min-h-26.25',
     ]"
   >
@@ -127,7 +127,7 @@ const iconColorClasses = computed(() => {
 
       <span
         class="text-base font-bold leading-none tracking-normal"
-        :class="isFilledCategory ? 'text-white' : 'text-foreground/80'"
+        :class="isFilledCategory || category === 'total' ? 'text-brand-green-foreground' : 'text-foreground/80'"
       >
         {{ title }}
       </span>
@@ -143,11 +143,9 @@ const iconColorClasses = computed(() => {
       <div
         class="text-[36px] font-bold leading-none tracking-normal"
         :class="[
-          isFilledCategory
-            ? 'text-white'
-            : category === 'total'
-              ? 'text-emerald-700'
-              : 'text-foreground',
+          isFilledCategory || category === 'total'
+            ? 'text-brand-green-foreground'
+            : 'text-foreground',
         ]"
       >
         {{ formattedValue }}
@@ -158,14 +156,14 @@ const iconColorClasses = computed(() => {
         <NuxtLink
           v-if="buttonHref"
           :to="buttonHref"
-          class="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-base font-bold leading-none text-white shadow-2xs transition-colors hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+          class="inline-flex items-center gap-1.5 rounded-md bg-brand-green px-3 py-1.5 text-base font-bold leading-none text-brand-green-foreground shadow-2xs transition-colors hover:bg-brand-green/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green"
         >
           <span>{{ buttonText || "Lihat Data" }}</span>
         </NuxtLink>
         <button
           v-else
           type="button"
-          class="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-base font-bold leading-none text-white shadow-2xs transition-colors hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+          class="inline-flex items-center gap-1.5 rounded-md bg-brand-green px-3 py-1.5 text-base font-bold leading-none text-brand-green-foreground shadow-2xs transition-colors hover:bg-brand-green/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green"
           @click="emit('click:action')"
         >
           <span>{{ buttonText || "Lihat Data" }}</span>

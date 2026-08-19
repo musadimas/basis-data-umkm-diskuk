@@ -31,7 +31,7 @@ withDefaults(defineProps<Props>(), {
             <UiTooltipTrigger as-child>
               <button
                 type="button"
-                class="inline-flex items-center justify-center rounded-full text-muted-foreground/70 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+                class="inline-flex items-center justify-center rounded-full text-muted-foreground/70 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green"
                 :aria-label="`Informasi tentang ${title}`"
               >
                 <CircleHelp class="h-4 w-4" />

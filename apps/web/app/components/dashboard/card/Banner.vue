@@ -19,20 +19,22 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const bannerClass = computed(() =>
-  props.variant === "data" ? "bg-[#1e88e5]" : "bg-emerald-500"
+  props.variant === "data"
+    ? "bg-brand-blue text-white"
+    : "bg-brand-green text-white"
 );
 </script>
 
 <template>
   <UiCard
-    class="flex-col items-start gap-4 overflow-hidden rounded-lg border-0 p-4 text-white shadow-sm sm:flex-row sm:items-center"
+    class="flex-col items-start gap-4 overflow-hidden rounded-lg border-0 p-4 shadow-sm sm:flex-row sm:items-center"
     :class="bannerClass"
     role="region"
     :aria-label="`Informasi ${title}`"
   >
     <!-- Icon Container -->
     <div
-      class="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg border-2 border-white/90 text-white"
+      class="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg border-2 border-current"
       aria-hidden="true"
     >
       <component :is="icon" class="h-8 w-8 stroke-[2.2]" />
@@ -40,10 +42,10 @@ const bannerClass = computed(() =>
 
     <!-- Text Content -->
     <UiCardContent class="flex-1 space-y-2 p-0">
-      <h1 class="text-xl font-bold tracking-tight text-white sm:text-2xl">
+      <h1 class="text-xl font-bold tracking-tight text-inherit sm:text-2xl">
         {{ title }}
       </h1>
-      <UiCardDescription class="max-w-4xl text-xs font-normal leading-relaxed text-white/95">
+      <UiCardDescription class="max-w-4xl text-xs font-normal leading-relaxed text-inherit">
         {{ description }}
       </UiCardDescription>
     </UiCardContent>

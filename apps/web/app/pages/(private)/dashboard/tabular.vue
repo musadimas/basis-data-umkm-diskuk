@@ -500,7 +500,7 @@ const exportCsv = async () => {
         <div class="flex flex-wrap items-center justify-end gap-2">
           <UiButton
             variant="outline"
-            class="gap-1.5 rounded-lg border-[#069550] text-sm font-bold text-[#069550] hover:bg-emerald-50"
+            class="gap-1.5 rounded-lg border-brand-green text-sm font-bold text-brand-green-foreground hover:bg-brand-green/10"
             :disabled="rowsPending"
             @click="resetFilters"
           >
@@ -508,7 +508,7 @@ const exportCsv = async () => {
             <span>Reset Filter</span>
           </UiButton>
           <UiButton
-            class="gap-1.5 rounded-lg bg-emerald-600 text-sm font-bold text-white hover:bg-emerald-700"
+            class="gap-1.5 rounded-lg bg-brand-green text-sm font-bold text-brand-green-foreground hover:bg-brand-green/90"
             :disabled="rowsPending"
             @click="applyFilters"
           >
@@ -518,7 +518,7 @@ const exportCsv = async () => {
           <UiButton
             variant="ghost"
             size="icon"
-            class="rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 hover:text-white"
+            class="rounded-lg bg-brand-green text-brand-green-foreground hover:bg-brand-green/90 hover:text-brand-green-foreground"
             :disabled="rowsPending || totalData === 0"
             aria-label="Unduh data UMKM (CSV)"
             title="Unduh seluruh hasil filter (CSV, maks. 50.000 baris)"
@@ -580,7 +580,7 @@ const exportCsv = async () => {
                   <UiDropdownMenuTrigger as-child>
                     <button
                       type="button"
-                      class="inline-flex h-8 w-6 items-center justify-center rounded-md text-[#212121] transition-colors hover:bg-slate-100 dark:hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+                      class="inline-flex h-8 w-6 items-center justify-center rounded-md text-[#212121] transition-colors hover:bg-slate-100 dark:hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green"
                       :aria-label="`Aksi untuk ${r.namaUsaha}`"
                     >
                       <MoreHorizontal class="h-4 w-4" />

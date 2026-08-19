@@ -112,14 +112,14 @@ const chartData = computed(() => [
       <NuxtLink
         v-if="buttonHref"
         :to="buttonHref"
-        class="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-5 py-2 text-xs font-semibold text-white shadow-2xs transition-colors hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+        class="inline-flex items-center gap-1.5 rounded-md bg-brand-green px-5 py-2 text-xs font-semibold text-brand-green-foreground shadow-2xs transition-colors hover:bg-brand-green/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green"
       >
         <span>{{ buttonText }}</span>
       </NuxtLink>
       <button
         v-else
         type="button"
-        class="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-5 py-2 text-xs font-semibold text-white shadow-2xs transition-colors hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+        class="inline-flex items-center gap-1.5 rounded-md bg-brand-green px-5 py-2 text-xs font-semibold text-brand-green-foreground shadow-2xs transition-colors hover:bg-brand-green/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green"
         @click="emit('click:action')"
       >
         <span>{{ buttonText }}</span>

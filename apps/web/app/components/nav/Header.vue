@@ -23,8 +23,8 @@ const isActive = (to: string) => to === "/dashboard" ? route.path.startsWith("/d
         <span class="text-base font-bold tracking-tight text-foreground sm:text-lg">Dashboard UMKM</span>
       </NuxtLink>
       <nav class="hidden items-center gap-1 md:flex lg:gap-2" aria-label="Navigasi Utama">
-        <NuxtLink v-for="link in navLinks" :key="link.to" :to="link.to" class="relative px-3.5 py-2 text-sm font-semibold transition-colors hover:text-emerald-700" :class="isActive(link.to) ? 'font-bold text-emerald-700' : 'text-muted-foreground'">
-          {{ link.label }}<span v-if="isActive(link.to)" class="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-emerald-600" />
+        <NuxtLink v-for="link in navLinks" :key="link.to" :to="link.to" class="relative px-3.5 py-2 text-sm font-semibold transition-colors hover:text-brand-green-foreground" :class="isActive(link.to) ? 'font-bold text-brand-green-foreground' : 'text-muted-foreground'">
+          {{ link.label }}<span v-if="isActive(link.to)" class="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-brand-green" />
         </NuxtLink>
       </nav>
       <div class="flex items-center gap-2 sm:gap-3">
@@ -48,7 +48,7 @@ const isActive = (to: string) => to === "/dashboard" ? route.path.startsWith("/d
           <UiSheetContent side="right" class="w-72 pt-16">
             <UiSheetHeader><UiSheetTitle class="text-left text-base font-bold">Dashboard UMKM</UiSheetTitle></UiSheetHeader>
             <nav class="mt-6 flex flex-col gap-1.5" aria-label="Navigasi Menu Mobile">
-              <NuxtLink v-for="link in navLinks" :key="link.to" :to="link.to" class="rounded-lg px-3 py-2 text-sm font-semibold" :class="isActive(link.to) ? 'bg-emerald-50 text-emerald-700' : 'text-foreground/80'" @click="mobileOpen = false">{{ link.label }}</NuxtLink>
+              <NuxtLink v-for="link in navLinks" :key="link.to" :to="link.to" class="rounded-lg px-3 py-2 text-sm font-semibold" :class="isActive(link.to) ? 'bg-brand-green/10 text-brand-green-foreground' : 'text-foreground/80'" @click="mobileOpen = false">{{ link.label }}</NuxtLink>
             </nav>
             <div class="mt-8 border-t border-border pt-4"><div class="flex items-center gap-3 px-2"><div class="flex h-9 w-9 items-center justify-center rounded-full bg-amber-400 text-xs font-bold text-amber-950">{{ initials }}</div><div><div class="text-sm font-bold">{{ displayName }}</div><div class="text-xs text-muted-foreground">{{ auth.user.value?.email }}</div></div></div><button type="button" class="mt-4 flex items-center text-sm text-destructive" @click="auth.logout"><LogOut class="mr-2 h-4 w-4" />Keluar</button></div>
           </UiSheetContent>

@@ -34,7 +34,7 @@ const props = withDefaults(defineProps<Props>(), {
 const containerRef = useTemplateRef<HTMLDivElement>("container");
 
 const skalaColors: Record<SkalaUsaha, { marker: string; label: string }> = {
-  mikro: { marker: "#10b981", label: "Usaha Mikro" },
+  mikro: { marker: "#16A75C", label: "Usaha Mikro" },
   kecil: { marker: "#0ea5e9", label: "Usaha Kecil" },
   menengah: { marker: "#fbbf24", label: "Usaha Menengah" },
 };

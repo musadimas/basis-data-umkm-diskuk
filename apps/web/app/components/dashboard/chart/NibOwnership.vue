@@ -36,7 +36,7 @@ const hasData = computed(() => Boolean(props.data && props.data.total > 0));
           :data="chartData"
           category="value"
           index="label"
-          :colors="['#4fa765', '#ffd447']"
+          :colors="['#16A75C', '#ffd447']"
           :show-legend="false"
           :value-formatter="() => ''"
         />
@@ -45,7 +45,7 @@ const hasData = computed(() => Boolean(props.data && props.data.total > 0));
       <div class="flex flex-col gap-4">
         <div class="flex items-center gap-3">
           <div
-            class="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400"
+            class="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-green/10 text-brand-green-foreground dark:bg-brand-green/15 dark:text-brand-green"
             aria-hidden="true"
           >
             <svg
@@ -101,7 +101,7 @@ const hasData = computed(() => Boolean(props.data && props.data.total > 0));
       <NuxtLink
         v-if="buttonHref"
         :to="buttonHref"
-        class="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-5 py-2 text-xs font-semibold text-white shadow-2xs transition-colors hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+        class="inline-flex items-center gap-1.5 rounded-md bg-brand-green px-5 py-2 text-xs font-semibold text-brand-green-foreground shadow-2xs transition-colors hover:bg-brand-green/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green"
       >
         {{ buttonText }}
       </NuxtLink>
