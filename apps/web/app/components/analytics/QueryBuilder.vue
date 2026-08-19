@@ -228,7 +228,7 @@ function fieldLabel(fieldId: string) {
                     :placeholder="selectedField?.label || 'Nilai filter'"
                     aria-label="Nilai filter"
                     @keyup.enter="addFilter"
-                /><button
+                ><button
                     type="button"
                     class="h-8 rounded-md border px-3 text-sm font-semibold"
                     :disabled="!filterField || !filterValue.trim()"
