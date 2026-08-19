@@ -332,14 +332,14 @@ const resetFilters = () => {
         <div class="flex flex-wrap items-center justify-end gap-2">
           <UiButton
             variant="outline"
-            class="gap-1.5 rounded-lg border-[#069550] text-sm font-bold text-[#069550] hover:bg-emerald-50"
+            class="gap-1.5 rounded-lg border-brand-green text-sm font-bold text-brand-green-foreground hover:bg-brand-green/10"
             @click="resetFilters"
           >
             <RotateCcw class="h-4 w-4" />
             <span>Reset Filter</span>
           </UiButton>
           <UiButton
-            class="gap-1.5 rounded-lg bg-emerald-600 text-sm font-bold text-white hover:bg-emerald-700"
+            class="gap-1.5 rounded-lg bg-brand-green text-sm font-bold text-brand-green-foreground hover:bg-brand-green/90"
             @click="applyFilters"
           >
             <Filter class="h-4 w-4" />

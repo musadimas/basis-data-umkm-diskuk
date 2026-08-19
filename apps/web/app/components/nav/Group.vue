@@ -69,7 +69,7 @@ const formattedTitle = computed(() =>
               class="transition-colors ease-in-out"
               :class="[
                 isItemActive(item.to)
-                  ? 'text-emerald-600! dark:text-emerald-400'
+                  ? 'text-brand-green-foreground! dark:text-brand-green'
                   : 'text-slate-400! group-hover/menu-item:text-foreground!',
               ]"
             >

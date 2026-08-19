@@ -70,7 +70,7 @@ function barHeight(value: number) {
           >
             <div class="flex h-full items-end">
               <div
-                class="w-7 rounded-t-md bg-emerald-600 transition-[height] dark:bg-emerald-500"
+                class="w-7 rounded-t-md bg-brand-green transition-[height] dark:bg-brand-green"
                 :style="{ height: `${barHeight(item.value)}%` }"
                 :aria-label="`${item.label}: ${formatAnalyticsNumber(item.value)}`"
                 role="img"
@@ -114,7 +114,7 @@ function barHeight(value: number) {
       <NuxtLink
         v-if="buttonHref"
         :to="buttonHref"
-        class="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-5 py-2 text-xs font-semibold text-white shadow-2xs transition-colors hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+        class="inline-flex items-center gap-1.5 rounded-md bg-brand-green px-5 py-2 text-xs font-semibold text-brand-green-foreground shadow-2xs transition-colors hover:bg-brand-green/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green"
       >
         {{ buttonText }}
       </NuxtLink>

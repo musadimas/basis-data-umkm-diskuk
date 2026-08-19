@@ -34,7 +34,7 @@ const subItems = computed(() => props.item.subItems ?? []);
     <!-- Accordion Header Button -->
     <button
       type="button"
-      class="flex min-h-45 w-full items-start justify-between gap-4 p-4 text-left sm:p-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+      class="flex min-h-45 w-full items-start justify-between gap-4 p-4 text-left sm:p-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green"
       :aria-expanded="isOpen"
       @click="emit('toggle')"
     >
@@ -70,7 +70,7 @@ const subItems = computed(() => props.item.subItems ?? []);
             Total UMKM
           </div>
           <div
-            class="text-base sm:text-xl font-extrabold text-emerald-700 tracking-tight"
+            class="text-base sm:text-xl font-extrabold text-brand-green-foreground tracking-tight"
           >
             {{ formattedTotal }}
           </div>
@@ -116,7 +116,7 @@ const subItems = computed(() => props.item.subItems ?? []);
               Total UMKM
             </div>
             <div
-              class="text-lg sm:text-2xl font-extrabold text-emerald-700 tracking-tight"
+              class="text-lg sm:text-2xl font-extrabold text-brand-green-foreground tracking-tight"
             >
               {{ formattedTotal }}
             </div>
@@ -124,7 +124,7 @@ const subItems = computed(() => props.item.subItems ?? []);
 
           <button
             type="button"
-            class="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-4 py-1.5 text-xs font-semibold text-white shadow-2xs transition-colors hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+            class="inline-flex items-center gap-1.5 rounded-md bg-brand-green px-4 py-1.5 text-xs font-semibold text-brand-green-foreground shadow-2xs transition-colors hover:bg-brand-green/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green"
             @click="emit('view:data', item)"
           >
             <span>Lihat Data</span>
