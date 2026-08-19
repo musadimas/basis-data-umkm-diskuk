@@ -22,19 +22,6 @@ let map: MapLibreMap | null = null;
 let popup: Popup | null = null;
 let resizeObserver: ResizeObserver | null = null;
 
-const values = computed(() => props.regions.map((region) => region.value));
-const minValue = computed(() => Math.min(...values.value, 0));
-const maxValue = computed(() => Math.max(...values.value, 1));
-
-function fillColor(value: number) {
-  const ratio = (value - minValue.value) / Math.max(1, maxValue.value - minValue.value);
-  if (ratio >= 0.75) return "#166534";
-  if (ratio >= 0.5) return "#16a34a";
-  if (ratio >= 0.25) return "#4ade80";
-  if (ratio > 0) return "#86efac";
-  return "#dcfce7";
-}
-
 function featureCollection(): FeatureCollection<Polygon | MultiPolygon> {
   return {
     type: "FeatureCollection",
@@ -48,7 +35,6 @@ function featureCollection(): FeatureCollection<Polygon | MultiPolygon> {
           code: region.code ?? "",
           name: region.name,
           value: region.value,
-          fillColor: fillColor(region.value),
         },
         geometry: region.geometry as Polygon | MultiPolygon,
       }];
@@ -106,8 +92,16 @@ onMounted(() => {
     attributionControl: false,
     style: {
       version: 8,
-      sources: {},
-      layers: [{ id: "background", type: "background", paint: { "background-color": "#f8fafc" } }],
+      sources: {
+        osm: {
+          type: "raster",
+          tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+          tileSize: 256,
+          maxzoom: 19,
+          attribution: "&copy; OpenStreetMap contributors",
+        },
+      },
+      layers: [{ id: "osm", type: "raster", source: "osm" }],
     },
   });
   map.addControl(new NavigationControl({ showCompass: false, visualizePitch: false }), "top-left");
@@ -121,13 +115,23 @@ onMounted(() => {
       id: "jabar-fill",
       type: "fill",
       source: "jabar-regions",
-      paint: { "fill-color": ["get", "fillColor"], "fill-opacity": 0.82 },
+      paint: {
+        "fill-color": [
+          "step", ["get", "value"],
+          "#fb923c",
+          50_000, "#facc15",
+          100_000, "#10b981",
+          300_000, "#2563eb",
+          500_000, "#0e7490",
+        ],
+        "fill-opacity": 0.82,
+      },
     });
     map?.addLayer({
       id: "jabar-outline",
       type: "line",
       source: "jabar-regions",
-      paint: { "line-color": "#14532d", "line-width": 1.1 },
+      paint: { "line-color": "#ffffff", "line-width": 1.5 },
     });
     map?.on("click", "jabar-fill", onRegionClick);
     map?.on("mouseenter", "jabar-fill", () => { if (map) map.getCanvas().style.cursor = "pointer"; });
@@ -152,14 +156,29 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="relative overflow-hidden rounded-lg border border-border/80 bg-slate-50">
-    <div ref="container" class="h-[430px] w-full" aria-label="Peta sebaran UMKM kabupaten dan kota Jawa Barat" />
+    <div
+      ref="container"
+      class="h-[430px] w-full"
+      aria-label="Peta sebaran UMKM kabupaten dan kota Jawa Barat"
+      data-lenis-prevent-wheel
+    />
     <div class="pointer-events-none absolute bottom-3 left-3 z-[5] rounded-lg border bg-white/95 p-3 text-xs shadow-md">
       <p class="mb-2 font-bold">Jumlah UMKM</p>
-      <div class="flex items-center gap-1" aria-hidden="true">
-        <span v-for="color in ['#dcfce7', '#86efac', '#4ade80', '#16a34a', '#166534']" :key="color" class="h-3 w-7" :style="{ backgroundColor: color }" />
-      </div>
-      <div class="mt-1 flex justify-between gap-5 text-[10px] text-muted-foreground">
-        <span>{{ formatAnalyticsNumber(minValue) }}</span><span>{{ formatAnalyticsNumber(maxValue) }}</span>
+      <div class="space-y-1.5 text-[11px] font-medium text-slate-600">
+        <div
+          v-for="item in [
+          { color: '#0e7490', label: '≥ 500.000' },
+          { color: '#2563eb', label: '300.000–499.999' },
+          { color: '#10b981', label: '100.000–299.999' },
+          { color: '#facc15', label: '50.000–99.999' },
+          { color: '#fb923c', label: '< 50.000' },
+          ]"
+          :key="item.label"
+          class="flex items-center gap-2"
+        >
+          <span class="h-3 w-3 shrink-0 rounded-xs" :style="{ backgroundColor: item.color }" />
+          <span>{{ item.label }}</span>
+        </div>
       </div>
     </div>
   </div>
