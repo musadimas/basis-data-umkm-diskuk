@@ -11,6 +11,7 @@ test("city distribution uses the published snapshot when no generation is active
       if (sql.includes("FROM infografis_snapshot")) return { rows: [{
         refreshed_at: "2026-08-18T00:00:00Z",
         population: 10,
+        scales: { total: 10, mikro: 7, kecil: 2, menengah: 1 },
         regions: [{ id: "1", name: "KAB. BANDUNG", value: 7 }, { id: "2", name: "KOTA BANDUNG", value: 3 }],
       }] };
       if (sql.includes("FROM analitik_field")) return { rows: [
@@ -31,4 +32,33 @@ test("city distribution uses the published snapshot when no generation is active
   ]);
   assert.equal(result.data.conservedTotal, true);
   assert.equal(calls.some((sql) => sql.includes("FROM usaha_tabular")), false);
+});
+
+test("scale distribution uses the published aggregate without scanning the tabular snapshot", async () => {
+  const calls = [];
+  const database = {
+    async raw(sql) {
+      calls.push(sql);
+      if (sql.includes("FROM analitik_active_generation")) return { rows: [] };
+      if (sql.includes("FROM infografis_snapshot")) return { rows: [{
+        refreshed_at: "2026-08-18T00:00:00Z",
+        population: 10,
+        scales: { total: 10, mikro: 6, kecil: 3, menengah: 0 },
+        regions: [],
+      }] };
+      if (sql.includes("FROM analitik_field")) return { rows: [
+        { id: "metric", semantic_id: "jumlah_umkm", lifecycle_status: "active", semantic_role: "metric" },
+        { id: "scale", semantic_id: "skala_dilaporkan", lifecycle_status: "active", semantic_role: "dimension" },
+      ] };
+      throw new Error(`Unexpected SQL: ${sql}`);
+    },
+  };
+  const result = await queryAnalytics(database, { schemaVersion: 1, metric: "jumlah_umkm", groupBy: "skala_dilaporkan", filters: [], limit: 20 });
+  assert.deepEqual(result.data.groups.map(({ key, value }) => ({ key, value })), [
+    { key: "micro", value: 6 },
+    { key: "small", value: 3 },
+    { key: "unknown", value: 1 },
+  ]);
+  assert.equal(result.data.conservedTotal, true);
+  assert.equal(calls.some((sql) => sql.includes("FROM usaha_tabular") || sql.includes("FROM kota")), false);
 });
