@@ -169,7 +169,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="relative overflow-hidden rounded-lg border border-border/80">
-    <div ref="container" class="w-full" :class="heightClass" />
+    <div ref="container" class="w-full" :class="heightClass" data-lenis-prevent-wheel />
 
     <!-- Keterangan jumlah titik tampil -->
     <div
