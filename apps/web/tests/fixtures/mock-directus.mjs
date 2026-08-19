@@ -1,8 +1,9 @@
-export async function installMockDirectus(page, { authenticated = false } = {}) {
+export async function installMockDirectus(page, { authenticated = false, renderMap = false } = {}) {
   let loggedIn = authenticated;
   await page.route("**/panel/**", async (route) => {
     const request = route.request();
-    const path = new URL(request.url()).pathname;
+    const url = new URL(request.url());
+    const path = url.pathname;
     if (path === "/panel/auth/login") {
       loggedIn = true;
       await route.fulfill({ status: 200, contentType: "application/json", headers: { "set-cookie": "diskuk_session_started=x; Path=/; HttpOnly" }, body: JSON.stringify({ data: { expires: "2099-01-01T00:00:00Z" } }) });
@@ -15,8 +16,22 @@ export async function installMockDirectus(page, { authenticated = false } = {}) 
       return;
     }
     if (!loggedIn) { await route.fulfill({ status: 401, contentType: "application/json", body: JSON.stringify({ errors: [{ message: "unauthorized" }] }) }); return; }
+    if (path === "/panel/tabular/options") {
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: { kota: [{ id: 1, nama: "Kabupaten Bogor" }], kecamatan: [{ id: 11, nama: "Cibinong", kotaId: 1 }], kategori: ["PERDAGANGAN"], kbli: [{ kode: "47112", kategori: "PERDAGANGAN" }] } }) });
+      return;
+    }
+    if (path === "/panel/tabular/kelurahan") {
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: [{ id: 111, nama: "Pakansari" }] }) });
+      return;
+    }
     if (path === "/panel/infografis/") {
-      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: { scales: { total: 3, mikro: 2, kecil: 1, menengah: 0 }, regions: [], sectors: [], topKbli: [], kbli: [], nib: { total: 3, withNib: 2, withoutNib: 1, withPercentage: 66.7, withoutPercentage: 33.3 }, marketingMethods: [{ key: "non-digital", label: "Non-digital", value: 2, percentage: 66.7 }, { key: "digital", label: "Digital", value: 1, percentage: 33.3 }], dataAsOf: "2026-08-17T00:30:00Z" } }) });
+      const filtered = url.searchParams.has("skala");
+      const regions = renderMap ? Array.from({ length: 27 }, (_, index) => {
+        const longitude = 106 + (index % 9) * 0.25;
+        const latitude = -7.5 + Math.floor(index / 9) * 0.25;
+        return { id: String(index + 1), name: `Wilayah ${index + 1}`, value: index + 1, code: `32.${String(index + 1).padStart(2, "0")}`, geometry: { type: "Polygon", coordinates: [[[longitude, latitude], [longitude + 0.2, latitude], [longitude + 0.2, latitude + 0.2], [longitude, latitude + 0.2], [longitude, latitude]]] } };
+      }) : [];
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: { scales: filtered ? { total: 2, mikro: 2, kecil: 0, menengah: 0 } : { total: 3, mikro: 2, kecil: 1, menengah: 0 }, regions, geometryReady: renderMap, sectors: [], topKbli: [], kbli: [], nib: filtered ? undefined : { total: 3, withNib: 2, withoutNib: 1, withPercentage: 66.7, withoutPercentage: 33.3 }, marketingMethods: filtered ? undefined : [{ key: "non-digital", label: "Non-digital", value: 2, percentage: 66.7 }, { key: "digital", label: "Digital", value: 1, percentage: 33.3 }], dataAsOf: "2026-08-17T00:30:00Z" } }) });
       return;
     }
     if (path === "/panel/analitik/metadata") { await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ schemaVersion: 1, fields: [{ id: "kota_nama", key: "kota_nama", label: "Kabupaten/kota", group: "Wilayah", order: 1, role: "dimension", type: "text", status: "active", privacy: "aggregate", capabilities: ["group"], schemaVersion: 1 }, { id: "skala_dilaporkan", key: "skala_dilaporkan", label: "Skala", group: "Usaha", order: 2, role: "dimension", type: "text", status: "active", privacy: "aggregate", capabilities: ["group", "filter"], schemaVersion: 1 }], warnings: [] }) } ); return; }
