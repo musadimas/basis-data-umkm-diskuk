@@ -71,10 +71,18 @@ export async function proxyToDirectus(event: H3Event) {
     return;
   }
 
+  // Passthrough mode (dev:direct): the target serves Directus itself under /panel, so the prefix is
+  // preserved and the target's own proxy enforces session policy. Strip mode (default): /panel maps
+  // to the Directus root, as in the container stack.
+  const passthrough = Boolean(process.env.NUXT_DIRECTUS_PROXY_TARGET);
+  const base = passthrough
+    ? process.env.NUXT_DIRECTUS_PROXY_TARGET!.replace(/\/$/, "")
+    : (process.env.NUXT_DIRECTUS_INTERNAL_URL || "http://directus:8055").replace(/\/$/, "");
+
   const login = isLoginPath(pathname);
   const logout = isLogoutPath(pathname);
   const refresh = isRefreshPath(pathname);
-  if (isPrivatePanelPath(pathname) && !login && !logout) {
+  if (!passthrough && isPrivatePanelPath(pathname) && !login && !logout) {
     const policy = readPolicyFromEvent(event);
     if (!policy.valid) {
       clearCookiesWithoutH3(event);
@@ -83,10 +91,14 @@ export async function proxyToDirectus(event: H3Event) {
     }
   }
 
-  const base = (process.env.NUXT_DIRECTUS_INTERNAL_URL || "http://directus:8055").replace(/\/$/, "");
-  const target = `${base}${pathname.slice("/panel".length) || "/"}${url.search}`;
+  const target = passthrough ? `${base}${pathname}${url.search}` : `${base}${pathname.slice("/panel".length) || "/"}${url.search}`;
   const body = ["GET", "HEAD"].includes(event.node.req.method?.toUpperCase() || "GET") ? undefined : await readRawBody(event);
   const headers = forwardHeaders(event, requestId);
+  if (passthrough && ["POST", "PUT", "PATCH", "DELETE"].includes(event.node.req.method?.toUpperCase() || "")) {
+    // The target rejects mutations whose Origin does not match its own origin; forward its origin
+    // instead of the local dev origin.
+    headers.set("origin", new URL(base).origin);
+  }
   if (body !== undefined && body !== null) {
     const length = typeof body === "string" ? Buffer.byteLength(body) : Buffer.byteLength(Buffer.from(body));
     headers.set("content-length", String(length));
@@ -118,9 +130,11 @@ export async function proxyToDirectus(event: H3Event) {
     : ((response.headers.get("set-cookie") || "").split(/,(?=[^;,=]+=[^;,]+)/g).filter(Boolean));
   for (const cookie of setCookies) if (cookie) appendSetCookie(event, cookie);
 
-  if (response.status === 401 || logout) clearCookiesWithoutH3(event);
-  else if (login && response.ok) setPolicyCookies(event);
-  else if (!refresh && !login && response.ok) refreshActivityCookie(event);
+  if (!passthrough) {
+    if (response.status === 401 || logout) clearCookiesWithoutH3(event);
+    else if (login && response.ok) setPolicyCookies(event);
+    else if (!refresh && !login && response.ok) refreshActivityCookie(event);
+  }
 
   if (event.node.req.method?.toUpperCase() === "HEAD") {
     res.end();
