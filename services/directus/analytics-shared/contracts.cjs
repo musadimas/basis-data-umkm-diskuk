@@ -49,7 +49,7 @@ const KBLI_SECTORS = Object.freeze([
   ["M", "Aktivitas Profesional, Ilmiah, dan Teknis", 69, 75], ["N", "Aktivitas Penyewaan, Ketenagakerjaan, Agen Perjalanan, dan Penunjang Usaha", 77, 82],
   ["O", "Administrasi Pemerintahan, Pertahanan, dan Jaminan Sosial Wajib", 84, 84], ["P", "Pendidikan", 85, 85],
   ["Q", "Aktivitas Kesehatan Manusia dan Aktivitas Sosial", 86, 88], ["R", "Kesenian, Hiburan, dan Rekreasi", 90, 93],
-  ["S", "Aktivitas Jasa Lainnya", 94, 96], ["T", "Aktivitas Rumah Tangga sebagai Pemberi Kerja", 97, 98], ["U", "Aktivitas Badan Internasional dan Ekstra Internasional", 99, 99],
+  ["S", "Aktivitas Jasa Lainnya", 94, 96], ["T", "Aktivitas Rumah Tangga sebagai Pemberi Kerja; Aktivitas yang Menghasilkan Barang dan Jasa oleh Rumah Tangga untuk Kebutuhan Sendiri", 97, 98], ["U", "Aktivitas Badan Internasional dan Badan Ekstra Internasional Lainnya", 99, 99],
 ]);
 const FORBIDDEN_CONFIG_KEYS = new Set(["notes", "result", "results", "rows", "conclusion", "shortlist", "token", "password", "nik", "phone", "birth_date", "record_id", "recordId", "cursor", "scroll"]);
 const PII_KEY_RE = /(nik|phone|telepon|birth|password|secret|token|cookie|domisili|owner_address|signed_url)/i;

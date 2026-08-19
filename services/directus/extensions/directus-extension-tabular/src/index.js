@@ -14,6 +14,7 @@
  *   POST /tabular/publish        → terbitkan snapshot (Super Admin)
  */
 const { routeGuard } = require("../../shared/auth.cjs");
+const { buildTabularFilter, positiveInt } = require("../../shared/tabular-filter.cjs");
 
 const rows = (result) => result.rows ?? result[0] ?? [];
 const privateHeaders = (res) => { res.setHeader?.("Cache-Control", "private, no-store"); };
@@ -26,41 +27,6 @@ const readStatus = async (database) => {
     WHERE id = 1
   `);
   return rows(result)[0] ?? { refreshedAt: null, total: 0 };
-};
-
-const VALID_SKALA = ["micro", "small", "medium"];
-
-/** Parse bilangan bulat positif; kembalikan fallback bila tidak valid. */
-const positiveInt = (value, fallback) => {
-  const n = Number.parseInt(value, 10);
-  return Number.isInteger(n) && n > 0 ? n : fallback;
-};
-
-/** Normalisasi string query opsional (null bila kosong/melebihi batas). */
-const stringParam = (value, maxLength = 255) =>
-  typeof value === "string" && value.length > 0 ? value.slice(0, maxLength) : null;
-
-/** Bangun WHERE dinamis dari query filter dengan parameter binding. */
-const buildFilter = (q) => {
-  const clauses = [];
-  const params = [];
-  const push = (column, value) => {
-    if (value === null) return;
-    params.push(value);
-    clauses.push(`${column} = ?`);
-  };
-
-  push("t.kota_id", positiveInt(q.kota, null));
-  push("t.kecamatan_id", positiveInt(q.kecamatan, null));
-  push("t.kelurahan_id", positiveInt(q.kelurahan, null));
-  push("t.skala", VALID_SKALA.includes(q.skala) ? q.skala : null);
-  push("t.kategori_kbli", stringParam(q.kegiatan));
-  push("t.kode_kbli", stringParam(q.kbli));
-
-  return {
-    where: clauses.length ? `WHERE ${clauses.join(" AND ")}` : "",
-    params,
-  };
 };
 
 module.exports = {
@@ -166,7 +132,7 @@ module.exports = {
         const page = positiveInt(q.page, 1);
         const pageSize = Math.min(Math.max(positiveInt(q.page_size, 10), 1), 1000);
 
-        const { where, params } = buildFilter(q);
+        const { where, params } = buildTabularFilter(q);
 
         const selectSql = `
           SELECT t.id, t.nama, t.skala, t.produk_utama AS "produkUtama",
@@ -213,7 +179,7 @@ module.exports = {
         const q = req.query ?? {};
         const limit = Math.min(Math.max(positiveInt(q.limit, 1000), 1), 5000);
 
-        const { where, params } = buildFilter(q);
+        const { where, params } = buildTabularFilter(q);
         const coordClause = "t.latitude IS NOT NULL AND t.longitude IS NOT NULL";
         const pointWhere = where ? `${where} AND ${coordClause}` : `WHERE ${coordClause}`;
 

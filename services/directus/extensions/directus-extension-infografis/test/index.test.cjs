@@ -53,3 +53,33 @@ test("authoritative geometry is exposed only when all 27 valid regions are prese
   assert.equal(result.geometrySource.name, "Badan Informasi Geospasial (BIG)");
   assert.equal(result.regions.filter((item) => item.geometry).length, 27);
 });
+
+test("infografis aggregates a filtered snapshot with bound parameters", async () => {
+  const calls = [];
+  let handler;
+  extension.handler({ get: (_path, value) => { handler = value; } }, {
+    database: { raw: async (sql, params = []) => {
+      calls.push({ sql, params });
+      if (sql.includes("WITH filtered AS MATERIALIZED")) {
+        return { rows: [{ payload: { scales: { total: 1 }, regions: [] } }] };
+      }
+      return { rows: [] };
+    } },
+    logger: { error: () => assert.fail("unexpected query error") },
+  });
+
+  let body;
+  await handler(
+    {
+      accountability: { user: "u1", role: APPLICATION_ROLE_ID },
+      query: { kota: "38", kecamatan: "5", kelurahan: "12", skala: "micro", kegiatan: "PERDAGANGAN", kbli: "47112" },
+    },
+    { setHeader() {}, json(value) { body = value; } },
+    assert.fail,
+  );
+
+  assert.equal(body.data.scales.total, 1);
+  assert.match(calls[0].sql, /t\.kota_id = \?.*t\.kode_kbli = \?/s);
+  assert.deepEqual(calls[0].params.slice(0, 6), [38, 5, 12, "micro", "PERDAGANGAN", "47112"]);
+  assert.equal(JSON.parse(calls[0].params[6]).length, 21);
+});
