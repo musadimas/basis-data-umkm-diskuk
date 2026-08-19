@@ -15,3 +15,53 @@ test("infografis renders NIB and marketing cards below the sector chart", async 
   ).toBeVisible();
   await expect(page.getByTitle("Non-digital", { exact: true })).toBeVisible();
 });
+
+test("infografis applies the reusable compact filter FAB", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await installMockDirectus(page, { authenticated: true, renderMap: true });
+  await loginMock(page, "/dashboard");
+
+  const filterButton = page.getByRole("button", { name: "Buka filter data" });
+  const mapCanvas = page.locator(".maplibregl-canvas");
+  await expect(mapCanvas).toBeVisible();
+  await mapCanvas.evaluate((element) => element.scrollIntoView({ block: "end" }));
+  await expect(filterButton).toBeVisible();
+  const buttonBox = await filterButton.boundingBox();
+  const topElementLabel = await page.evaluate(({ x, y }) =>
+    document.elementFromPoint(x, y)?.closest("button")?.getAttribute("aria-label"), {
+    x: (buttonBox?.x ?? 0) + (buttonBox?.width ?? 0) / 2,
+    y: (buttonBox?.y ?? 0) + (buttonBox?.height ?? 0) / 2,
+  });
+  expect(topElementLabel).toBe("Buka filter data");
+
+  await filterButton.click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
+  await expect(page.getByRole("combobox")).toHaveCount(6);
+  const box = await dialog.boundingBox();
+  expect(box?.x).toBeGreaterThanOrEqual(0);
+  expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(390);
+  expect(box?.height).toBeLessThanOrEqual(812);
+
+  await page.getByRole("combobox", { name: "Skala Usaha" }).click();
+  await page.getByRole("option", { name: "Mikro", exact: true }).click();
+
+  const filteredRequest = page.waitForRequest((request) => {
+    const url = new URL(request.url());
+    return url.pathname === "/panel/infografis/" && url.searchParams.get("skala") === "micro";
+  });
+  await page.getByRole("button", { name: "Terapkan Filter" }).click();
+  await filteredRequest;
+
+  await expect(page.getByRole("dialog")).toBeHidden();
+  await expect(filterButton).toContainText("1");
+});
+
+test("infografis keeps the filter FAB interactive after a full reload", async ({ page }) => {
+  await installMockDirectus(page, { authenticated: true });
+  await loginMock(page, "/dashboard");
+  await page.reload();
+
+  await page.getByRole("button", { name: "Buka filter data" }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+});
