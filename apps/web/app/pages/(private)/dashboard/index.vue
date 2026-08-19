@@ -9,6 +9,8 @@ import type {
 import type { InfografisData } from "~/types/infografis";
 import { DASHBOARD_SECTIONS } from "~/constants/DASHBOARD";
 import { defaultAnalysis, serializeAnalysisUrl } from "~/lib/analytics-query"
+import DashboardChartMarketingMethods from "~/components/dashboard/chart/MarketingMethods.vue";
+import DashboardChartNibOwnership from "~/components/dashboard/chart/NibOwnership.vue";
 
 definePageMeta({
   layout: "dashboard",
@@ -98,6 +100,9 @@ const genderData = computed<GenderDistributionData | undefined>(() => {
   );
 });
 
+const nibData = computed(() => infografis.value?.nib);
+const marketingMethods = computed(() => infografis.value?.marketingMethods);
+
 const kbliItems = computed<KbliCategoryItem[]>(() =>
   (infografis.value?.sectors ?? []).map((item) => ({
     code: item.code,
@@ -163,7 +168,35 @@ const kbliItems = computed<KbliCategoryItem[]>(() =>
       <DashboardChartClusterBar :items="sectorItems" />
     </DashboardCardSection>
 
-    <!-- Row with 2 Columns: Top Categories & Gender Distribution -->
+    <!-- Section 4: NIB & Marketing Methods -->
+    <div
+      v-if="nibData || marketingMethods"
+      class="grid grid-cols-1 gap-5 lg:grid-cols-2"
+    >
+      <DashboardCardSection
+        v-if="nibData"
+        v-bind="DASHBOARD_SECTIONS.nib"
+        card-class="flex flex-col justify-between h-full"
+      >
+        <DashboardChartNibOwnership
+          :data="nibData"
+          button-href="/dashboard/tabular"
+        />
+      </DashboardCardSection>
+
+      <DashboardCardSection
+        v-if="marketingMethods"
+        v-bind="DASHBOARD_SECTIONS.marketing"
+        card-class="flex flex-col justify-between h-full"
+      >
+        <DashboardChartMarketingMethods
+          :items="marketingMethods"
+          button-href="/dashboard/tabular"
+        />
+      </DashboardCardSection>
+    </div>
+
+    <!-- Section 5: Top Categories & Gender Distribution -->
     <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
       <DashboardCardSection
         v-bind="DASHBOARD_SECTIONS.topCategories"
@@ -182,7 +215,7 @@ const kbliItems = computed<KbliCategoryItem[]>(() =>
       </DashboardCardSection>
     </div>
 
-    <!-- Section 5: Category Accordion List -->
+    <!-- Section 6: Category Accordion List -->
     <DashboardCardSection v-bind="DASHBOARD_SECTIONS.kbliAccordion">
       <DashboardAccordionListKBLI :items="kbliItems" />
     </DashboardCardSection>

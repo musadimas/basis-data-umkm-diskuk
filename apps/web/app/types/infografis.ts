@@ -18,6 +18,21 @@ export interface InfografisSectorItem {
   percentage: number
 }
 
+export interface InfografisNibData {
+  total: number
+  withNib: number
+  withoutNib: number
+  withPercentage: number
+  withoutPercentage: number
+}
+
+export interface InfografisMarketingMethod {
+  key: string
+  label: string
+  value: number
+  percentage: number
+}
+
 export interface InfografisRegion {
   id: string
   name: string
@@ -47,6 +62,8 @@ export interface InfografisData {
   sectors: InfografisSectorItem[]
   topKbli: InfografisKbliItem[]
   kbli: InfografisKbliItem[]
+  nib?: InfografisNibData
+  marketingMethods?: InfografisMarketingMethod[]
   workforce?: {
     male: number
     female: number
