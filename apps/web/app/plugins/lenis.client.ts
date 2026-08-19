@@ -11,6 +11,10 @@ declare module '#app' {
 export default defineNuxtPlugin((nuxtApp) => {
   gsap.registerPlugin(ScrollTrigger)
 
+  if ('scrollRestoration' in window.history) {
+    window.history.scrollRestoration = 'manual'
+  }
+
   const lenis = new Lenis()
 
   lenis.on('scroll', ScrollTrigger.update)

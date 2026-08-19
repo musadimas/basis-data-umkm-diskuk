@@ -1,12 +1,10 @@
 <script setup lang="ts">
 import gsap from "gsap";
 import ScrollTrigger from "gsap/ScrollTrigger";
-import Draggable from "gsap/Draggable";
-import InertiaPlugin from "gsap/InertiaPlugin";
 import { ArrowRight, ChevronLeft, ChevronRight } from "@lucide/vue";
 import type { Product } from "@/types/landing";
 
-gsap.registerPlugin(ScrollTrigger, Draggable, InertiaPlugin);
+gsap.registerPlugin(ScrollTrigger);
 
 const products: Product[] = [
   {
@@ -88,40 +86,9 @@ const products: Product[] = [
   },
 ];
 
-const CARD_STEP = 260; // w-60 (240px) + gap-5 (20px)
-
 const rootRef = useTemplateRef<HTMLElement>("root");
 const headerRef = useTemplateRef<HTMLElement>("header");
-const wrapperRef = useTemplateRef<HTMLElement>("wrapper");
-const trackRef = useTemplateRef<HTMLElement>("track");
 let ctx: gsap.Context;
-
-function getMaxX() {
-  if (!trackRef.value || !wrapperRef.value) return 0;
-  return -(trackRef.value.scrollWidth - wrapperRef.value.clientWidth);
-}
-
-function shiftCarousel(delta: number) {
-  if (!trackRef.value) return;
-  const maxX = getMaxX();
-  const currentX = gsap.getProperty(trackRef.value, "x") as number;
-  const snapped = gsap.utils.snap(CARD_STEP, currentX + delta);
-  gsap.to(trackRef.value, {
-    x: gsap.utils.clamp(maxX, 0, snapped),
-    duration: 0.4,
-    ease: "power2.out",
-  });
-}
-
-function onKeydown(e: KeyboardEvent) {
-  if (e.key === "ArrowLeft") {
-    e.preventDefault();
-    shiftCarousel(CARD_STEP);
-  } else if (e.key === "ArrowRight") {
-    e.preventDefault();
-    shiftCarousel(-CARD_STEP);
-  }
-}
 
 onMounted(() => {
   ctx = gsap.context(() => {
@@ -137,7 +104,7 @@ onMounted(() => {
       },
     });
 
-    gsap.from(Array.from(trackRef.value!.children), {
+    gsap.from(rootRef.value!.querySelectorAll('[aria-roledescription="slide"]'), {
       y: 40,
       opacity: 0,
       duration: 0.6,
@@ -147,19 +114,6 @@ onMounted(() => {
         trigger: rootRef.value!,
         start: "top 70%",
         once: true,
-      },
-    });
-
-    const maxX = getMaxX();
-
-    Draggable.create(trackRef.value!, {
-      type: "x",
-      bounds: { minX: maxX, maxX: 0 },
-      inertia: true,
-      cursor: "grab",
-      activeCursor: "grabbing",
-      snap: {
-        x: (endValue) => gsap.utils.clamp(maxX, 0, gsap.utils.snap(CARD_STEP, endValue)),
       },
     });
   }, rootRef.value!);
@@ -178,29 +132,31 @@ onUnmounted(() => ctx?.revert());
       </div>
     </div>
 
-    <div ref="wrapper" class="pl-[max(1rem,calc((100%-80rem)/2+1rem))] lg:pl-[max(2rem,calc((100%-80rem)/2+2rem))]" tabindex="0" role="group" aria-label="Geser untuk melihat produk lainnya" @keydown="onKeydown">
-      <div ref="track" class="flex gap-5 select-none will-change-transform pr-4 lg:pr-8" style="width: max-content">
-        <div v-for="product in products" :key="product.id" class="w-60 shrink-0">
-          <LandingProductCard :product="product" />
-        </div>
-      </div>
-    </div>
+    <UiCarousel aria-label="Geser untuk melihat produk lainnya" :opts="{ align: 'start', dragFree: true, containScroll: 'trimSnaps' }">
+      <template #default="{ scrollPrev, scrollNext, canScrollPrev, canScrollNext }">
+        <UiCarouselContent class="-ml-5 pl-[max(1rem,calc((100%-80rem)/2+1rem))] pr-4 lg:pl-[max(2rem,calc((100%-80rem)/2+2rem))] lg:pr-8">
+          <UiCarouselItem v-for="product in products" :key="product.id" class="w-60 basis-auto pl-5">
+            <LandingProductCard :product="product" />
+          </UiCarouselItem>
+        </UiCarouselContent>
 
-    <div class="mx-auto mt-8 max-w-7xl px-4 lg:px-8">
-      <div class="flex items-center justify-between">
-        <UiButton variant="outline" as="a" href="/katalog" class="gap-2">
-          Katalog Lainnya
-          <ArrowRight class="size-4" aria-hidden="true" />
-        </UiButton>
-        <div class="flex gap-2">
-          <UiButton variant="outline" size="icon" aria-label="Produk sebelumnya" @click="shiftCarousel(300)">
-            <ChevronLeft class="size-4" aria-hidden="true" />
-          </UiButton>
-          <UiButton variant="outline" size="icon" aria-label="Produk selanjutnya" @click="shiftCarousel(-300)">
-            <ChevronRight class="size-4" aria-hidden="true" />
-          </UiButton>
+        <div class="mx-auto mt-8 max-w-7xl px-4 lg:px-8">
+          <div class="flex items-center justify-between">
+            <UiButton variant="outline" as="a" href="/katalog" class="gap-2">
+              Katalog Lainnya
+              <ArrowRight class="size-4" aria-hidden="true" />
+            </UiButton>
+            <div class="flex gap-2">
+              <UiButton variant="outline" size="icon" :disabled="!canScrollPrev" aria-label="Produk sebelumnya" @click="scrollPrev">
+                <ChevronLeft class="size-4" aria-hidden="true" />
+              </UiButton>
+              <UiButton variant="outline" size="icon" :disabled="!canScrollNext" aria-label="Produk selanjutnya" @click="scrollNext">
+                <ChevronRight class="size-4" aria-hidden="true" />
+              </UiButton>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
+      </template>
+    </UiCarousel>
   </section>
 </template>

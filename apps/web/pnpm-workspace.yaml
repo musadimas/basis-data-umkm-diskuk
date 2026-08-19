@@ -1,5 +1,5 @@
 allowBuilds:
   esbuild: true
   maplibre-gl: true
-  unrs-resolver: set this to true or false
+  unrs-resolver: true
   vue-demi: true
