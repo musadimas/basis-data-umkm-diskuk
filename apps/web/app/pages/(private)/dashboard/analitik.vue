@@ -45,4 +45,63 @@ async function removeSaved(id:string){await savedApi.remove(id)}
 async function renameSaved(payload:{id:string;name:string}){await savedApi.rename(payload.id,payload.name)}
 async function startExport(type:AnalyticsExportType){await exportApi.submit(type,state.applied.value)}
 </script>
-<template><div class="space-y-5 pb-8"><AnalyticsHeader :meta="currentMeta()"/><div class="flex flex-wrap gap-2"><button type="button" class="rounded-md border px-3 py-2 text-sm font-semibold" @click="showSave=true">Simpan analisis</button><button type="button" class="rounded-md border px-3 py-2 text-sm font-semibold" @click="showExport=true">Ekspor</button></div><AnalyticsState :pending="pending" :error="error" :warning="warning" :has-data="Boolean(currentResponse())" :status="currentMeta()?.status"/><div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_18rem]"><AnalyticsQueryBuilder :fields="fields" :model-value="draft" @update="update" @reset="state.reset" @apply="state.apply"/><AnalyticsTemplatePicker :templates="catalogTemplates" :model-value="draft" @select="chooseTemplate"/></div><AnalyticsFilterChips :filters="draft.filters" :fields="fields" @remove="state.removeFilter"/><AnalyticsSavedAnalysisMenu :items="savedItems" @open="openSaved" @remove="removeSaved" @rename="renameSaved"/><AnalyticsMetricSummary :response="currentResponse()" :meta="currentMeta()"/><AnalyticsInsightPanel :response="currentResponse()"/><AnalyticsVisual v-if="currentResponse()" :groups="currentResponse()?.data.groups || []" :visual="applied.visual" :drill-field="drillField" @select="selectGroup" @drill="drillGroup"/><AnalyticsRecordTable :records="records" @open="openRecord"/><AnalyticsSaveAnalysisDialog :model-value="showSave" :config="applied" :busy="savedPending" @close="showSave=false" @save="saveAnalysis"/><AnalyticsExportDialog :model-value="showExport" :config="applied" :status="exportStatus" :busy="exportPending" @close="showExport=false" @submit="startExport"/></div></template>
+<template>
+  <div class="analytics-page flex min-h-0 flex-col gap-3 lg:flex-1 lg:overflow-hidden">
+    <div class="flex shrink-0 flex-wrap items-center gap-2">
+      <AnalyticsHeader class="analytics-header min-w-0 flex-1" :meta="currentMeta()" />
+      <button type="button" class="h-9 rounded-md border px-3 text-sm font-semibold" @click="showSave=true">Simpan analisis</button>
+      <button type="button" class="h-9 rounded-md border px-3 text-sm font-semibold" @click="showExport=true">Ekspor</button>
+    </div>
+
+    <AnalyticsState class="shrink-0" :pending="pending" :error="error" :warning="warning" :has-data="Boolean(currentResponse())" :status="currentMeta()?.status" />
+
+    <div class="grid shrink-0 gap-3 lg:grid-cols-[minmax(0,1fr)_16rem]">
+      <AnalyticsQueryBuilder :fields="fields" :model-value="draft" @update="update" @reset="state.reset" @apply="state.apply" />
+      <div class="grid min-h-0 content-start gap-3">
+        <div class="rounded-lg border bg-card p-3"><AnalyticsTemplatePicker :templates="catalogTemplates" :model-value="draft" @select="chooseTemplate" /></div>
+        <AnalyticsSavedAnalysisMenu class="analytics-saved min-h-0 overflow-auto" :items="savedItems" @open="openSaved" @remove="removeSaved" @rename="renameSaved" />
+      </div>
+    </div>
+
+    <div class="grid shrink-0 gap-3 lg:grid-cols-2">
+      <AnalyticsMetricSummary class="analytics-metrics" :response="currentResponse()" :meta="currentMeta()" />
+      <AnalyticsInsightPanel class="analytics-insight" :response="currentResponse()" />
+    </div>
+
+    <div class="grid min-h-0 flex-1 gap-3 lg:overflow-hidden lg:grid-cols-[minmax(0,1.1fr)_minmax(24rem,.9fr)] lg:grid-rows-1">
+      <AnalyticsVisual v-if="currentResponse()" class="analytics-result min-h-0" :groups="currentResponse()?.data.groups || []" :visual="applied.visual" :drill-field="drillField" @select="selectGroup" @drill="drillGroup" />
+      <AnalyticsRecordTable class="analytics-result min-h-0" :records="records" @open="openRecord" />
+    </div>
+
+    <AnalyticsSaveAnalysisDialog :model-value="showSave" :config="applied" :busy="savedPending" @close="showSave=false" @save="saveAnalysis" />
+    <AnalyticsExportDialog :model-value="showExport" :config="applied" :status="exportStatus" :busy="exportPending" @close="showExport=false" @submit="startExport" />
+  </div>
+</template>
+
+<style scoped>
+@media (min-width: 1024px) {
+  .analytics-page :deep(.analytics-header) { padding-bottom: .5rem; }
+  .analytics-page :deep(.analytics-header > div:first-child > p:first-child) { display: none; }
+  .analytics-page :deep(.analytics-header h1) { font-size: 1.25rem; line-height: 1.5rem; }
+  .analytics-page :deep(.analytics-header p) { font-size: .75rem; line-height: 1rem; }
+  .analytics-page :deep(.analytics-header div:last-child p) { margin-top: .25rem; }
+  .analytics-page :deep(.analytics-saved) { max-height: 5rem; padding: .75rem; }
+  .analytics-page :deep(.analytics-saved h2) { font-size: .875rem; }
+  .analytics-page :deep(.analytics-saved p),
+  .analytics-page :deep(.analytics-saved ul) { margin-top: .25rem; }
+  .analytics-page :deep(.analytics-metrics) { gap: .5rem; }
+  .analytics-page :deep(.analytics-metrics article) { padding: .625rem .75rem; }
+  .analytics-page :deep(.analytics-metrics article p:nth-child(2)) { margin-top: 0; font-size: 1.25rem; line-height: 1.5rem; }
+  .analytics-page :deep(.analytics-insight) { padding: .75rem; }
+  .analytics-page :deep(.analytics-insight p) { margin-top: .25rem; font-size: .75rem; line-height: 1rem; }
+  .analytics-page :deep(.analytics-insight a) { margin-top: .375rem; font-size: .75rem; }
+  .analytics-page :deep(.analytics-result) { padding: .75rem; }
+  .analytics-page :deep(.analytics-result > div:first-child),
+  .analytics-page :deep(.analytics-result > h2:first-child) { margin-bottom: .5rem; }
+  .analytics-page :deep(.analytics-result [role="list"]) { gap: .5rem; }
+  .analytics-page :deep(.analytics-result [role="listitem"] > div:last-child) { height: .5rem; }
+  .analytics-page :deep(.analytics-result th),
+  .analytics-page :deep(.analytics-result td) { padding: .375rem; }
+  .analytics-page :deep(.analytics-result p:last-child) { padding-block: 1rem; }
+}
+</style>

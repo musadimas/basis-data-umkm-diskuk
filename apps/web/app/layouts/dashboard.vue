@@ -1,14 +1,15 @@
 <script setup lang="ts">
+const route = useRoute();
+const compactAnalytics = computed(() => route.path === "/dashboard/analitik");
 onMounted(() => document.documentElement.classList.add("no-scrollbar"));
 onUnmounted(() => document.documentElement.classList.remove("no-scrollbar"));
 </script>
 
 <template>
-  <NavHeader />
-  <UiSidebarProvider>
+  <UiSidebarProvider :class="compactAnalytics ? 'md:min-h-0 md:overflow-hidden' : undefined">
     <NavAppSidebar />
     <UiSidebarInset>
-      <div class="flex flex-1 flex-col gap-4 p-4">
+      <div class="flex min-h-0 flex-1 flex-col gap-4 p-4">
         <slot />
       </div>
     </UiSidebarInset>
