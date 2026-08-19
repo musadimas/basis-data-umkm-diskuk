@@ -1,0 +1,7 @@
+{
+  "name": "basis-data-umkm-diskuk",
+  "private": true,
+  "scripts": {
+    "dev:direct": "bash scripts/dev-direct.sh"
+  }
+}
