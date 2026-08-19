@@ -48,7 +48,8 @@ WHERE u.status = 'active' AND (p.id IS NULL OR LOWER(p.nama) = 'jawa barat');
 
 WITH usaha_jawa_barat AS MATERIALIZED (
   SELECT
-    id,
+    t.id,
+    NULLIF(BTRIM(u_source.nib), '') AS nib,
     skala,
     kode_kbli,
     kategori_kbli,
@@ -57,7 +58,8 @@ WITH usaha_jawa_barat AS MATERIALIZED (
     COALESCE(kota_nama, 'Tidak diketahui') AS kota_nama,
     tenaga_kerja_laki_laki AS male,
     tenaga_kerja_perempuan AS female
-  FROM usaha_tabular
+  FROM usaha_tabular t
+  LEFT JOIN usaha u_source ON u_source.id = t.id
 ),
 scale AS (
   SELECT jsonb_build_object(
@@ -189,6 +191,22 @@ workforce AS (
     'femalePercentage', COALESCE(ROUND(female * 100.0 / NULLIF(male + female, 0), 1), 0)
   ) AS value
   FROM workforce_numbers
+),
+nib_counts AS (
+  SELECT
+    COUNT(*) FILTER (WHERE nib IS NOT NULL)::integer AS with_nib,
+    COUNT(*) FILTER (WHERE nib IS NULL)::integer AS without_nib
+  FROM usaha_jawa_barat
+),
+nib AS (
+  SELECT jsonb_build_object(
+    'total', with_nib + without_nib,
+    'withNib', with_nib,
+    'withoutNib', without_nib,
+    'withPercentage', COALESCE(ROUND(with_nib * 100.0 / NULLIF(with_nib + without_nib, 0), 1), 0),
+    'withoutPercentage', COALESCE(ROUND(without_nib * 100.0 / NULLIF(with_nib + without_nib, 0), 1), 0)
+  ) AS value
+  FROM nib_counts
 )
 INSERT INTO infografis_snapshot (id, payload, refreshed_at)
 SELECT 1, jsonb_build_object(
@@ -198,9 +216,10 @@ SELECT 1, jsonb_build_object(
   'sectorCoverage', sector_coverage.value,
   'topKbli', kbli.top_rows,
   'kbli', kbli.all_rows,
+  'nib', nib.value,
   'workforce', workforce.value
 ), NOW()
-FROM scale, regions, sectors, sector_coverage, kbli, workforce
+FROM scale, regions, sectors, sector_coverage, kbli, workforce, nib
 ON CONFLICT (id) DO UPDATE
 SET payload = EXCLUDED.payload, refreshed_at = EXCLUDED.refreshed_at;
 
