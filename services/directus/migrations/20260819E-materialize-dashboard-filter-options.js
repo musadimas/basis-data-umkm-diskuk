@@ -46,7 +46,8 @@ export const up = async (knex) => {
       ),
       true
     )
-    WHERE snapshot.id = 1 AND NOT snapshot.payload ? 'options';
+    WHERE snapshot.id = 1
+      AND jsonb_extract_path(snapshot.payload, 'options') IS NULL;
   `);
 };
 

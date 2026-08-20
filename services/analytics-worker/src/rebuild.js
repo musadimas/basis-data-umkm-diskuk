@@ -404,6 +404,11 @@ export async function rebuildCurrentModel(pool, { logger, batchSize = 50_000 } =
     }
     const reconciliation = await withTransaction(pool, async (client) => reconcileGeneration(client,generationId));
     if (!reconciliation.passed) throw Object.assign(new Error("Candidate reconciliation failed"), { code: "RECONCILIATION_FAILED", reconciliation });
+    // Bulk inserts leave the candidate's heap pages outside the visibility map.
+    // Refresh it before promotion so covering indexes remain index-only within
+    // the synchronous analytics API budget. PARALLEL 0 fits the container's
+    // deliberately small /dev/shm allocation.
+    await pool.query("VACUUM (ANALYZE, PARALLEL 0) analitik_usaha_current");
     // Atomic promotion + legacy snapshot refresh in single transaction
     // This ensures one publish yields same generation/dataAsOf across all four surfaces
     await withTransaction(pool, async (client) => {
