@@ -21,7 +21,7 @@ const props = withDefaults(defineProps<Pick<BaseChartProps<T>, "data" | "colors"
   /**
    * Function to sort the segment
    */
-  sortFunction?: (a: unknown, b: unknown) => number | undefined;
+  sortFunction?: (a: T, b: T) => number | undefined;
   /**
    * Controls the formatting for the label.
    */
@@ -43,7 +43,9 @@ type KeyOfT = Extract<keyof T, string>;
 type Data = typeof props.data[number] & { data?: typeof props.data[number] };
 
 const valueFormatter = props.valueFormatter ?? ((tick: number) => `${tick}`);
+// SAFETY: `category` is declared as KeyOfT in the props; the assertion only restores the generic key type erased by defineProps' runtime extraction.
 const category = computed(() => props.category as KeyOfT);
+// SAFETY: `index` is declared as KeyOfT in the props; likewise the assertion restores the erased generic key type.
 const index = computed(() => props.index as KeyOfT);
 
 const isMounted = useMounted();

@@ -12,7 +12,10 @@ await catalogApi.load()
 const savedApi = useSavedAnalyses(); await savedApi.load(); const exportApi = useAnalyticsExports()
 const route = useRoute()
 const state = useAnalysisState()
-function clone<T>(value: T): T { return JSON.parse(JSON.stringify(value)) as T }
+function clone<T>(value: T): T {
+  // SAFETY: seluruh nilai domain di sini JSON-safe; round-trip JSON.parse(JSON.stringify) mempertahankan strukturnya.
+  return JSON.parse(JSON.stringify(value)) as T
+}
 const query = useAnalyticsQuery(state.applied)
 const response = ref<AnalyticsQueryResponse | null>(query.response.value)
 const pending = ref(query.pending.value)
@@ -57,9 +60,14 @@ const breadcrumbs = state.breadcrumbs
 function update(patch: Partial<AnalysisConfig>) { state.updateDraft(patch) }
 function chooseTemplate(config: Partial<AnalysisConfig>) { state.updateDraft({ ...config, filters: config.filters || [] }) }
 function selectGroup(group: AnalyticsGroup) { state.addFilter({ fieldId: state.applied.value.groupBy, operator: "eq", value: group.key }) }
-const DRILL_PATH: Record<string, string> = { kota_nama: "kecamatan_nama", kota_kode: "kecamatan_nama", kecamatan_nama: "kelurahan_nama", sektor_kbli: "kbli_kode" }
+const DRILL_PATH = new Map<string, string>([
+  ["kota_nama", "kecamatan_nama"],
+  ["kota_kode", "kecamatan_nama"],
+  ["kecamatan_nama", "kelurahan_nama"],
+  ["sektor_kbli", "kbli_kode"],
+])
 function drillGroup(group: AnalyticsGroup) {
-  const field = DRILL_PATH[state.applied.value.groupBy]
+  const field = DRILL_PATH.get(state.applied.value.groupBy)
   if (!field) return
   state.addFilter({ fieldId: state.applied.value.groupBy, operator: "eq", value: group.key })
   state.drillDown(field, group.label)
@@ -74,7 +82,7 @@ onMounted(() => {
 const currentResponse = () => response.value
 const currentMeta = () => meta.value
 const groups = computed(() => response.value?.data.groups || [])
-const drillField = computed(() => DRILL_PATH[applied.groupBy] || null)
+const drillField = computed(() => DRILL_PATH.get(applied.groupBy) || null)
 const dimensionLabel = computed(() => fields.value.find((field) => field.key === applied.groupBy)?.label || "kelompok")
 const coverageTotal = computed(() => Number(meta.value?.coverage?.total || meta.value?.matched || 0))
 const coverage = computed(() => (coverageTotal.value ? Number(meta.value?.coverage?.matched ?? meta.value?.matched ?? 0) * 100 / coverageTotal.value : 100))

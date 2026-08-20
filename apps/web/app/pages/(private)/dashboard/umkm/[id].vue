@@ -21,12 +21,24 @@ watch(api.profile, (value) => { profile.value = value })
 watch(api.pending, (value) => { pending.value = value })
 watch(api.error, (value) => { error.value = value })
 watch(api.mutating, (value) => { mutating.value = value })
+interface AnalyticsReturnContext {
+  path?: string | undefined
+  recordIds?: string[] | undefined
+}
+// Type guard: pemeriksaan typeof hanya diizinkan di dalam predikat tipe seperti ini.
+function isAnalyticsReturnContext(value: AnalyticsReturnContext | null | undefined): value is AnalyticsReturnContext {
+  return value !== null && value !== undefined && typeof value === "object"
+}
+function isDashboardAnalitikPath(value: string | undefined): value is string {
+  return typeof value === "string" && value.startsWith("/dashboard/analitik")
+}
+const UUID_RE = /^[0-9a-f-]{36}$/i
 function restoreReturnContext() {
   try {
-    const context = history.state?.analyticsReturn || JSON.parse(sessionStorage.getItem("analytics:return") || "null")
-    if (!context || typeof context !== "object") return
-    if (typeof context.path === "string" && context.path.startsWith("/dashboard/analitik")) backHref.value = context.path
-    const ids = Array.isArray(context.recordIds) ? context.recordIds.filter((id: unknown): id is string => typeof id === "string" && /^[0-9a-f-]{36}$/i.test(id)) : []
+    const candidate = history.state?.analyticsReturn || JSON.parse(sessionStorage.getItem("analytics:return") || "null")
+    if (!isAnalyticsReturnContext(candidate)) return
+    if (isDashboardAnalitikPath(candidate.path)) backHref.value = candidate.path
+    const ids = Array.isArray(candidate.recordIds) ? candidate.recordIds.filter((id) => UUID_RE.test(id)) : []
     const index = ids.indexOf(String(route.params.id))
     if (index >= 0) { previousId.value = ids[index - 1] || null; nextId.value = ids[index + 1] || null }
   } catch { /* malformed return state falls back to the default canvas */ }

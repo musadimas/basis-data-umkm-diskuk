@@ -247,13 +247,16 @@ async function queryAnalytics(database, request, opts = {}) {
     const overflow = rows.length > plan.limit ? rows.slice(plan.limit) : [];
     rows = rows.slice(0, plan.limit);
     const overflowValue = overflow.reduce((sum, row) => sum + Number(row.value || 0), 0);
-    const groups = rows.map((row) => ({
-      key: row.group_key,
-      label: row.group_label || "Tidak diketahui",
-      value: Number(row.value || 0),
-      share: matched ? Number((Number(row.value || 0) * 100 / matched).toFixed(1)) : 0,
-      ...(plan.breakdown ? { breakdown: { key: row.breakdown_key, label: row.breakdown_label || "Tidak diketahui" } } : {}),
-    }));
+    const groups = rows.map((row) => {
+      const group = {
+        key: row.group_key,
+        label: row.group_label || "Tidak diketahui",
+        value: Number(row.value || 0),
+        share: matched ? Number((Number(row.value || 0) * 100 / matched).toFixed(1)) : 0,
+      };
+      if (plan.breakdown) group.breakdown = { key: row.breakdown_key, label: row.breakdown_label || "Tidak diketahui" };
+      return group;
+    });
     if (overflowValue && plan.includeOthers) groups.push({ key: "others", label: "Lainnya", value: overflowValue, share: matched ? Number((overflowValue * 100 / matched).toFixed(1)) : 0 });
     const unknown = groups.filter((group) => group.key === "unknown" || group.label === "Tidak diketahui" || group.label === "Tidak ada kode" || group.label === "Tidak terpetakan").reduce((sum, group) => sum + group.value, 0);
     return {

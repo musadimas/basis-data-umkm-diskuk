@@ -79,7 +79,11 @@ export async function queryAggregate(client, config, generationId = null) {
   const matched = Number((await client.query(`SELECT COUNT(DISTINCT a.usaha_id)::integer AS count FROM analitik_usaha_current a WHERE ${clauses.join(" AND ")}`, params)).rows[0]?.count || 0);
   const rows = grouped.rows.slice(0, limit);
   const overflow = grouped.rows.slice(limit).reduce((sum, row) => sum + Number(row.value || 0), 0);
-  const groups = rows.map((row) => ({ key: row.group_key, label: row.group_label || "Tidak diketahui", value: Number(row.value || 0), share: matched ? Number((Number(row.value || 0) * 100 / matched).toFixed(1)) : 0, ...(second ? { breakdown: { key: row.breakdown_key, label: row.breakdown_label || "Tidak diketahui" } } : {}) }));
+  const groups = rows.map((row) => {
+    const group = { key: row.group_key, label: row.group_label || "Tidak diketahui", value: Number(row.value || 0), share: matched ? Number((Number(row.value || 0) * 100 / matched).toFixed(1)) : 0 };
+    if (second) group.breakdown = { key: row.breakdown_key, label: row.breakdown_label || "Tidak diketahui" };
+    return group;
+  });
   if (overflow && currentConfig.includeOthers !== false) groups.push({ key: "others", label: "Lainnya", value: overflow, share: matched ? Number((overflow * 100 / matched).toFixed(1)) : 0 });
   const generationRow = (await client.query("SELECT data_as_of FROM analitik_generation WHERE id=$1", [generation])).rows[0];
   const dataAsOf = generationRow?.data_as_of || null;

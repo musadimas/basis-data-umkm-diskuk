@@ -12,6 +12,7 @@ import type { ScaleStatItem, SkalaUsaha, SpasialUmkmItem } from "~/types/dashboa
 import type {
   TabularKbliOption,
   TabularOptions,
+  TabularSkalaApi,
   TabularSpasialResponse,
 } from "~/types/tabular";
 
@@ -26,16 +27,16 @@ useSeoMeta({
 });
 
 // ── Skala: nilai API (micro/small/medium) ⇄ nilai UI (mikro/kecil/menengah) ─
-const skalaToApi: Record<SkalaUsaha, "micro" | "small" | "medium"> = {
+const skalaToApi = {
   mikro: "micro",
   kecil: "small",
   menengah: "medium",
-};
-const apiToSkala: Record<string, SkalaUsaha> = {
+} as const satisfies Record<SkalaUsaha, "micro" | "small" | "medium">;
+const apiToSkala = {
   micro: "mikro",
   small: "kecil",
   medium: "menengah",
-};
+} as const satisfies Record<TabularSkalaApi, SkalaUsaha>;
 
 // ── Filter state (draft vs. applied on "Filter Data") ─────────────────────
 interface SpasialFilters {
@@ -115,6 +116,7 @@ const POINT_LIMIT = 1000;
 const pointsQuery = computed(() => ({
   kota: appliedFilters.kabupatenKota !== "semua" ? appliedFilters.kabupatenKota : undefined,
   kecamatan: appliedFilters.kecamatan !== "semua" ? appliedFilters.kecamatan : undefined,
+  // SAFETY: opsi filter skala hanya "mikro"/"kecil"/"menengah" (daftar tetap di template); nilai "semua" sudah disaring ternary ini.
   skala: appliedFilters.skala !== "semua" ? skalaToApi[appliedFilters.skala as SkalaUsaha] : undefined,
   kegiatan: appliedFilters.kegiatanUsaha !== "semua" ? appliedFilters.kegiatanUsaha : undefined,
   kbli: appliedFilters.kodeKbli !== "semua" ? appliedFilters.kodeKbli : undefined,

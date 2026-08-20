@@ -6,7 +6,10 @@ import { VisCrosshair, VisTooltip } from "@unovis/vue";
 import { createApp } from "vue";
 import { ChartTooltip } from ".";
 
-type Datum = Record<string, unknown>;
+type DatumValue = number | string | boolean | null | Datum | undefined;
+type Datum = {
+  [key: string]: DatumValue;
+};
 
 const props = withDefaults(defineProps<{
   colors: string[];
@@ -19,11 +22,11 @@ const props = withDefaults(defineProps<{
 
 // Use weakmap to store reference to each datapoint for Tooltip
 const wm = new WeakMap<object, string>();
-function isDatum(value: unknown): value is Datum {
+function isDatum(value: DatumValue): value is Datum {
   return typeof value === "object" && value !== null;
 }
 
-function template(d: unknown) {
+function template(d: DatumValue) {
   if (!isDatum(d))
     return "";
 
@@ -34,7 +37,7 @@ function template(d: unknown) {
   const omittedData = Object.entries(omit(d, [props.index])).map(([key, value]) => {
     const legendReference = props.items.find(i => i.name === key);
     const legendColor = legendReference?.color;
-    const color = typeof legendColor === "string" ? legendColor : legendColor?.[0] ?? "transparent";
+    const color = Array.isArray(legendColor) ? legendColor[0] ?? "transparent" : legendColor ?? "transparent";
     return { name: String(legendReference?.name ?? key), color, value };
   });
   const TooltipComponent = props.customTooltip ?? ChartTooltip;
@@ -44,7 +47,7 @@ function template(d: unknown) {
   return componentDiv.innerHTML;
 }
 
-function color(_d: unknown, i: number) {
+function color(_d: DatumValue, i: number) {
   return props.colors[i] ?? "transparent";
 }
 </script>

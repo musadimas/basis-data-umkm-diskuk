@@ -1,24 +1,28 @@
-type RequestErrorShape = {
+type RequestErrorPayload = {
   name?: unknown
   status?: unknown
   statusCode?: unknown
 }
 
-function asRequestError(error: unknown): RequestErrorShape | undefined {
-  return typeof error === "object" && error !== null ? error as RequestErrorShape : undefined
+function isRequestError<E>(error: E): error is E & RequestErrorPayload {
+  return error !== null && typeof error === "object"
 }
 
-export function requestStatus(error: unknown) {
-  const candidate = asRequestError(error)
-  if (typeof candidate?.status === "number")
-    return candidate.status
-  return typeof candidate?.statusCode === "number" ? candidate.statusCode : undefined
+function isErrorNumber<T>(value: T): value is T & number {
+  return typeof value === "number"
 }
 
-export function isUnauthorized(error: unknown) {
+export function requestStatus<E>(error: E): number | undefined {
+  if (!isRequestError(error)) return undefined
+  if (isErrorNumber(error.status))
+    return error.status
+  return isErrorNumber(error.statusCode) ? error.statusCode : undefined
+}
+
+export function isUnauthorized<E>(error: E): boolean {
   return requestStatus(error) === 401
 }
 
-export function isAbortError(error: unknown) {
-  return asRequestError(error)?.name === "AbortError"
+export function isAbortError<E>(error: E): boolean {
+  return isRequestError(error) && error.name === "AbortError"
 }

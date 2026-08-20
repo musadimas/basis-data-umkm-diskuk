@@ -33,17 +33,17 @@ const props = withDefaults(defineProps<Props>(), {
 
 const containerRef = useTemplateRef<HTMLDivElement>("container");
 
-const skalaColors: Record<SkalaUsaha, { marker: string; label: string }> = {
+const skalaColors = {
   mikro: { marker: "#16A75C", label: "Usaha Mikro" },
   kecil: { marker: "#0ea5e9", label: "Usaha Kecil" },
   menengah: { marker: "#fbbf24", label: "Usaha Menengah" },
-};
+} satisfies Record<SkalaUsaha, { marker: string; label: string }>;
 
-const skalaLabels: Record<SkalaUsaha, string> = {
+const skalaLabels = {
   mikro: "Mikro",
   kecil: "Kecil",
   menengah: "Menengah",
-};
+} satisfies Record<SkalaUsaha, string>;
 
 // Titik awal pandang: Jawa Barat
 const DEFAULT_CENTER: [number, number] = [107.6, -6.9];
@@ -54,7 +54,7 @@ let markers: Marker[] = [];
 let resizeObserver: ResizeObserver | null = null;
 
 const counts = computed(() => {
-  const c: Record<SkalaUsaha, number> = { mikro: 0, kecil: 0, menengah: 0 };
+  const c = { mikro: 0, kecil: 0, menengah: 0 } satisfies Record<SkalaUsaha, number>;
   for (const item of props.items) c[item.skala] += 1;
   return c;
 });

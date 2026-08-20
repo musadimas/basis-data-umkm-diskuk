@@ -8,8 +8,8 @@ const FORBIDDEN_IDENTIFIER = /(nik|phone|telepon|birth|password|token|cookie|rec
 const FORBIDDEN_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const ALLOWED_KEYS = new Set(["metric", "groupBy", "breakdown", "visual", "others", "filter", "sort", "page", "cursor"])
 
-function safeIdentifier(value: unknown): value is string {
-  return typeof value === "string" && SAFE_TOKEN.test(value) && !FORBIDDEN_IDENTIFIER.test(value)
+function safeIdentifier(value: string | null | undefined): value is string {
+  return value != null && SAFE_TOKEN.test(value) && !FORBIDDEN_IDENTIFIER.test(value)
 }
 function hasControlCharacters(value: string) {
   return Array.from(value).some((character) => {
@@ -18,11 +18,11 @@ function hasControlCharacters(value: string) {
   })
 }
 
-function safeFilterValue(value: unknown): value is string {
-  return typeof value === "string" && value.length <= 100 && !hasControlCharacters(value) && !FORBIDDEN_IDENTIFIER.test(value) && !FORBIDDEN_UUID.test(value) && !/^\d{16}$/.test(value) && !/^(?:\+62|62|08)\d{8,13}$/.test(value)
+function safeFilterValue(value: string): boolean {
+  return value.length <= 100 && !hasControlCharacters(value) && !FORBIDDEN_IDENTIFIER.test(value) && !FORBIDDEN_UUID.test(value) && !/^\d{16}$/.test(value) && !/^(?:\+62|62|08)\d{8,13}$/.test(value)
 }
-function safeCursor(value: unknown): value is string {
-  return typeof value === "string" && SAFE_CURSOR.test(value) && !FORBIDDEN_IDENTIFIER.test(value)
+function safeCursor(value: string | null | undefined): value is string {
+  return value != null && SAFE_CURSOR.test(value) && !FORBIDDEN_IDENTIFIER.test(value)
 }
 
 export const defaultAnalysis: AnalysisConfig = {
@@ -58,9 +58,13 @@ export function serializeAnalysisUrl(config: AnalysisConfig) {
   return params.toString()
 }
 
+function isQueryString(value: string | Record<string, string | string[] | undefined>): value is string {
+  return typeof value === "string"
+}
+
 function asParams(input: string | URLSearchParams | Record<string, string | string[] | undefined>) {
-  if (typeof input === "string") return new URLSearchParams(input.startsWith("?") ? input.slice(1) : input)
   if (input instanceof URLSearchParams) return input
+  if (isQueryString(input)) return new URLSearchParams(input.startsWith("?") ? input.slice(1) : input)
   const params = new URLSearchParams()
   for (const [key, value] of Object.entries(input)) {
     for (const item of Array.isArray(value) ? value : value === undefined ? [] : [value]) params.append(key, item)
@@ -68,7 +72,9 @@ function asParams(input: string | URLSearchParams | Record<string, string | stri
   return params
 }
 
-export function parseAnalysisUrl(input: string | URLSearchParams | Record<string, string | string[] | undefined>): { config: AnalysisConfig; warning: boolean } {
+export interface ParsedAnalysisUrl { config: AnalysisConfig; warning: boolean }
+
+export function parseAnalysisUrl(input: string | URLSearchParams | Record<string, string | string[] | undefined>): ParsedAnalysisUrl {
   const params = asParams(input)
   let warning = false
   const config: AnalysisConfig = { ...defaultAnalysis, filters: [] }
@@ -87,7 +93,9 @@ export function parseAnalysisUrl(input: string | URLSearchParams | Record<string
     else warning = true
   }
   if (visual) {
-    if (ALLOWED_VISUALS.has(visual as AnalyticsVisual)) config.visual = visual as AnalyticsVisual
+    // SAFETY: ALLOWED_VISUALS.has() just verified the raw parameter is one of the known AnalyticsVisual values.
+    const parsedVisual = ALLOWED_VISUALS.has(visual as AnalyticsVisual) ? visual as AnalyticsVisual : null
+    if (parsedVisual) config.visual = parsedVisual
     else warning = true
   }
   if (params.get("others") === "0") config.includeOthers = false
@@ -113,6 +121,7 @@ export function parseAnalysisUrl(input: string | URLSearchParams | Record<string
     const encoded = parts.join("~")
     let value: string
     try { value = decodeURIComponent(encoded) } catch { warning = true; continue }
+    // SAFETY: ALLOWED_OPERATORS.has() just verified the raw operator is one of the known AnalyticsFilter operators.
     if (!fieldId || !operator || !safeIdentifier(fieldId) || !ALLOWED_OPERATORS.has(operator as AnalyticsFilter["operator"]) || !safeFilterValue(value)) {
       warning = true
       continue
@@ -122,6 +131,7 @@ export function parseAnalysisUrl(input: string | URLSearchParams | Record<string
       warning = true
       continue
     }
+    // SAFETY: the operator was verified against ALLOWED_OPERATORS above before reaching this push.
     config.filters.push({ fieldId, operator: operator as AnalyticsFilter["operator"], value: operator === "in" ? values : value })
   }
   return { config, warning }

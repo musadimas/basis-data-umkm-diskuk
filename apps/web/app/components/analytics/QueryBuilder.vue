@@ -25,7 +25,10 @@ const filterOperator = ref<AnalyticsFilter["operator"]>("eq")
 const selectedField = computed(() => filterFields.value.find((field) => field.key === filterField.value))
 
 function patch(event: Event, key: keyof AnalysisConfig) {
-  emit("update", { [key]: (event.target as HTMLSelectElement).value } as Partial<AnalysisConfig>)
+  // SAFETY: patch() hanya dipasang pada handler @change elemen <select>, sehingga event.target pasti HTMLSelectElement.
+  const value = (event.target as HTMLSelectElement).value
+  // SAFETY: key berasal dari keyof AnalysisConfig dan nilai select selalu string, sehingga objek ini cocok dengan Partial<AnalysisConfig>.
+  emit("update", { [key]: value } as Partial<AnalysisConfig>)
 }
 function addFilter() {
   const value = filterValue.value.trim()

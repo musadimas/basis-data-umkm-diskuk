@@ -80,7 +80,7 @@ async function updateRequest(database, id, request, status) {
 async function submitExport(database, request, owner) {
   const type = request?.exportType || request?.type;
   if (!TYPES.has(type)) throw new AnalyticsApiError(400, "EXPORT_TYPE_INVALID");
-  const config = assertSafeAnalysisConfig({ ...(request?.config || {}), schemaVersion: request?.config?.schemaVersion || SCHEMA_VERSION });
+  const config = assertSafeAnalysisConfig({ ...request?.config, schemaVersion: request?.config?.schemaVersion || SCHEMA_VERSION });
   const ownerId = String(owner || "");
   if (!ownerId) throw new AnalyticsApiError(401, "UNAUTHENTICATED");
   if (type === "profile_pdf" && !UUID.test(String(request?.profileId || ""))) throw new AnalyticsApiError(400, "PROFILE_ID_INVALID");

@@ -4,7 +4,10 @@ import { clearPrivateClientState } from "~/lib";
 
 export default defineNuxtPlugin(() => {
   const directus = createDirectus<unknown>(`${window.location.origin}/panel`)
-    .with(rest({ onRequest: (options) => ({ ...options, cache: "no-store", credentials: "include" as RequestCredentials }) }))
+    .with(rest({ onRequest: (options) => (
+      // SAFETY: "include" is a member of the RequestCredentials union accepted by RequestInit.credentials.
+      { ...options, cache: "no-store", credentials: "include" as RequestCredentials }
+    ) }))
     .with(authentication("session", { credentials: "include", autoRefresh: true }));
 
   let authRedirectPending = false;

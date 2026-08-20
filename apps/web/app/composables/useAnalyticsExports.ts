@@ -1,6 +1,12 @@
 import type { AnalysisConfig, AnalyticsExportStatus, AnalyticsExportType } from "~/types/analytics"
 import { isUnauthorized } from "~/lib/request-error"
 
+interface ExportRequestBody {
+  exportType: AnalyticsExportType
+  config: AnalysisConfig
+  profileId?: string
+}
+
 export function useAnalyticsExports() {
   const status = shallowRef<AnalyticsExportStatus | null>(null)
   const pending = ref(false)
@@ -8,7 +14,9 @@ export function useAnalyticsExports() {
   async function submit(type: AnalyticsExportType, config: AnalysisConfig, profileId?: string) {
     pending.value = true
     try {
-      status.value = await $fetch<AnalyticsExportStatus>("/panel/analitik/exports", { method: "POST", body: { exportType: type, config, ...(profileId ? { profileId } : {}) }, credentials: "include" })
+      const body: ExportRequestBody = { exportType: type, config }
+      if (profileId) body.profileId = profileId
+      status.value = await $fetch<AnalyticsExportStatus>("/panel/analitik/exports", { method: "POST", body, credentials: "include" })
       if (["queued", "processing"].includes(status.value.data.status)) poll(status.value.data.jobId)
     } catch (cause: unknown) {
       if (import.meta.client && isUnauthorized(cause)) window.dispatchEvent(new Event("auth:unauthorized"))

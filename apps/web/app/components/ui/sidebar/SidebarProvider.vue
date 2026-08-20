@@ -22,8 +22,10 @@ const emits = defineEmits<{
 const isMobile = useMediaQuery("(max-width: 768px)")
 const openMobile = ref(false)
 
+// SAFETY: the model wraps the `open` prop, which is a boolean whenever defined (defaultOpen supplies the fallback), so the returned ref always holds booleans.
 const open = useVModel(props, "open", emits, {
   defaultValue: props.defaultOpen ?? false,
+  // SAFETY: upstream cast — `passive` is only consumed as a boolean flag; asserting `false` selects the intended useVModel behavior without changing runtime semantics.
   passive: (props.open === undefined) as false,
 }) as Ref<boolean>
 

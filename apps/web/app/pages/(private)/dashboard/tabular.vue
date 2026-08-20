@@ -13,6 +13,7 @@ import type {
   TabularKbliOption,
   TabularOptions,
   TabularRowsResponse,
+  TabularSkalaApi,
 } from "~/types/tabular";
 
 definePageMeta({
@@ -26,29 +27,29 @@ useSeoMeta({
 });
 
 // ── Skala: nilai API (micro/small/medium) ⇄ nilai UI (mikro/kecil/menengah) ─
-const skalaToApi: Record<SkalaUsaha, "micro" | "small" | "medium"> = {
+const skalaToApi = {
   mikro: "micro",
   kecil: "small",
   menengah: "medium",
-};
-const apiToSkala: Record<string, SkalaUsaha> = {
+} as const satisfies Record<SkalaUsaha, "micro" | "small" | "medium">;
+const apiToSkala = {
   micro: "mikro",
   small: "kecil",
   medium: "menengah",
-};
+} as const satisfies Record<TabularSkalaApi, SkalaUsaha>;
 
 // ── Skala badge styling (per design tokens) ───────────────────────────────
-const skalaBadgeClasses: Record<SkalaUsaha, string> = {
+const skalaBadgeClasses = {
   mikro: "bg-[#c3e9d0] text-[#006430]",
   kecil: "bg-[#bbdefb] text-[#0d47a1]",
   menengah: "bg-[#ffeeb4] text-[#ff7500]",
-};
+} satisfies Record<SkalaUsaha, string>;
 
-const skalaLabels: Record<SkalaUsaha, string> = {
+const skalaLabels = {
   mikro: "Mikro",
   kecil: "Kecil",
   menengah: "Menengah",
-};
+} satisfies Record<SkalaUsaha, string>;
 
 const skalaOptions = [
   { value: "semua", label: "Semua" },
@@ -187,13 +188,26 @@ const filterQuery = computed(() => ({
   kota: appliedFilters.kabupatenKota !== "semua" ? appliedFilters.kabupatenKota : undefined,
   kecamatan: appliedFilters.kecamatan !== "semua" ? appliedFilters.kecamatan : undefined,
   kelurahan: appliedFilters.desaKelurahan !== "semua" ? appliedFilters.desaKelurahan : undefined,
+  // SAFETY: opsi filter skala hanya "mikro"/"kecil"/"menengah" (lihat skalaOptions); nilai "semua" sudah disaring ternary ini.
   skala: appliedFilters.skala !== "semua" ? skalaToApi[appliedFilters.skala as SkalaUsaha] : undefined,
   kegiatan: appliedFilters.kegiatanUsaha !== "semua" ? appliedFilters.kegiatanUsaha : undefined,
   kbli: appliedFilters.kodeKbli !== "semua" ? appliedFilters.kodeKbli : undefined,
 }));
 
+interface TabularRowsQuery {
+  kota?: string | undefined;
+  kecamatan?: string | undefined;
+  kelurahan?: string | undefined;
+  skala?: string | undefined;
+  kegiatan?: string | undefined;
+  kbli?: string | undefined;
+  page_size: number;
+  page?: number;
+  cursor?: string;
+}
+
 const rowsQuery = computed(() => {
-  const base: Record<string, unknown> = { ...filterQuery.value, page_size: pageSize };
+  const base: TabularRowsQuery = { ...filterQuery.value, page_size: pageSize };
   if (currentCursor.value) {
     base.cursor = currentCursor.value;
   } else {
@@ -345,8 +359,8 @@ const exportCsv = async () => {
       attempts += 1;
     }
     if (!downloadUrl) throw new Error("Export not ready");
-    const blob = await $fetch<Blob>(downloadUrl, { responseType: "blob" as unknown as "json" });
-    const url = URL.createObjectURL(blob as unknown as Blob);
+    const blob = await $fetch<Blob>(downloadUrl, { responseType: "blob" });
+    const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
     a.download = "data-umkm-jawa-barat.csv";

@@ -1,8 +1,8 @@
 import type { Spacing } from "@unovis/ts";
 
-type KeyOf<T extends Record<string, unknown>> = Extract<keyof T, string>;
+type KeyOf<T extends object> = Extract<keyof T, string>;
 
-export interface BaseChartProps<T extends Record<string, unknown>> {
+export interface BaseChartProps<T extends object> {
   /**
    * The source data, in which each entry is a dictionary.
    */

@@ -1,6 +1,6 @@
 import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
-const { KBLI_SECTORS, SCHEMA_VERSION, MASKING_VERSION } = require("../analytics-shared/contracts.cjs");
+const { KBLI_SECTORS, SCHEMA_VERSION } = require("../analytics-shared/contracts.cjs");
 const FIELD_SEEDS = [
   ["5d84d56b-1538-4b2c-9ec7-000000000001","jumlah_umkm","usaha","id","Jumlah UMKM","metric","count","aggregate","COUNT_DISTINCT_USAHA",["count"]],
   ["5d84d56b-1538-4b2c-9ec7-000000000002","usaha_id","usaha","id","ID usaha (internal)","profile","text","profile_safe","USAHA_ID",[]],

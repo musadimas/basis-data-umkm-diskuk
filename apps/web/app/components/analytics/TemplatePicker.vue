@@ -3,6 +3,7 @@ import type { AnalyticsTemplate, AnalysisConfig } from "~/types/analytics"
 const props = defineProps<{ templates: AnalyticsTemplate[]; modelValue: AnalysisConfig }>()
 const emit = defineEmits<{ select: [config: Partial<AnalysisConfig>] }>()
 function select(event: Event) {
+  // SAFETY: handler ini terpasang pada elemen <select>, sehingga event.target pasti HTMLSelectElement.
   const value = (event.target as HTMLSelectElement).value
   const template = props.templates.find((item) => item.id === value)
   if (template) emit("select", template.config)

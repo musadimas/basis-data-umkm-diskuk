@@ -4,16 +4,23 @@ export type AuthUser = { id: string; email?: string; first_name?: string; last_n
 
 type QueryClientLike = { clear: () => void };
 type DirectusLike = {
-  login: (credentials: { email: string; password: string }, options: { mode: "session" }) => Promise<unknown>;
-  logout: () => Promise<unknown>;
+  login: (credentials: { email: string; password: string }, options: { mode: "session" }) => Promise<void>;
+  logout: () => Promise<void>;
 };
 type InjectedServices = {
   $directus?: DirectusLike;
   $queryClient?: QueryClientLike;
 };
 
-function validReturnTo(value: unknown) {
-  if (typeof value !== "string" || !value.startsWith("/") || value.startsWith("//") || value.includes("\\")) return "/dashboard";
+/** Nilai mentah `returnTo` dari route query vue-router sebelum divalidasi. */
+type ReturnToInput = string | null | (string | null)[] | undefined;
+
+function isReturnToString(value: ReturnToInput): value is string {
+  return typeof value === "string";
+}
+
+function validReturnTo(value: ReturnToInput) {
+  if (!isReturnToString(value) || !value.startsWith("/") || value.startsWith("//") || value.includes("\\")) return "/dashboard";
   try {
     const decoded = decodeURIComponent(value);
     if (decoded.includes("\\") || decoded.startsWith("//")) return "/dashboard";
@@ -22,13 +29,16 @@ function validReturnTo(value: unknown) {
   } catch { return "/dashboard"; }
 }
 
-export function safeDashboardReturnTo(value: unknown) {
+export function safeDashboardReturnTo(value: ReturnToInput) {
   return validReturnTo(value);
 }
 
 export function useAuth() {
   const nuxt = useNuxtApp();
-  const services = nuxt as unknown as InjectedServices;
+  const host: object = nuxt;
+  // SAFETY: $directus & $queryClient disuntik plugin runtime (app/plugins/directus.client.ts, app/plugins/query.ts)
+  // dan belum diekspos pada tipe #app; properti yang diakses memang disediakan saat runtime.
+  const services = host as InjectedServices;
   const user = useState<AuthUser | null>("auth:user", () => null);
   const status = useState<"unknown" | "authenticated" | "anonymous">("auth:status", () => "unknown");
   const pending = useState("auth:pending", () => false);

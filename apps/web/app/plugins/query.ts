@@ -5,18 +5,25 @@ import { createQueryPersister, clearPrivateClientState } from "~/lib";
 import { defineNuxtPlugin, useState } from "nuxt/app";
 import { AUTH_ERROR_CODES } from "~/constants";
 
-function isAuthError(error: unknown): boolean {
-  if (!error || typeof error !== "object") return false;
-  const candidate = error as {
-    status?: unknown
-    statusCode?: unknown
-    errors?: Array<{ extensions?: { code?: unknown } }>
-  };
-  const errorCode = candidate.errors?.[0]?.extensions?.code;
-  return candidate.status === 401 || candidate.statusCode === 401 || (typeof errorCode === "string" && AUTH_ERROR_CODES.has(errorCode));
+interface AuthErrorLike {
+  status?: unknown
+  statusCode?: unknown
+  errors?: Array<{ extensions?: { code?: unknown } }>
 }
 
-function onQueryError(error: unknown) {
+function isAuthErrorCode<T>(value: T): value is T & string {
+  return typeof value === "string"
+}
+
+function isAuthError<E>(error: E): error is E & AuthErrorLike {
+  if (!error || typeof error !== "object") return false;
+  // SAFETY: the guard above established that the caught value is a non-null object; Directus auth failures expose these fields.
+  const candidate = error as AuthErrorLike;
+  const errorCode = candidate.errors?.[0]?.extensions?.code;
+  return candidate.status === 401 || candidate.statusCode === 401 || (isAuthErrorCode(errorCode) && AUTH_ERROR_CODES.has(errorCode));
+}
+
+function onQueryError(error: Error) {
   if (import.meta.client && isAuthError(error)) {
     void clearPrivateClientState();
     window.dispatchEvent(new Event("auth:unauthorized"));

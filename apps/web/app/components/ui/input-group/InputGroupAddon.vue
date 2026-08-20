@@ -12,7 +12,9 @@ const props = withDefaults(defineProps<{
 })
 
 function handleInputGroupAddonClick(e: MouseEvent) {
+  // SAFETY: this handler is bound to the addon's root <div>, so currentTarget is always an HTMLElement (or null).
   const currentTarget = e.currentTarget as HTMLElement | null
+  // SAFETY: clicks originate from DOM elements inside the addon, so target is an HTMLElement (or null).
   const target = e.target as HTMLElement | null
   if (target && target.closest("button")) {
     return

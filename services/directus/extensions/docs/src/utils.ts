@@ -13,6 +13,10 @@ let oasBuffer: string;
 
 export const EXCLUDED_TAG_RE = /^Items(\{\{.*?\}\}|[A-Z].*)?$/;
 
+function isBoolean(value: boolean | undefined): value is boolean {
+  return typeof value === "boolean";
+}
+
 /**
  * Retrieves the configuration for OpenAPI specification (OAS) generation.
  * The function attempts to load the configuration from a YAML file located in the specified extension directory.
@@ -37,18 +41,20 @@ function getConfigRoot(): oasConfig {
     try {
       // packaged extensions
       const configFile = path.join(directusDir(), extensionDir, "/oasconfig.yaml");
-      config = yaml.load(fs.readFileSync(configFile, { encoding: "utf-8" })) as any;
+      // SAFETY: oasconfig.yaml is a repo-controlled file maintained against the oasConfig schema.
+      config = yaml.load(fs.readFileSync(configFile, { encoding: "utf-8" })) as oasConfig;
     } catch {
       // legacy
       const configFile = path.join(directusDir(), extensionDir, "/endpoints/oasconfig.yaml");
-      config = yaml.load(fs.readFileSync(configFile, { encoding: "utf-8" })) as any;
+      // SAFETY: oasconfig.yaml is a repo-controlled file maintained against the oasConfig schema.
+      config = yaml.load(fs.readFileSync(configFile, { encoding: "utf-8" })) as oasConfig;
     }
     config.docsPath = config.docsPath || defConfig.docsPath;
     config.info = config.info || defConfig.info;
     config.tags = config.tags || defConfig.tags;
     config.publishedTags = config.publishedTags || defConfig.publishedTags;
     config.excludePrefixes = config.excludePrefixes || defConfig.excludePrefixes;
-    config.useAuthentication = typeof config.useAuthentication === "boolean" ? config.useAuthentication : defConfig.useAuthentication;
+    config.useAuthentication = isBoolean(config.useAuthentication) ? config.useAuthentication : defConfig.useAuthentication;
     config.paths = config.paths || defConfig.paths;
     config.components = config.components || defConfig.components;
     return config;
@@ -90,10 +96,11 @@ export function getConfig(): oasConfig {
   const config = getConfigRoot();
   try {
     const mergeConfig = (oasPath: string) => {
-      const oas = yaml.load(fs.readFileSync(oasPath, { encoding: "utf-8" })) as any;
-      config.tags = [...config.tags, ...(oas.tags || [])];
-      config.paths = { ...config.paths, ...(oas.paths || {}) };
-      config.components = merge(config.components || {}, oas.components || {});
+      // SAFETY: each oas.yaml is a repo-controlled OpenAPI document matching the oas schema.
+      const doc = yaml.load(fs.readFileSync(oasPath, { encoding: "utf-8" })) as oas;
+      config.tags = [...config.tags, ...(doc.tags || [])];
+      config.paths = { ...config.paths, ...doc.paths };
+      config.components = merge(config.components || {}, doc.components || {});
     };
 
     const scanDirectory = (dirPath: string) => {
@@ -140,7 +147,7 @@ export function getConfig(): oasConfig {
     scanDirectory(legacyEndpointsPath);
 
     return config;
-  } catch (e) {
+  } catch {
     return config;
   }
 }
@@ -174,14 +181,24 @@ export async function getOas(services: any, schema: SchemaOverview, accountabili
 export async function getPackage() {
   try {
     return require(`${directusDir()}/package.json`);
-  } catch (e) {
+  } catch {
     return {};
   }
 }
 
+type MergeValue = string | number | boolean | null | MergeValue[] | MergeObject;
+
+interface MergeObject {
+  [key: string]: MergeValue;
+}
+
+function isMergeableSource(value: MergeValue): value is MergeObject | MergeValue[] {
+  return value !== null && typeof value === "object";
+}
+
 export function merge(a: any, b: any) {
-  return Object.entries(b).reduce((o, [k, v]) => {
-    o[k] = v && typeof v === "object" ? merge((o[k] = o[k] || (Array.isArray(v) ? [] : {})), v) : v;
+  return Object.entries(b).reduce((o, [k, v]: [string, any]) => {
+    o[k] = isMergeableSource(v) ? merge((o[k] = o[k] || (Array.isArray(v) ? [] : {})), v) : v;
     return o;
   }, a);
 }

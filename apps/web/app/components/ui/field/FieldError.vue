@@ -8,6 +8,10 @@ const props = defineProps<{
   errors?: Array<string | { message: string | undefined } | undefined>
 }>()
 
+function isStringError(error: string | { message: string | undefined } | undefined): error is string {
+  return typeof error === "string"
+}
+
 const content = computed(() => {
   if (!props.errors || props.errors.length === 0)
     return null
@@ -17,17 +21,17 @@ const content = computed(() => {
       props.errors
         .filter(Boolean)
         .map((error) => {
-          const message = typeof error === "string" ? error : error?.message
+          const message = isStringError(error) ? error : error?.message
           return [message, error]
         }),
     ).values(),
   ]
 
   if (uniqueErrors.length === 1 && uniqueErrors[0]) {
-    return typeof uniqueErrors[0] === "string" ? uniqueErrors[0] : uniqueErrors[0].message
+    return isStringError(uniqueErrors[0]) ? uniqueErrors[0] : uniqueErrors[0].message
   }
 
-  return uniqueErrors.map(error => typeof error === "string" ? error : error?.message)
+  return uniqueErrors.map(error => isStringError(error) ? error : error?.message)
 })
 </script>
 

@@ -1,4 +1,3 @@
-const APPLICATION_ROLE_ID = "7d6d493c-1a6d-4c59-9e74-40d42a7862eb";
 const POLICY_ID = "9325db4b-9518-41db-b122-8c667f2ce510";
 
 export const up = async (knex) => {

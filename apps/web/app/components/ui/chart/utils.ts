@@ -4,7 +4,10 @@ import { useId } from "reka-ui"
 import type { Component } from "vue"
 import { h, render } from "vue"
 
-type Datum = Record<string, unknown>
+type DatumValue = number | string | boolean | null | Datum | undefined
+type Datum = {
+  [key: string]: DatumValue
+}
 
 // Simple cache using a Map to store serialized object keys
 const cache = new Map<string, string>()
@@ -14,11 +17,11 @@ function serializeKey(key: Datum): string {
   return JSON.stringify(key, Object.keys(key).sort())
 }
 
-function isDatum(value: unknown): value is Datum {
+function isDatum(value: DatumValue): value is Datum {
   return typeof value === "object" && value !== null
 }
 
-export function componentToString<P extends Record<string, unknown>>(config: ChartConfig, component: Component, props?: P) {
+export function componentToString<P extends object>(config: ChartConfig, component: Component, props?: P) {
   if (!isClient)
     return
 
@@ -26,7 +29,7 @@ export function componentToString<P extends Record<string, unknown>>(config: Cha
   const id = useId()
 
   // https://unovis.dev/docs/auxiliary/Crosshair#component-props
-  return (_data: unknown, x: number | Date) => {
+  return (_data: DatumValue, x: number | Date) => {
     const data = isDatum(_data) && isDatum(_data.data) ? _data.data : _data
     if (!isDatum(data))
       return ""

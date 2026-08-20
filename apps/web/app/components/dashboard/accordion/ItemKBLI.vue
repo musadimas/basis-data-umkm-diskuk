@@ -16,8 +16,12 @@ const emit = defineEmits<{
   (e: "view:data", item: KbliCategoryItem): void;
 }>();
 
+function isNumber(value: number | string): value is number {
+  return typeof value === "number";
+}
+
 const formattedTotal = computed(() => {
-  if (typeof props.item.totalUmkm === "number") {
+  if (isNumber(props.item.totalUmkm)) {
     return new Intl.NumberFormat("id-ID").format(props.item.totalUmkm);
   }
   return props.item.totalUmkm;

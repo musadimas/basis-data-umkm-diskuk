@@ -28,7 +28,7 @@ export async function clearPrivateClientState(queryClient?: { clear?: () => void
     layerGroupStore.clear(),
     layerOrderStore.clear(),
   ]);
-  if (typeof window !== "undefined" && "caches" in window) {
+  if (import.meta.client && "caches" in window) {
     const names = await caches.keys();
     await Promise.allSettled(
       names.filter((name) => name.startsWith("diskuk-private") || name === "diskuk-assets" || name === "diskuk-query").map((name) => caches.delete(name)),

@@ -4,7 +4,7 @@ import type { AnalysisConfig, AnalyticsFilter, AnalyticsVisual } from "~/types/a
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value))
 
 type RouterQuery = Record<string, string | string[]>
-function queryFromConfig(config: AnalysisConfig): RouterQuery {
+function queryFromConfig(config: AnalysisConfig) {
   const query: RouterQuery = {}
   for (const [key, value] of new URLSearchParams(serializeAnalysisUrl(config))) {
     const current = query[key]

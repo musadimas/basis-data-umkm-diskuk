@@ -71,28 +71,32 @@ function featureCollection(): GeoJSON.FeatureCollection<GeoJSON.Polygon | GeoJSO
           name: region.name,
           value: region.value,
         },
+        // SAFETY: endpoint /panel/infografis/map hanya mengirim geometry Polygon/MultiPolygon
+        // (lihat InfografisRegion.geometry), sehingga bentuk GeoJSON ini valid.
         geometry: region.geometry as GeoJSON.Polygon | GeoJSON.MultiPolygon,
       }];
     }),
   };
 }
 
-function extendBounds(bounds: LngLatBounds, coordinates: unknown) {
-  if (!Array.isArray(coordinates)) return;
-  if (
-    coordinates.length >= 2
-    && typeof coordinates[0] === "number"
-    && typeof coordinates[1] === "number"
-  ) {
-    bounds.extend([coordinates[0], coordinates[1]]);
+/** Koordinat GeoJSON bersarang: posisi (daftar number) atau daftar koordinat lebih dalam. */
+type Coordinates = number[] | Coordinates[];
+
+function extendBounds(bounds: LngLatBounds, coordinates: Coordinates): void {
+  const [x, y] = coordinates;
+  if (x !== undefined && y !== undefined && !Array.isArray(x) && !Array.isArray(y)) {
+    bounds.extend([x, y]);
     return;
   }
-  for (const child of coordinates) extendBounds(bounds, child);
+  for (const child of coordinates) {
+    if (Array.isArray(child)) extendBounds(bounds, child);
+  }
 }
 
 function updateSource() {
   if (!map?.isStyleLoaded()) return;
   const data = featureCollection();
+  // SAFETY: source "jabar-regions" selalu didaftarkan bertipe geojson oleh komponen ini saat map load.
   (map.getSource("jabar-regions") as GeoJSONSource | undefined)?.setData(data);
   if (map.getLayer("jabar-fill")) map.setPaintProperty("jabar-fill", "fill-color", colorExpression());
   const bounds = new LngLatBounds();

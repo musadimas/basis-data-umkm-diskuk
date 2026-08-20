@@ -19,8 +19,12 @@ const emit = defineEmits<{
   (e: "click:action"): void;
 }>();
 
+function isNumber(value: number | string): value is number {
+  return typeof value === "number";
+}
+
 const formattedValue = computed(() => {
-  if (typeof props.value === "number") {
+  if (isNumber(props.value)) {
     return new Intl.NumberFormat("id-ID").format(props.value);
   }
   return props.value;

@@ -5,7 +5,7 @@ import { formatAnalyticsNumber, formatAnalyticsPercent } from "~/lib/analytics-f
 const props = defineProps<{ groups: AnalyticsGroup[]; coverage?: number; unknownShare?: number }>()
 const emit = defineEmits<{ evidence: [] }>()
 const leader = computed(() => props.groups[0])
-const lowCoverage = computed(() => typeof props.coverage === "number" && props.coverage < 95)
+const lowCoverage = computed(() => props.coverage != null && props.coverage < 95)
 </script>
 
 <template>

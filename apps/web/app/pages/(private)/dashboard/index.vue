@@ -139,17 +139,17 @@ watch(() => filters.kegiatanUsaha, (value) => {
   }
 });
 
-const skalaToApi: Record<string, string> = {
-  mikro: "micro",
-  kecil: "small",
-  menengah: "medium",
-};
+const skalaToApi = new Map<string, string>([
+  ["mikro", "micro"],
+  ["kecil", "small"],
+  ["menengah", "medium"],
+]);
 
 const infografisQuery = computed(() => ({
   kota: appliedFilters.kabupatenKota !== "semua" ? appliedFilters.kabupatenKota : undefined,
   kecamatan: appliedFilters.kecamatan !== "semua" ? appliedFilters.kecamatan : undefined,
   kelurahan: appliedFilters.desaKelurahan !== "semua" ? appliedFilters.desaKelurahan : undefined,
-  skala: appliedFilters.skala !== "semua" ? skalaToApi[appliedFilters.skala] : undefined,
+  skala: appliedFilters.skala !== "semua" ? skalaToApi.get(appliedFilters.skala) : undefined,
   kegiatan: appliedFilters.kegiatanUsaha !== "semua" ? appliedFilters.kegiatanUsaha : undefined,
   kbli: appliedFilters.kodeKbli !== "semua" ? appliedFilters.kodeKbli : undefined,
 }));
@@ -177,7 +177,7 @@ const mapQuery = computed(() => ({
   kota: mapKota.value !== "semua" ? mapKota.value : undefined,
   kecamatan: mapKecamatan.value !== "semua" ? mapKecamatan.value : undefined,
   kelurahan: mapKelurahan.value !== "semua" ? mapKelurahan.value : undefined,
-  skala: appliedFilters.skala !== "semua" ? skalaToApi[appliedFilters.skala] : undefined,
+  skala: appliedFilters.skala !== "semua" ? skalaToApi.get(appliedFilters.skala) : undefined,
   kegiatan: appliedFilters.kegiatanUsaha !== "semua" ? appliedFilters.kegiatanUsaha : undefined,
   kbli: appliedFilters.kodeKbli !== "semua" ? appliedFilters.kodeKbli : undefined,
 }));

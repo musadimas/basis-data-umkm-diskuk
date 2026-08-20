@@ -59,6 +59,17 @@ function setJsonError(event: H3Event, statusCode: number, code: string, requestI
   event.node.res.end(body);
 }
 
+function isStringBody(value: string | null | undefined): value is string {
+  return typeof value === "string"
+}
+
+function getSetCookies(headers: Headers): string[] {
+  // SAFETY: older runtimes lack Headers.prototype.getSetCookie; probe the accessor before calling it.
+  const getSetCookie = (headers as Headers & { getSetCookie?: () => string[] }).getSetCookie;
+  if (getSetCookie) return getSetCookie.call(headers);
+  return (headers.get("set-cookie") || "").split(/,(?=[^;,=]+=[^;,]+)/g).filter(Boolean)
+}
+
 export async function proxyToDirectus(event: H3Event) {
   const requestId = getRequestHeader(event, "x-request-id") || randomUUID();
   setResponseHeader(event, "x-request-id", requestId);
@@ -100,12 +111,13 @@ export async function proxyToDirectus(event: H3Event) {
     headers.set("origin", new URL(base).origin);
   }
   if (body !== undefined && body !== null) {
-    const length = typeof body === "string" ? Buffer.byteLength(body) : Buffer.byteLength(Buffer.from(body));
+    const length = isStringBody(body) ? Buffer.byteLength(body) : Buffer.byteLength(Buffer.from(body));
     headers.set("content-length", String(length));
   }
 
   let response: Response;
   try {
+    // SAFETY: the raw body originates from readRawBody (a validated string proxy payload), which is a valid BodyInit.
     response = await fetch(target, {
       method: event.node.req.method,
       headers,
@@ -124,10 +136,7 @@ export async function proxyToDirectus(event: H3Event) {
     if (["set-cookie", "content-length", "connection", "transfer-encoding", "cache-control"].includes(key.toLowerCase())) return;
     res.setHeader(key, value);
   });
-  const headersWithSetCookie = response.headers as Headers & { getSetCookie?: () => string[] };
-  const setCookies = typeof headersWithSetCookie.getSetCookie === "function"
-    ? headersWithSetCookie.getSetCookie()
-    : ((response.headers.get("set-cookie") || "").split(/,(?=[^;,=]+=[^;,]+)/g).filter(Boolean));
+  const setCookies = getSetCookies(response.headers);
   for (const cookie of setCookies) if (cookie) appendSetCookie(event, cookie);
 
   if (!passthrough) {

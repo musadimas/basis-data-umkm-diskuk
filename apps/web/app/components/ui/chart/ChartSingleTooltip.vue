@@ -6,7 +6,10 @@ import { VisTooltip } from "@unovis/vue";
 import { createApp } from "vue";
 import { ChartTooltip } from ".";
 
-type Datum = Record<string, unknown>;
+type DatumValue = number | string | boolean | null | Datum | undefined;
+type Datum = {
+  [key: string]: DatumValue;
+};
 
 const props = defineProps<{
   selector: string;
@@ -18,14 +21,15 @@ const props = defineProps<{
 
 // Use weakmap to store reference to each datapoint for Tooltip
 const wm = new WeakMap<object, string>();
-function isDatum(value: unknown): value is Datum {
+function isDatum(value: DatumValue): value is Datum {
   return typeof value === "object" && value !== null;
 }
 
 function legendColor(item: BulletLegendItemInterface | undefined) {
-  if (typeof item?.color === "string")
-    return item.color;
-  return item?.color?.[0] ?? "transparent";
+  const color = item?.color;
+  if (color === undefined || color === null)
+    return "transparent";
+  return Array.isArray(color) ? color[0] ?? "transparent" : color;
 }
 
 function tooltipData(items: BulletLegendItemInterface[] | undefined, data: Datum, index: string, valueFormatter: (tick: number) => string) {
@@ -39,7 +43,7 @@ function tooltipData(items: BulletLegendItemInterface[] | undefined, data: Datum
   });
 }
 
-function template(d: unknown, i: number, elements: (HTMLElement | SVGElement)[]) {
+function template(d: DatumValue, i: number, elements: (HTMLElement | SVGElement)[]) {
   const valueFormatter = props.valueFormatter ?? ((tick: number) => `${tick}`);
   if (!isDatum(d))
     return;

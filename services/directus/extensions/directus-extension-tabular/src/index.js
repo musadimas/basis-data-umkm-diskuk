@@ -270,7 +270,6 @@ module.exports = {
 
         // Fast path for no-filter counts: read aggregate snapshot (no fact scan)
         let countRow = null;
-        let useSnapshotCounts = false;
         if (!hasFilters) {
           try {
             const snap = await database.raw(`SELECT payload -> 'scales' AS scales FROM infografis_snapshot WHERE id = 1`);
@@ -282,7 +281,6 @@ module.exports = {
                 kecil: Number(scales.kecil ?? 0),
                 menengah: Number(scales.menengah ?? 0),
               };
-              useSnapshotCounts = true;
             }
           } catch {}
         }
@@ -383,7 +381,7 @@ module.exports = {
       if (!routeGuard(req, next)) return;
       try {
         const body = (req.body && typeof req.body === "object") ? req.body : {};
-        const q = { ...(req.query ?? {}), ...body };
+        const q = { ...req.query, ...body };
         const maxRows = Math.min(Math.max(positiveInt(q.max_rows ?? q.maxRows, 50000), 1), 50000);
         const { where, params } = buildTabularFilter(q);
         const owner = String(req.accountability?.user ?? "system");
@@ -552,7 +550,8 @@ module.exports = {
         res.setHeader("Content-Type", "text/csv; charset=utf-8");
         res.setHeader("Content-Disposition", 'attachment; filename="data-umkm-jawa-barat.csv"');
         res.setHeader("Cache-Control", "private, no-store");
-        res.send ? res.send(csv) : res.end(csv);
+        if (typeof res.send === "function") res.send(csv);
+        else res.end(csv);
       } catch (error) {
         if (error.code === "QUERY_TIMEOUT" || error.statusCode === 504) return next(error);
         logger.error(error, "Unable to export tabular");

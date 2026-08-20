@@ -104,8 +104,8 @@ export function readPolicyFromEvent(event: H3Event) {
   });
 }
 
-export function safeReturnTo(value: unknown): string {
-  if (typeof value !== "string" || value.length > 2048 || !value.startsWith("/") || value.startsWith("//") || value.includes("\\")) return DEFAULT_RETURN_TO;
+export function safeReturnTo(value: string): string {
+  if (value.length > 2048 || !value.startsWith("/") || value.startsWith("//") || value.includes("\\")) return DEFAULT_RETURN_TO;
   try {
     const decoded = decodeURIComponent(value);
     if (decoded.includes("\\") || decoded.startsWith("//")) return DEFAULT_RETURN_TO;

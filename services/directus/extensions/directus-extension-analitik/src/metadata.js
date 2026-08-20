@@ -118,11 +118,6 @@ async function getOptions(database, query = {}) {
 
   // Fallback: for any other allowed field, require prefix search to avoid full scan
   if (!likeParam) return { fieldId, options: [], nextCursor: null };
-  const allowedFallback = {
-    kota_nama: { id: "a.kota_id::text", label: "a.kota_nama" },
-    kota_kode: { id: "a.kota_kode", label: "a.kota_nama" },
-    kecamatan_id: { id: "a.kecamatan_id::text", label: "a.kecamatan_nama" },
-  };
   // Should not reach here for known fields
   return { fieldId, options: [], nextCursor: null };
 }
