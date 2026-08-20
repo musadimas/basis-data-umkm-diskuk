@@ -52,7 +52,9 @@ export interface InfografisData {
     menengah: number
   }
   regions: InfografisRegion[]
+  regionLevel?: "kota" | "kecamatan" | "kelurahan"
   geometryReady?: boolean
+  geometryMissing?: number
   geometrySource?: {
     name: string
     edition: string

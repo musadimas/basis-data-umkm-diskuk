@@ -7,14 +7,17 @@ import {
   NavigationControl,
   Popup,
   type GeoJSONSource,
+  type ExpressionSpecification,
   type MapLayerMouseEvent,
   type Map as MapLibreMap,
 } from "maplibre-gl";
-import type { FeatureCollection, MultiPolygon, Polygon } from "geojson";
 import type { InfografisRegion } from "~/types/infografis";
 import { formatAnalyticsNumber } from "~/lib/analytics-format";
 
-const props = defineProps<{ regions: InfografisRegion[] }>();
+const props = withDefaults(defineProps<{
+  regions: InfografisRegion[]
+  level?: "kota" | "kecamatan" | "kelurahan"
+}>(), { level: "kota" });
 const emit = defineEmits<{ select: [region: InfografisRegion] }>();
 const container = useTemplateRef<HTMLDivElement>("container");
 
@@ -22,7 +25,39 @@ let map: MapLibreMap | null = null;
 let popup: Popup | null = null;
 let resizeObserver: ResizeObserver | null = null;
 
-function featureCollection(): FeatureCollection<Polygon | MultiPolygon> {
+const maxValue = computed(() => Math.max(0, ...props.regions.map((region) => region.value)));
+const levelLabel = computed(() => ({
+  kota: "kabupaten dan kota",
+  kecamatan: "kecamatan",
+  kelurahan: "desa dan kelurahan",
+})[props.level]);
+const legendItems = computed(() => {
+  const max = maxValue.value;
+  if (max <= 0) return [{ color: "#cbd5e1", label: "Tidak ada UMKM" }];
+  const quarter = Math.round(max * 0.25);
+  const half = Math.round(max * 0.5);
+  const threeQuarters = Math.round(max * 0.75);
+  return [
+    { color: "#0e7490", label: `${formatAnalyticsNumber(threeQuarters)}–${formatAnalyticsNumber(max)}` },
+    { color: "#2563eb", label: `${formatAnalyticsNumber(half)}–${formatAnalyticsNumber(Math.max(half, threeQuarters - 1))}` },
+    { color: "#16A75C", label: `${formatAnalyticsNumber(quarter)}–${formatAnalyticsNumber(Math.max(quarter, half - 1))}` },
+    { color: "#fb923c", label: `0–${formatAnalyticsNumber(Math.max(0, quarter - 1))}` },
+  ];
+});
+
+function colorExpression(): string | ExpressionSpecification {
+  const max = maxValue.value;
+  if (max <= 0) return "#cbd5e1";
+  return [
+    "interpolate", ["linear"], ["get", "value"],
+    0, "#fb923c",
+    max * 0.25, "#16A75C",
+    max * 0.5, "#2563eb",
+    max, "#0e7490",
+  ];
+}
+
+function featureCollection(): GeoJSON.FeatureCollection<GeoJSON.Polygon | GeoJSON.MultiPolygon> {
   return {
     type: "FeatureCollection",
     features: props.regions.flatMap((region) => {
@@ -36,7 +71,7 @@ function featureCollection(): FeatureCollection<Polygon | MultiPolygon> {
           name: region.name,
           value: region.value,
         },
-        geometry: region.geometry as Polygon | MultiPolygon,
+        geometry: region.geometry as GeoJSON.Polygon | GeoJSON.MultiPolygon,
       }];
     }),
   };
@@ -59,6 +94,7 @@ function updateSource() {
   if (!map?.isStyleLoaded()) return;
   const data = featureCollection();
   (map.getSource("jabar-regions") as GeoJSONSource | undefined)?.setData(data);
+  if (map.getLayer("jabar-fill")) map.setPaintProperty("jabar-fill", "fill-color", colorExpression());
   const bounds = new LngLatBounds();
   for (const feature of data.features) extendBounds(bounds, feature.geometry.coordinates);
   if (!bounds.isEmpty()) map.fitBounds(bounds, { padding: 28, duration: 0 });
@@ -116,14 +152,7 @@ onMounted(() => {
       type: "fill",
       source: "jabar-regions",
       paint: {
-        "fill-color": [
-          "step", ["get", "value"],
-          "#fb923c",
-          50_000, "#facc15",
-          100_000, "#16A75C",
-          300_000, "#2563eb",
-          500_000, "#0e7490",
-        ],
+        "fill-color": colorExpression(),
         "fill-opacity": 0.82,
       },
     });
@@ -159,20 +188,14 @@ onBeforeUnmount(() => {
     <div
       ref="container"
       class="h-[430px] w-full"
-      aria-label="Peta sebaran UMKM kabupaten dan kota Jawa Barat"
+      :aria-label="`Peta sebaran UMKM per ${levelLabel} Jawa Barat`"
       data-lenis-prevent-wheel
     />
     <div class="pointer-events-none absolute bottom-3 left-3 z-[5] rounded-lg border bg-white/95 p-3 text-xs shadow-md">
       <p class="mb-2 font-bold">Jumlah UMKM</p>
       <div class="space-y-1.5 text-[11px] font-medium text-slate-600">
         <div
-          v-for="item in [
-          { color: '#0e7490', label: '≥ 500.000' },
-          { color: '#2563eb', label: '300.000–499.999' },
-          { color: '#16A75C', label: '100.000–299.999' },
-          { color: '#facc15', label: '50.000–99.999' },
-          { color: '#fb923c', label: '< 50.000' },
-          ]"
+          v-for="item in legendItems"
           :key="item.label"
           class="flex items-center gap-2"
         >

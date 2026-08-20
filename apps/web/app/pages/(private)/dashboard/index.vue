@@ -30,7 +30,6 @@ useSeoMeta({
 const router = useRouter();
 const runtimeConfig = useRuntimeConfig();
 function openAnalytics(fieldId: string, value: string) { const config = { ...defaultAnalysis, groupBy: fieldId, filters: [{ fieldId, operator: "eq" as const, value }] }; router.push(`/dashboard/analitik?${serializeAnalysisUrl(config)}`) }
-function openRegion(region: { id: string }) { openAnalytics("kota_id", region.id) }
 function openKbli(item?: TopCategoryItem) { if (item?.code) openAnalytics("kbli_kode", item.code) }
 const workforceEnabled = computed(() => runtimeConfig.public.enableWorkforce === true);
 
@@ -160,6 +159,33 @@ const { data, error, pending } = await useFetch<{ data: InfografisData }>(
   { query: infografisQuery },
 );
 
+type InfografisMapData = Pick<InfografisData,
+  "regions" | "regionLevel" | "geometryReady" | "geometryMissing" | "geometrySource">
+const mapKota = ref("semua");
+const mapKecamatan = ref("semua");
+const mapKelurahan = ref("semua");
+watch(
+  () => [appliedFilters.kabupatenKota, appliedFilters.kecamatan, appliedFilters.desaKelurahan] as const,
+  ([kota, kecamatan, kelurahan]) => {
+    mapKota.value = kota;
+    mapKecamatan.value = kecamatan;
+    mapKelurahan.value = kelurahan;
+  },
+  { immediate: true },
+);
+const mapQuery = computed(() => ({
+  kota: mapKota.value !== "semua" ? mapKota.value : undefined,
+  kecamatan: mapKecamatan.value !== "semua" ? mapKecamatan.value : undefined,
+  kelurahan: mapKelurahan.value !== "semua" ? mapKelurahan.value : undefined,
+  skala: appliedFilters.skala !== "semua" ? skalaToApi[appliedFilters.skala] : undefined,
+  kegiatan: appliedFilters.kegiatanUsaha !== "semua" ? appliedFilters.kegiatanUsaha : undefined,
+  kbli: appliedFilters.kodeKbli !== "semua" ? appliedFilters.kodeKbli : undefined,
+}));
+const { data: mapData, error: mapError } = await useFetch<{ data: InfografisMapData }>(
+  "/panel/infografis/map",
+  { query: mapQuery },
+);
+
 const activeFilterCount = computed(() =>
   Object.values(appliedFilters).filter((value) => value !== "semua").length,
 );
@@ -171,6 +197,27 @@ const resetFilters = () => {
 };
 
 const infografis = computed(() => data.value?.data);
+const mapInfografis = computed(() => mapData.value?.data ?? infografis.value);
+const canMapGoBack = computed(() => [mapKota.value, mapKecamatan.value, mapKelurahan.value]
+  .some((value) => value !== "semua"));
+
+function openRegion(region: { id: string }) {
+  const level = mapInfografis.value?.regionLevel ?? "kota";
+  if (level === "kelurahan") return openAnalytics("kelurahan_id", region.id);
+  if (level === "kota") {
+    mapKota.value = region.id;
+    mapKecamatan.value = "semua";
+  } else {
+    mapKecamatan.value = region.id;
+  }
+  mapKelurahan.value = "semua";
+}
+
+function mapBack() {
+  if (mapKelurahan.value !== "semua") mapKelurahan.value = "semua";
+  else if (mapKecamatan.value !== "semua") mapKecamatan.value = "semua";
+  else mapKota.value = "semua";
+}
 
 const scaleItems = computed<ScaleStatItem[]>(() => {
   const scales = infografis.value?.scales;
@@ -265,7 +312,7 @@ const kbliItems = computed<KbliCategoryItem[]>(() =>
     />
 
     <p
-      v-if="error"
+      v-if="error || mapError"
       class="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"
     >
       Data infografis belum dapat dimuat. Silakan coba lagi.
@@ -300,10 +347,14 @@ const kbliItems = computed<KbliCategoryItem[]>(() =>
     <!-- Section 2: Peta Sebaran Usaha Berdasarkan Wilayah -->
     <DashboardCardSection v-bind="DASHBOARD_SECTIONS.regionalMap">
       <DashboardMapInfographic
-        :regions="infografis?.regions"
-        :geometry-ready="infografis?.geometryReady"
-        :geometry-source="infografis?.geometrySource"
+        :regions="mapInfografis?.regions"
+        :region-level="mapInfografis?.regionLevel"
+        :geometry-ready="mapInfografis?.geometryReady"
+        :geometry-missing="mapInfografis?.geometryMissing"
+        :geometry-source="mapInfografis?.geometrySource"
+        :can-go-back="canMapGoBack"
         @select="openRegion"
+        @back="mapBack"
       />
     </DashboardCardSection>
 
