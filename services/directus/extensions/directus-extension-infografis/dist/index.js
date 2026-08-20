@@ -4,13 +4,48 @@ const { KBLI_SECTORS } = require("../../../analytics-shared/contracts.cjs");
 
 const rows = (result) => result?.rows ?? result?.[0] ?? [];
 
-const GEOMETRY_SOURCE = {
-  name: "Badan Informasi Geospasial (BIG)",
-  edition: "September 2023",
-  url: "https://geoservices.big.go.id/rbi/rest/services/Hosted/Wilayah_Administrasi_Kabupaten__Kota/FeatureServer/0",
+const GEOMETRY_SOURCES = {
+  kota: {
+    name: "Badan Informasi Geospasial (BIG)",
+    edition: "September 2023",
+    url: "https://geoservices.big.go.id/rbi/rest/services/Hosted/Wilayah_Administrasi_Kabupaten__Kota/FeatureServer/0",
+  },
+  kecamatan: {
+    name: "Peta Nusa / Kepmendagri",
+    edition: "Februari 2026 / Kepmendagri 2025",
+    url: "https://warga.web.id/files/indonesia/download.html",
+  },
+  kelurahan: {
+    name: "Peta Nusa / Kepmendagri",
+    edition: "Februari 2026 / Kepmendagri 2025",
+    url: "https://warga.web.id/files/indonesia/download.html",
+  },
 };
 
-const filteredPayloadSql = (where) => `
+const REGION_COLUMNS = {
+  kota: ["kota_id", "kota_nama"],
+  kecamatan: ["kecamatan_id", "kecamatan_nama"],
+  kelurahan: ["kelurahan_id", "kelurahan_nama"],
+};
+
+const REGION_TABLES = {
+  kota: "kota",
+  kecamatan: "kecamatan",
+  kelurahan: "kelurahan",
+};
+
+const positiveId = (value) => {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+};
+
+const regionLevelFor = (query = {}) => positiveId(query.kecamatan) || positiveId(query.kelurahan)
+  ? "kelurahan"
+  : positiveId(query.kota) ? "kecamatan" : "kota";
+
+const filteredPayloadSql = (where, regionLevel = "kota") => {
+  const [regionId, regionName] = REGION_COLUMNS[regionLevel] ?? REGION_COLUMNS.kota;
+  return `
   WITH filtered AS MATERIALIZED (
     SELECT t.* FROM usaha_tabular t ${where}
   ),
@@ -29,11 +64,11 @@ const filteredPayloadSql = (where) => `
       ORDER BY value DESC, name ASC
     ), '[]'::jsonb) AS value
     FROM (
-      SELECT COALESCE(kota_id::text, 'unknown') AS id,
-             COALESCE(kota_nama, 'Tidak diketahui') AS name,
+      SELECT COALESCE(${regionId}::text, 'unknown') AS id,
+             COALESCE(${regionName}, 'Tidak diketahui') AS name,
              COUNT(*)::integer AS value
       FROM filtered
-      GROUP BY kota_id, kota_nama
+      GROUP BY ${regionId}, ${regionName}
     ) grouped
   ),
   sector_definition AS (
@@ -123,6 +158,7 @@ const filteredPayloadSql = (where) => `
   ) AS payload
   FROM scale, regions, sectors, sector_coverage, kbli, workforce
 `;
+};
 
 async function withReadBudget(database, fn, signal) {
   if (signal?.aborted) {
@@ -145,6 +181,32 @@ async function withReadBudget(database, fn, signal) {
   return fn(database);
 }
 
+async function readMapPayload(database, query, signal) {
+  const filter = buildTabularFilter(query);
+  if (!filter.hasFilters) {
+    const result = await database.raw("SELECT payload->'regions' AS regions FROM infografis_snapshot WHERE id = 1");
+    return { regions: rows(result)[0]?.regions ?? [] };
+  }
+
+  const level = regionLevelFor(query);
+  const [regionId] = REGION_COLUMNS[level] ?? REGION_COLUMNS.kota;
+  const table = REGION_TABLES[level] ?? REGION_TABLES.kota;
+  const result = await withReadBudget(database, (trx) => trx.raw(`
+    WITH counts AS (
+      SELECT t.${regionId} AS id, COUNT(*)::integer AS value
+      FROM usaha_tabular t ${filter.where}
+      GROUP BY t.${regionId}
+    )
+    SELECT COALESCE(counts.id::text, 'unknown') AS id,
+           COALESCE(region.nama, 'Tidak diketahui') AS name,
+           counts.value
+    FROM counts
+    LEFT JOIN ${table} region ON region.id = counts.id
+    ORDER BY counts.value DESC, name ASC
+  `, filter.params), signal);
+  return { regions: rows(result) };
+}
+
 async function readPayload(database, query, signal) {
   const filter = buildTabularFilter(query);
   if (!filter.hasFilters) {
@@ -155,7 +217,10 @@ async function readPayload(database, query, signal) {
     code, name, division_start, division_end,
   }));
   try {
-    const result = await withReadBudget(database, (trx) => trx.raw(filteredPayloadSql(filter.where), [
+    const result = await withReadBudget(database, (trx) => trx.raw(filteredPayloadSql(
+      filter.where,
+      regionLevelFor(query),
+    ), [
       ...filter.params,
       JSON.stringify(sectors),
     ]), signal);
@@ -169,42 +234,71 @@ async function readPayload(database, query, signal) {
   }
 }
 
-async function attachAuthoritativeGeometry(database, payload) {
-  const result = await database.raw(`
-    SELECT
-      k.id::text AS id,
-      k.nama AS name,
-      k.kode AS code,
-      ST_AsGeoJSON(k.geom, 6)::json AS geometry
-    FROM kota k
-    JOIN provinsi p ON p.id = k.provinsi
-    WHERE lower(p.nama) = 'jawa barat'
-      AND lower(k.nama) <> 'tidak diketahui'
-      AND nullif(btrim(k.kode), '') IS NOT NULL
-      AND k.geom IS NOT NULL
-      AND ST_IsValid(k.geom)
-    ORDER BY k.kode
-  `);
+function geometryQuery(query = {}) {
+  const level = regionLevelFor(query);
+  if (level === "kecamatan") {
+    return {
+      level,
+      sql: `SELECT r.id::text AS id,r.nama AS name,r.kode AS code,ST_AsGeoJSON(r.geom,6)::json AS geometry
+        FROM kecamatan r JOIN kota k ON k.id=r.kota JOIN provinsi p ON p.id=k.provinsi
+        WHERE lower(p.nama)='jawa barat' AND r.kota=? AND lower(r.nama)<>'tidak diketahui'
+          AND nullif(btrim(r.kode),'') IS NOT NULL AND r.geom IS NOT NULL AND ST_IsValid(r.geom)
+        ORDER BY r.kode`,
+      params: [positiveId(query.kota)],
+    };
+  }
+  if (level === "kelurahan") {
+    const selected = positiveId(query.kelurahan);
+    return {
+      level,
+      sql: `SELECT r.id::text AS id,r.nama AS name,r.kode AS code,ST_AsGeoJSON(r.geom,6)::json AS geometry
+        FROM kelurahan r JOIN kecamatan kc ON kc.id=r.kecamatan JOIN kota k ON k.id=kc.kota JOIN provinsi p ON p.id=k.provinsi
+        WHERE lower(p.nama)='jawa barat' AND ${selected ? "r.id" : "r.kecamatan"}=?
+          AND lower(r.nama)<>'tidak diketahui' AND nullif(btrim(r.kode),'') IS NOT NULL
+          AND r.geom IS NOT NULL AND ST_IsValid(r.geom)
+        ORDER BY r.kode`,
+      params: [selected ?? positiveId(query.kecamatan)],
+    };
+  }
+  return {
+    level,
+    sql: `SELECT r.id::text AS id,r.nama AS name,r.kode AS code,ST_AsGeoJSON(r.geom,6)::json AS geometry
+      FROM kota r JOIN provinsi p ON p.id=r.provinsi
+      WHERE lower(p.nama)='jawa barat' AND lower(r.nama)<>'tidak diketahui'
+        AND nullif(btrim(r.kode),'') IS NOT NULL AND r.geom IS NOT NULL AND ST_IsValid(r.geom)
+      ORDER BY r.kode`,
+    params: [],
+  };
+}
+
+async function attachAuthoritativeGeometry(database, payload, query = {}) {
+  const boundaryQuery = geometryQuery(query);
+  const result = await database.raw(boundaryQuery.sql, boundaryQuery.params);
   const boundaries = rows(result);
-  const geometryReady = boundaries.length === 27 && new Set(boundaries.map((item) => item.code)).size === 27;
-  if (!geometryReady) {
+  const geometrySource = GEOMETRY_SOURCES[boundaryQuery.level];
+  if (!boundaries.length) {
     return {
       ...payload,
+      regionLevel: boundaryQuery.level,
       geometryReady: false,
-      geometrySource: { ...GEOMETRY_SOURCE, regions: boundaries.length },
+      geometryMissing: (payload.regions ?? []).filter((item) => item.id !== "unknown" && item.value > 0).length,
+      geometrySource: { ...geometrySource, regions: 0 },
     };
   }
 
   const counts = new Map((payload.regions ?? []).map((item) => [String(item.id), Number(item.value) || 0]));
   const unknown = (payload.regions ?? []).filter((item) => !boundaries.some((boundary) => boundary.id === String(item.id)));
+  const geometryMissing = unknown.filter((item) => item.id !== "unknown" && item.value > 0).length;
   return {
     ...payload,
+    regionLevel: boundaryQuery.level,
     regions: [
       ...boundaries.map((boundary) => ({ ...boundary, value: counts.get(boundary.id) ?? 0 })),
       ...unknown,
     ],
     geometryReady: true,
-    geometrySource: { ...GEOMETRY_SOURCE, regions: 27 },
+    geometryMissing,
+    geometrySource: { ...geometrySource, regions: boundaries.length },
   };
 }
 
@@ -216,11 +310,23 @@ module.exports = {
       try {
         const payload = await readPayload(database, req.query ?? {}, req.signal);
         if (!payload) throw new Error("Infographic snapshot has not been refreshed");
-        const response = await attachAuthoritativeGeometry(database, payload);
+        const response = await attachAuthoritativeGeometry(database, payload, req.query ?? {});
         res.setHeader("Cache-Control", "private, no-store");
         res.json({ data: response });
       } catch (error) {
         logger.error(error, "Unable to read infographic snapshot");
+        next(error);
+      }
+    });
+    router.get("/map", async (req, res, next) => {
+      if (!routeGuard(req, next)) return;
+      try {
+        const payload = await readMapPayload(database, req.query ?? {}, req.signal);
+        const response = await attachAuthoritativeGeometry(database, payload, req.query ?? {});
+        res.setHeader("Cache-Control", "private, no-store");
+        res.json({ data: response });
+      } catch (error) {
+        logger.error(error, "Unable to read infographic map");
         next(error);
       }
     });
@@ -229,3 +335,5 @@ module.exports = {
 
 module.exports.attachAuthoritativeGeometry = attachAuthoritativeGeometry;
 module.exports.readPayload = readPayload;
+module.exports.readMapPayload = readMapPayload;
+module.exports.regionLevelFor = regionLevelFor;
