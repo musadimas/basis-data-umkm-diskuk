@@ -66,7 +66,7 @@ async function estimateDetail(database, config) {
   const generation = await activeGeneration(database);
   if (!generation) throw new AnalyticsApiError(503, "NO_ACTIVE_GENERATION");
   const filters = compileFiltersOnly({ ...config, groupBy: config.groupBy || "kota_nama", metric: "jumlah_umkm", schemaVersion: SCHEMA_VERSION }, await registry(database));
-  const result = await database.raw(`SELECT COUNT(DISTINCT a.usaha_id)::integer AS count FROM analitik_usaha_current a WHERE a.generation_id=? AND ${filters.whereSql}`, [generation.id, ...filters.params]);
+  const result = await database.raw(`SELECT COUNT(*)::integer AS count FROM analitik_usaha_current a WHERE a.generation_id=? AND ${filters.whereSql}`, [generation.id, ...filters.params]);
   return { count: Number((result.rows ?? result[0] ?? [])[0]?.count || 0), generationId: generation.id };
 }
 async function insertJob(database, { owner, type, status = "queued", request = {} }) {

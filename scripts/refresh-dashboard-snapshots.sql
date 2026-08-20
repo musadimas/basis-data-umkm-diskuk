@@ -50,14 +50,16 @@ WITH usaha_jawa_barat AS MATERIALIZED (
   SELECT
     t.id,
     NULLIF(BTRIM(u_source.nib), '') AS nib,
-    skala,
-    kode_kbli,
-    kategori_kbli,
-    deskripsi_kbli,
-    COALESCE(kota_id::text, 'unknown') AS kota_id,
-    COALESCE(kota_nama, 'Tidak diketahui') AS kota_nama,
-    tenaga_kerja_laki_laki AS male,
-    tenaga_kerja_perempuan AS female
+    t.skala,
+    t.kode_kbli,
+    t.kategori_kbli,
+    t.deskripsi_kbli,
+    t.kota_id,
+    COALESCE(t.kota_nama, 'Tidak diketahui') AS kota_nama,
+    t.kecamatan_id,
+    COALESCE(t.kecamatan_nama, 'Tidak diketahui') AS kecamatan_nama,
+    t.tenaga_kerja_laki_laki AS male,
+    t.tenaga_kerja_perempuan AS female
   FROM usaha_tabular t
   LEFT JOIN usaha u_source ON u_source.id = t.id
 ),
@@ -76,7 +78,7 @@ regions AS (
     ORDER BY value DESC, name ASC
   ), '[]'::jsonb) AS value
   FROM (
-    SELECT kota_id AS id, kota_nama AS name, COUNT(*)::integer AS value
+    SELECT COALESCE(kota_id::text, 'unknown') AS id, kota_nama AS name, COUNT(*)::integer AS value
     FROM usaha_jawa_barat
     GROUP BY kota_id, kota_nama
   ) AS grouped
@@ -178,6 +180,47 @@ kbli AS (
     FROM kbli_rows
   ) AS ranked
 ),
+filter_options AS (
+  SELECT jsonb_build_object(
+    'kota', COALESCE((
+      SELECT jsonb_agg(jsonb_build_object('id', id, 'nama', nama) ORDER BY nama, id)
+      FROM (
+        SELECT DISTINCT kota_id AS id, kota_nama AS nama
+        FROM usaha_jawa_barat
+        WHERE kota_id IS NOT NULL
+      ) AS options
+    ), '[]'::jsonb),
+    'kecamatan', COALESCE((
+      SELECT jsonb_agg(
+        jsonb_build_object('id', id, 'nama', nama, 'kotaId', kota_id)
+        ORDER BY nama, id
+      )
+      FROM (
+        SELECT DISTINCT kecamatan_id AS id, kecamatan_nama AS nama, kota_id
+        FROM usaha_jawa_barat
+        WHERE kecamatan_id IS NOT NULL AND kota_id IS NOT NULL
+      ) AS options
+    ), '[]'::jsonb),
+    'kategori', COALESCE((
+      SELECT jsonb_agg(nama ORDER BY nama)
+      FROM (
+        SELECT DISTINCT name AS nama
+        FROM kbli_rows
+        WHERE name IS NOT NULL
+      ) AS options
+    ), '[]'::jsonb),
+    'kbli', COALESCE((
+      SELECT jsonb_agg(
+        jsonb_build_object('kode', kode, 'kategori', kategori)
+        ORDER BY kode, kategori
+      )
+      FROM (
+        SELECT DISTINCT code AS kode, name AS kategori
+        FROM kbli_rows
+      ) AS options
+    ), '[]'::jsonb)
+  ) AS value
+),
 workforce_numbers AS (
   SELECT COALESCE(SUM(male), 0)::bigint AS male, COALESCE(SUM(female), 0)::bigint AS female
   FROM usaha_jawa_barat
@@ -216,10 +259,11 @@ SELECT 1, jsonb_build_object(
   'sectorCoverage', sector_coverage.value,
   'topKbli', kbli.top_rows,
   'kbli', kbli.all_rows,
+  'options', filter_options.value,
   'nib', nib.value,
   'workforce', workforce.value
 ), NOW()
-FROM scale, regions, sectors, sector_coverage, kbli, workforce, nib
+FROM scale, regions, sectors, sector_coverage, kbli, filter_options, workforce, nib
 ON CONFLICT (id) DO UPDATE
 SET payload = EXCLUDED.payload, refreshed_at = EXCLUDED.refreshed_at;
 

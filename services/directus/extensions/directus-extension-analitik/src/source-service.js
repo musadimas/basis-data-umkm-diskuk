@@ -15,10 +15,20 @@ const SNAPSHOT_SOURCE = `(
 ) a`;
 
 async function resolveAnalyticsSource(database) {
-  const generationResult = await database.raw(`SELECT g.id,g.status,g.data_as_of,g.reconciled_at FROM analitik_active_generation p JOIN analitik_generation g ON g.id=p.active_generation_id WHERE p.id=1`);
-  const generation = (generationResult.rows ?? generationResult[0] ?? [])[0];
+  // Try new columns first, fallback to legacy row_count for older schema
+  let generation;
+  try {
+    const generationResult = await database.raw(`SELECT g.id,g.status,g.data_as_of,g.reconciled_at,g.row_count,g.active_row_count,g.archived_row_count FROM analitik_active_generation p JOIN analitik_generation g ON g.id=p.active_generation_id WHERE p.id=1`);
+    generation = (generationResult.rows ?? generationResult[0] ?? [])[0];
+  } catch {
+    const generationResult = await database.raw(`SELECT g.id,g.status,g.data_as_of,g.reconciled_at,g.row_count FROM analitik_active_generation p JOIN analitik_generation g ON g.id=p.active_generation_id WHERE p.id=1`);
+    generation = (generationResult.rows ?? generationResult[0] ?? [])[0];
+  }
   if (generation) {
     const current = generation.status === "active" && generation.reconciled_at;
+    const activeCount = generation.active_row_count != null ? Number(generation.active_row_count) : null;
+    const archivedCount = generation.archived_row_count != null ? Number(generation.archived_row_count) : null;
+    const totalCount = Number(generation.row_count ?? 0) || null;
     return {
       fromSql: CURRENT_SOURCE,
       scopeSql: "a.generation_id = ?",
@@ -27,6 +37,10 @@ async function resolveAnalyticsSource(database) {
       status: current ? "current" : "stale_last_good",
       warnings: current ? [] : ["Data terakhir yang berhasil diproses sedang ditampilkan."],
       kind: "generation",
+      generationId: generation.id,
+      rowCount: totalCount,
+      activeRowCount: activeCount,
+      archivedRowCount: archivedCount,
     };
   }
   const snapshotResult = await database.raw(`SELECT refreshed_at,(payload->'scales'->>'total')::integer AS population,payload->'scales' AS scales,payload->'regions' AS regions FROM infografis_snapshot WHERE id = 1`);

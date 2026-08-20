@@ -151,6 +151,7 @@ def self_check() -> None:
     assert 'TRUNCATE usaha_tabular' in refresh_sql
     assert 'FROM usaha_tabular' in refresh_sql
     assert 'INSERT INTO infografis_snapshot' in refresh_sql
+    assert "'options', filter_options.value" in refresh_sql
     assert 'ROLLBACK' not in refresh_sql
     assert refresh_sql.count('BEGIN;') == refresh_sql.count('COMMIT;') == 1
     assert "RAISE EXCEPTION 'dashboard snapshot" in refresh_sql

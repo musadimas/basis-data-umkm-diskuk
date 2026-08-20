@@ -56,7 +56,7 @@ const filters = reactive(defaultFilters());
 const appliedFilters = reactive(defaultFilters());
 const filterOpen = ref(false);
 
-const { data: optionsData, error: optionsError } = await useFetch<{ data: TabularOptions }>(
+const { data: optionsData, error: optionsError } = useFetch<{ data: TabularOptions }>(
   "/panel/tabular/options",
 );
 

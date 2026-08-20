@@ -6,7 +6,7 @@ onUnmounted(() => document.documentElement.classList.remove("no-scrollbar"));
 </script>
 
 <template>
-  <UiSidebarProvider :class="compactAnalytics ? 'md:min-h-0 md:overflow-hidden' : undefined">
+  <UiSidebarProvider :class="compactAnalytics ? 'md:h-svh md:min-h-0 md:overflow-hidden' : undefined">
     <NavAppSidebar />
     <UiSidebarInset>
       <div class="flex min-h-0 flex-1 flex-col gap-4 p-4">

@@ -12,7 +12,6 @@ import type {
   TabularKelurahanItem,
   TabularKbliOption,
   TabularOptions,
-  TabularRowItem,
   TabularRowsResponse,
 } from "~/types/tabular";
 
@@ -81,7 +80,7 @@ const filters = reactive<TabularFilters>(defaultFilters());
 const appliedFilters = reactive<TabularFilters>(defaultFilters());
 
 // ── Data opsi filter (dari Directus, dimuat sekali) ───────────────────────
-const { data: optionsData, error: optionsError } = await useFetch<{ data: TabularOptions }>(
+const { data: optionsData, error: optionsError } = useFetch<{ data: TabularOptions }>(
   "/panel/tabular/options",
 );
 
@@ -176,9 +175,13 @@ watch(
   },
 );
 
-// ── Fetch baris (otomatis refetch saat filter diterapkan / ganti halaman) ──
+// ── Fetch baris: cursor-based pagination (keyset) ────────────────────────
 const pageSize = 10;
 const page = ref(1);
+const currentCursor = ref<string | null>(null);
+const cursorStack = ref<string[]>([]);
+const nextCursor = computed(() => rowsData.value?.meta?.nextCursor ?? null);
+const hasNext = computed(() => Boolean(rowsData.value?.meta?.hasNext));
 
 const filterQuery = computed(() => ({
   kota: appliedFilters.kabupatenKota !== "semua" ? appliedFilters.kabupatenKota : undefined,
@@ -189,26 +192,23 @@ const filterQuery = computed(() => ({
   kbli: appliedFilters.kodeKbli !== "semua" ? appliedFilters.kodeKbli : undefined,
 }));
 
-const rowsQuery = computed(() => ({
-  ...filterQuery.value,
-  page: page.value,
-  page_size: pageSize,
-}));
+const rowsQuery = computed(() => {
+  const base: Record<string, unknown> = { ...filterQuery.value, page_size: pageSize };
+  if (currentCursor.value) {
+    base.cursor = currentCursor.value;
+  } else {
+    base.page = page.value;
+  }
+  return base;
+});
 
 const { data: rowsData, pending: rowsPending, error: rowsError } = await useFetch<TabularRowsResponse>(
   "/panel/tabular/",
   { query: rowsQuery },
 );
 
-// ── Kartu skala: ikut filter aktif (1 request ringan per skala) ───────────
-const scaleCountQuery = (skala: "micro" | "small" | "medium") =>
-  computed(() => ({ ...filterQuery.value, skala, page: 1, page_size: 1 }));
-
-const [countMikro, countKecil, countMenengah] = await Promise.all([
-  useFetch<TabularRowsResponse>("/panel/tabular/", { query: scaleCountQuery("micro") }),
-  useFetch<TabularRowsResponse>("/panel/tabular/", { query: scaleCountQuery("small") }),
-  useFetch<TabularRowsResponse>("/panel/tabular/", { query: scaleCountQuery("medium") }),
-]);
+// ── Kartu skala: ikut filter aktif (single request, scale breakdown dari meta) ───────────
+ // Hapus 3 extra request – mikro/kecil/menengah kini dari meta rowsData (single grouped COUNT)
 
 const pagedRows = computed<TabularUmkmItem[]>(() =>
   (rowsData.value?.data ?? []).map((r) => ({
@@ -238,29 +238,33 @@ const scaleItems = computed<ScaleStatItem[]>(() => [
   {
     id: "mikro",
     title: "Usaha Mikro",
-    value: countMikro.data.value?.meta?.filterCount ?? 0,
+    value: rowsData.value?.meta?.mikro ?? 0,
     category: "mikro",
   },
   {
     id: "kecil",
     title: "Usaha Kecil",
-    value: countKecil.data.value?.meta?.filterCount ?? 0,
+    value: rowsData.value?.meta?.kecil ?? 0,
     category: "kecil",
   },
   {
     id: "menengah",
     title: "Usaha Menengah",
-    value: countMenengah.data.value?.meta?.filterCount ?? 0,
+    value: rowsData.value?.meta?.menengah ?? 0,
     category: "menengah",
   },
 ]);
 const pageCount = computed(() => Math.max(1, Math.ceil(totalData.value / pageSize)));
+const isLargeResult = computed(() => pageCount.value > 100);
 
+// For large results, cursor is primary; numeric pages hidden
 const pages = computed<(number | "…")[]>(() => {
+  if (isLargeResult.value) return [];
   const total = pageCount.value;
   const current = page.value;
   if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
-  const visible = new Set<number>([1, total, current - 1, current, current + 1]);
+  const base = [1, total, current - 1, current, current + 1];
+  const visible = new Set<number>(base);
   const sorted = [...visible].filter((n) => n >= 1 && n <= total).sort((a, b) => a - b);
   const out: (number | "…")[] = [];
   sorted.forEach((n, i) => {
@@ -272,12 +276,38 @@ const pages = computed<(number | "…")[]>(() => {
 });
 
 const goToPage = (p: number) => {
+  // Compatibility path only for small results; for large results use cursor navigation
+  if (isLargeResult.value) return;
   page.value = Math.min(Math.max(1, p), pageCount.value);
+  currentCursor.value = null;
+  cursorStack.value = [];
+};
+
+const goNext = () => {
+  if (!hasNext.value || !nextCursor.value) return;
+  cursorStack.value.push(currentCursor.value ?? "");
+  currentCursor.value = nextCursor.value;
+  page.value += 1;
+};
+
+const goPrevious = () => {
+  if (cursorStack.value.length === 0) return;
+  const prev = cursorStack.value.pop() ?? null;
+  currentCursor.value = prev || null;
+  page.value = Math.max(1, page.value - 1);
+};
+
+const goFirst = () => {
+  currentCursor.value = null;
+  cursorStack.value = [];
+  page.value = 1;
 };
 
 // ── Filter actions ────────────────────────────────────────────────────────
 const applyFilters = () => {
   page.value = 1;
+  currentCursor.value = null;
+  cursorStack.value = [];
   Object.assign(appliedFilters, filters);
 };
 
@@ -286,49 +316,54 @@ const resetFilters = () => {
   applyFilters();
 };
 
-// ── CSV export: unduh seluruh hasil filter via paginasi server ⁻───────────
-const EXPORT_PAGE_SIZE = 1000;
-const EXPORT_MAX_ROWS = 50_000;
-
+// ── CSV export: async job (bounded 50k) ───────────────────────────────
+const exportError = ref<string | null>(null);
+const isExporting = ref(false);
 const exportCsv = async () => {
   const total = totalData.value;
-  if (total === 0 || rowsPending.value) return;
-  const limit = Math.min(total, EXPORT_MAX_ROWS);
-  const collected: TabularRowItem[] = [];
-  const pageCountToFetch = Math.ceil(limit / EXPORT_PAGE_SIZE);
-
-  for (let p = 1; p <= pageCountToFetch; p++) {
-    const res = await $fetch<TabularRowsResponse>("/panel/tabular/", {
-      query: { ...rowsQuery.value, page: p, page_size: EXPORT_PAGE_SIZE },
+  if (total === 0 || rowsPending.value || isExporting.value) return;
+  exportError.value = null;
+  isExporting.value = true;
+  try {
+    const payload = { ...filterQuery.value, max_rows: 50000 };
+    const submit = await $fetch<{ data: { jobId: string; status: string; downloadUrl?: string } }>("/panel/tabular/export", {
+      method: "POST",
+      body: payload,
     });
-    collected.push(...(res?.data ?? []));
-    if (collected.length >= limit) break;
+    const jobId = submit?.data?.jobId;
+    let downloadUrl = submit?.data?.downloadUrl;
+    // Poll if not yet completed
+    let status = submit?.data?.status;
+    let attempts = 0;
+    while (jobId && status !== "completed" && status !== "failed" && attempts < 30) {
+      await new Promise((r) => setTimeout(r, 800));
+      const st = await $fetch<{ data: { status: string; downloadUrl?: string } }>(`/panel/tabular/export/${jobId}`);
+      status = st?.data?.status;
+      downloadUrl = st?.data?.downloadUrl || downloadUrl;
+      if (status === "failed") throw new Error("Export failed");
+      if (status === "completed" && downloadUrl) break;
+      attempts += 1;
+    }
+    if (!downloadUrl) throw new Error("Export not ready");
+    const blob = await $fetch<Blob>(downloadUrl, { responseType: "blob" as unknown as "json" });
+    const url = URL.createObjectURL(blob as unknown as Blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "data-umkm-jawa-barat.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (message.includes("504")) {
+      exportError.value = "Ekspor melebihi batas waktu. Coba filter yang lebih spesifik.";
+    } else if (message.includes("404") || message.includes("501") || message.includes("500")) {
+      exportError.value = "Ekspor belum tersedia. Hubungi administrator atau coba lagi nanti.";
+    } else {
+      exportError.value = "Gagal mengunduh CSV. Silakan coba lagi.";
+    }
+  } finally {
+    isExporting.value = false;
   }
-  if (collected.length === 0) return;
-
-  const header = ["No", "Nama Usaha", "Skala Usaha", "Kabupaten/Kota", "Kecamatan", "Desa/Kelurahan", "Produk Utama", "Kegiatan Usaha", "Kode KBLI"];
-  const lines = collected.map((r, i) =>
-    [
-      i + 1,
-      r.nama,
-      skalaLabels[apiToSkala[r.skala] ?? "mikro"],
-      r.kota,
-      r.kecamatan,
-      r.kelurahan,
-      r.produkUtama ?? "-",
-      r.kategoriKbli ?? "-",
-      r.kodeKbli ?? "-",
-    ]
-      .map((v) => `"${String(v).replaceAll('"', '""')}"`)
-      .join(",")
-  );
-  const blob = new Blob([[header.join(","), ...lines].join("\n")], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "data-umkm-jawa-barat.csv";
-  a.click();
-  URL.revokeObjectURL(url);
 };
 </script>
 
@@ -519,13 +554,14 @@ const exportCsv = async () => {
             variant="ghost"
             size="icon"
             class="rounded-lg bg-brand-green text-brand-green-foreground hover:bg-brand-green/90 hover:text-brand-green-foreground"
-            :disabled="rowsPending || totalData === 0"
+            :disabled="rowsPending || totalData === 0 || isExporting"
             aria-label="Unduh data UMKM (CSV)"
             title="Unduh seluruh hasil filter (CSV, maks. 50.000 baris)"
             @click="exportCsv"
           >
             <Download class="h-4 w-4" />
           </UiButton>
+          <p v-if="exportError" class="text-xs text-destructive">{{ exportError }}</p>
         </div>
       </div>
 
@@ -623,7 +659,7 @@ const exportCsv = async () => {
             class="flex h-6 w-6 items-center justify-center rounded bg-[#f4f3f1] text-[#353432] transition-colors hover:bg-slate-200 disabled:opacity-40 disabled:hover:bg-[#f4f3f1]"
             :disabled="page === 1"
             aria-label="Ke halaman pertama"
-            @click="goToPage(1)"
+            @click="goFirst"
           >
             <ChevronsLeft class="h-3.5 w-3.5" />
           </button>
@@ -632,41 +668,45 @@ const exportCsv = async () => {
             class="flex h-6 w-6 items-center justify-center rounded bg-[#f4f3f1] text-[#353432] transition-colors hover:bg-slate-200 disabled:opacity-40 disabled:hover:bg-[#f4f3f1]"
             :disabled="page === 1"
             aria-label="Halaman sebelumnya"
-            @click="goToPage(page - 1)"
+            @click="goPrevious"
           >
             <ChevronLeft class="h-3.5 w-3.5" />
           </button>
 
-          <button
-            v-for="(p, i) in pages"
-            :key="`${p}-${i}`"
-            type="button"
-            class="flex h-6 min-w-6 items-center justify-center rounded px-1 text-[10px] leading-4 transition-colors"
-            :class="
-              p === page
-                ? 'bg-[#008444] font-medium text-white'
-                : p === '…'
-                  ? 'cursor-default text-[#353432]'
-                  : 'bg-[#f4f3f1] text-[#353432] hover:bg-slate-200'
-            "
-            :disabled="p === '…'"
-            :aria-label="p === '…' ? 'Halaman lainnya' : `Halaman ${p}`"
-            :aria-current="p === page ? 'page' : undefined"
-            @click="p !== '…' && goToPage(p)"
-          >
-            {{ p }}
-          </button>
+          <template v-if="!isLargeResult">
+            <button
+              v-for="(p, i) in pages"
+              :key="`${p}-${i}`"
+              type="button"
+              class="flex h-6 min-w-6 items-center justify-center rounded px-1 text-[10px] leading-4 transition-colors"
+              :class="
+                p === page
+                  ? 'bg-[#008444] font-medium text-white'
+                  : p === '…'
+                    ? 'cursor-default text-[#353432]'
+                    : 'bg-[#f4f3f1] text-[#353432] hover:bg-slate-200'
+              "
+              :disabled="p === '…'"
+              :aria-label="p === '…' ? 'Halaman lainnya' : `Halaman ${p}`"
+              :aria-current="p === page ? 'page' : undefined"
+              @click="p !== '…' && goToPage(p)"
+            >
+              {{ p }}
+            </button>
+          </template>
+          <span v-else class="px-2 text-[10px] text-[#353432]">Halaman {{ page }}</span>
 
           <button
             type="button"
             class="flex h-6 w-6 items-center justify-center rounded bg-[#f4f3f1] text-[#353432] transition-colors hover:bg-slate-200 disabled:opacity-40 disabled:hover:bg-[#f4f3f1]"
-            :disabled="page === pageCount"
+            :disabled="!hasNext"
             aria-label="Halaman berikutnya"
-            @click="goToPage(page + 1)"
+            @click="goNext"
           >
             <ChevronRight class="h-3.5 w-3.5" />
           </button>
           <button
+            v-if="!isLargeResult"
             type="button"
             class="flex h-6 w-6 items-center justify-center rounded bg-[#f4f3f1] text-[#353432] transition-colors hover:bg-slate-200 disabled:opacity-40 disabled:hover:bg-[#f4f3f1]"
             :disabled="page === pageCount"

@@ -58,7 +58,7 @@ const filters = reactive<SpasialFilters>(defaultFilters());
 const appliedFilters = reactive<SpasialFilters>(defaultFilters());
 
 // ── Data opsi filter (dari Directus, dimuat sekali) ───────────────────────
-const { data: optionsData, error: optionsError } = await useFetch<{ data: TabularOptions }>(
+const { data: optionsData, error: optionsError } = useFetch<{ data: TabularOptions }>(
   "/panel/tabular/options",
 );
 

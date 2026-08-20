@@ -22,6 +22,13 @@ export interface TabularRowsResponse {
     filterCount: number
     page: number
     pageSize: number
+    // Scale breakdown (single grouped COUNT, menghindari 3 request)
+    mikro?: number
+    kecil?: number
+    menengah?: number
+    // Cursor pagination (signed)
+    nextCursor?: string | null
+    hasNext?: boolean
   }
 }
 

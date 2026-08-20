@@ -18,8 +18,8 @@ module.exports = { id: "analitik", handler: (router, { database, logger }) => {
   router.get("/metadata/options", (req,res,next)=>wrap(req,res,next,()=>getOptions(database,req.query||{}),{logger}));
   router.get("/templates", (req,res,next)=>wrap(req,res,next,()=>({ schemaVersion:1, templates:listTemplates() }),{logger}));
   router.get("/status", (req,res,next)=>wrap(req,res,next,()=>getStatus(database),{logger}));
-  router.post("/query", (req,res,next)=>wrap(req,res,next,()=>queryAnalytics(database,jsonBody(req)),{logger}));
-  router.post("/records", (req,res,next)=>wrap(req,res,next,()=>listRecords(database,jsonBody(req)),{logger}));
+  router.post("/query", (req,res,next)=>wrap(req,res,next,()=>queryAnalytics(database,jsonBody(req),{ user: req.accountability?.user }),{logger}));
+  router.post("/records", (req,res,next)=>wrap(req,res,next,()=>listRecords(database,jsonBody(req),{ user: req.accountability?.user }),{logger}));
   router.get("/umkm/:id", (req,res,next)=>wrap(req,res,next,()=>getProfile(database,req.params?.id),{logger}));
   router.post("/exports", (req,res,next)=>wrap(req,res,next,()=>submitExport(database,jsonBody(req),req.accountability.user),{logger}));
   router.get("/exports/:jobId", (req,res,next)=>wrap(req,res,next,()=>getExportStatus(database,req.params?.jobId,req.accountability.user,Boolean(req.accountability.admin)),{logger}));

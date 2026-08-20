@@ -54,7 +54,8 @@ test("tabular: returns paginated rows with filter count", async () => {
   const rawCalls = [];
   const raw = async (sql, params = []) => {
     rawCalls.push({ sql, params });
-    if (sql.includes("COUNT(*)")) return rows([{ filterCount: "42" }]);
+    if (sql.includes("COUNT(*)")) return rows([{ filterCount: "42", mikro: "10", kecil: "5", menengah: "2" }]);
+    if (sql.includes("payload -> 'scales'")) return rows([]);
     return rows([
       {
         id: "u1", nama: "Toko Sembako", skala: "micro", produkUtama: null,
@@ -69,10 +70,16 @@ test("tabular: returns paginated rows with filter count", async () => {
     page: "2", page_size: "5", kota: "38", skala: "micro", kegiatan: "PERDAGANGAN", kbli: "47112",
   });
 
-  assert.deepEqual(res.body.meta, { filterCount: 42, page: 2, pageSize: 5 });
+  assert.equal(res.body.meta.filterCount, 42);
+  assert.equal(res.body.meta.page, 2);
+  assert.equal(res.body.meta.pageSize, 5);
+  assert.equal(res.body.meta.mikro, 10);
   assert.equal(res.body.data[0].nama, "Toko Sembako");
 
-  const [selectCall, countCall] = rawCalls;
+  const selectCall = rawCalls.find((c) => /ORDER BY t\.nama, t\.id/.test(c.sql) && c.sql.includes("LIMIT"));
+  const countCall = rawCalls.find((c) => c.sql.includes("COUNT(*)"));
+  assert.ok(selectCall, "select query found");
+  assert.ok(countCall, "count query found");
   assert.match(selectCall.sql, /ORDER BY t\.nama, t\.id/);
   assert.deepEqual(selectCall.params, [38, "micro", "PERDAGANGAN", "47112", 5, 5]);
   assert.deepEqual(countCall.params, [38, "micro", "PERDAGANGAN", "47112"]);
@@ -83,7 +90,8 @@ test("tabular: ignores invalid filter params and clamps page_size", async () => 
   const rawCalls = [];
   const raw = async (sql, params = []) => {
     rawCalls.push({ sql, params });
-    if (sql.includes("COUNT(*)")) return rows([{ filterCount: "7" }]);
+    if (sql.includes("COUNT(*)")) return rows([{ filterCount: "7", mikro: "0", kecil: "0", menengah: "0" }]);
+    if (sql.includes("payload -> 'scales'")) return rows([{ scales: null }]);
     return rows([]);
   };
   extension.handler(router, { database: { raw }, logger: { error: () => assert.fail("no errors expected") } });
@@ -92,8 +100,11 @@ test("tabular: ignores invalid filter params and clamps page_size", async () => 
     page: "0", page_size: "999999", kota: "abc", skala: "raksasa", kegiatan: "", kbli: "", kelurahan: "-1",
   });
 
-  assert.deepEqual(res.body.meta, { filterCount: 7, page: 1, pageSize: 1000 });
-  const [selectCall] = rawCalls;
+  assert.equal(res.body.meta.filterCount, 7);
+  assert.equal(res.body.meta.page, 1);
+  assert.equal(res.body.meta.pageSize, 1000);
+  const selectCall = rawCalls.find((c) => /ORDER BY t\.nama, t\.id/.test(c.sql));
+  assert.ok(selectCall);
   assert.deepEqual(selectCall.params, [1000, 0]);
 });
 
@@ -105,6 +116,7 @@ test("tabular: returns coordinate points with scale recap", async () => {
     if (sql.includes("COUNT(*)")) {
       return rows([{ filterCount: "42", mikro: "30", kecil: "8", menengah: "4" }]);
     }
+    if (sql.includes("payload -> 'scales'")) return rows([]);
     return rows([
       {
         id: "u1", nama: "Toko Sembako", skala: "micro", produkUtama: null,
@@ -123,7 +135,10 @@ test("tabular: returns coordinate points with scale recap", async () => {
   assert.deepEqual(res.body.meta, { filterCount: 42, mikro: 30, kecil: 8, menengah: 4, limit: 50 });
   assert.equal(res.body.data[0].latitude, -7.0123);
 
-  const [pointCall, countCall] = rawCalls;
+  const pointCall = rawCalls.find((c) => /t\.latitude IS NOT NULL AND t\.longitude IS NOT NULL/.test(c.sql));
+  const countCall = rawCalls.find((c) => c.sql.includes("COUNT(*)"));
+  assert.ok(pointCall);
+  assert.ok(countCall);
   assert.match(pointCall.sql, /t\.latitude IS NOT NULL AND t\.longitude IS NOT NULL/);
   assert.deepEqual(pointCall.params, [38, "micro", 50]);
   assert.deepEqual(countCall.params, [38, "micro"]);
@@ -135,6 +150,7 @@ test("tabular: spasial ignores invalid filters and clamps limit", async () => {
   const raw = async (sql, params = []) => {
     rawCalls.push({ sql, params });
     if (sql.includes("COUNT(*)")) return rows([{ filterCount: "0", mikro: "0", kecil: "0", menengah: "0" }]);
+    if (sql.includes("payload -> 'scales'")) return rows([{ scales: null }]);
     return rows([]);
   };
   extension.handler(router, { database: { raw }, logger: { error: () => assert.fail("no errors expected") } });
@@ -144,13 +160,37 @@ test("tabular: spasial ignores invalid filters and clamps limit", async () => {
   });
 
   assert.deepEqual(res.body.meta, { filterCount: 0, mikro: 0, kecil: 0, menengah: 0, limit: 5000 });
-  const [pointCall] = rawCalls;
+  const pointCall = rawCalls.find((c) => /t\.latitude IS NOT NULL AND t\.longitude IS NOT NULL/.test(c.sql));
+  assert.ok(pointCall);
   assert.deepEqual(pointCall.params, [5000]);
 });
 
-test("tabular: returns filter options mapped to camelCase", async () => {
+test("tabular: returns materialized filter options with one snapshot query", async () => {
   const router = captureRouter();
+  const rawCalls = [];
+  const options = {
+    kota: [{ id: 38, nama: "KAB. GARUT" }],
+    kecamatan: [{ id: 5, nama: "BANJARWANGI", kotaId: 38 }],
+    kategori: ["PERDAGANGAN"],
+    kbli: [{ kode: "47112", kategori: "PERDAGANGAN" }],
+  };
+  const raw = async (sql) => { rawCalls.push(sql); return rows([{ options }]); };
+  extension.handler(router, { database: { raw }, logger: { error: () => assert.fail("no errors expected") } });
+
+  const res = await run(router.routes, "/options", {});
+
+  assert.deepEqual(res.body.data, options);
+  assert.equal(rawCalls.length, 1);
+  assert.match(rawCalls[0], /payload -> 'options'/);
+  assert.doesNotMatch(rawCalls[0], /usaha_tabular/);
+});
+
+test("tabular: keeps the live-query fallback until the next snapshot publish", async () => {
+  const router = captureRouter();
+  const rawCalls = [];
   const raw = async (sql) => {
+    rawCalls.push(sql);
+    if (sql.includes("payload -> 'options'")) return rows([{ options: null }]);
     if (sql.includes("kota_nama AS nama")) return rows([{ id: 38, nama: "KAB. GARUT" }]);
     if (sql.includes("kecamatan_nama AS nama")) return rows([{ id: 5, nama: "BANJARWANGI", kotaId: 38 }]);
     if (sql.includes("kategori_kbli AS nama")) return rows([{ nama: "PERDAGANGAN" }]);
@@ -160,12 +200,8 @@ test("tabular: returns filter options mapped to camelCase", async () => {
 
   const res = await run(router.routes, "/options", {});
 
-  assert.deepEqual(res.body.data, {
-    kota: [{ id: 38, nama: "KAB. GARUT" }],
-    kecamatan: [{ id: 5, nama: "BANJARWANGI", kotaId: 38 }],
-    kategori: ["PERDAGANGAN"],
-    kbli: [{ kode: "47112", kategori: "PERDAGANGAN" }],
-  });
+  assert.equal(rawCalls.length, 5);
+  assert.deepEqual(res.body.data.kbli, [{ kode: "47112", kategori: "PERDAGANGAN" }]);
 });
 
 test("tabular: returns kelurahan for a kecamatan", async () => {

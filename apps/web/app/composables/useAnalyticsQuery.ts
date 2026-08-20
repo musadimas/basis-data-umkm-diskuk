@@ -5,6 +5,7 @@ export function useAnalyticsQuery(config: Readonly<{ value: AnalysisConfig }>) {
   const response = shallowRef<AnalyticsQueryResponse | null>(null)
   const records = shallowRef<AnalyticsRecordsResponse | null>(null)
   const pending = ref(false)
+  const recordsPending = ref(false)
   const error = ref<unknown>(null)
   let controller: AbortController | null = null
   let recordsController: AbortController | null = null
@@ -36,15 +37,16 @@ export function useAnalyticsQuery(config: Readonly<{ value: AnalysisConfig }>) {
     }
   }
 
-  async function fetchRecords() {
+  async function fetchRecords(cursor?: string | null) {
     if (!response.value) return
     const requestId = ++recordsSequence
     recordsController?.abort()
     recordsController = new AbortController()
+    recordsPending.value = true
     try {
       const result = await $fetch<AnalyticsRecordsResponse>("/panel/analitik/records", {
         method: "POST",
-        body: { schemaVersion: 1, filters: config.value.filters, pageSize: 20, sort: config.value.sort, cursor: config.value.cursor },
+        body: { schemaVersion: 1, filters: config.value.filters, pageSize: 20, sort: config.value.sort, cursor: cursor === undefined ? config.value.cursor : cursor || undefined },
         credentials: "include",
         headers: import.meta.server ? useRequestHeaders(["cookie"]) : undefined,
         signal: recordsController.signal,
@@ -52,10 +54,12 @@ export function useAnalyticsQuery(config: Readonly<{ value: AnalysisConfig }>) {
       if (requestId === recordsSequence) records.value = result
     } catch (cause: unknown) {
       if (!isAbortError(cause) && requestId === recordsSequence && import.meta.client && isUnauthorized(cause)) window.dispatchEvent(new Event("auth:unauthorized"))
+    } finally {
+      if (requestId === recordsSequence) recordsPending.value = false
     }
   }
 
   watch(() => JSON.stringify(config.value), execute, { immediate: true })
   onBeforeUnmount(() => { controller?.abort(); recordsController?.abort() })
-  return { response, records, pending, error, execute, fetchRecords }
+  return { response, records, pending, recordsPending, error, execute, fetchRecords }
 }
