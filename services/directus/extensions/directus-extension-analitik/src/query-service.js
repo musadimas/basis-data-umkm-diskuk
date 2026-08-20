@@ -63,18 +63,18 @@ async function querySnapshot(database, source, plan) {
   let rows;
   let unknown;
   if (["kota_id", "kota_kode", "kota_nama"].includes(plan.semantic)) {
-    const codeResult = await database.raw("SELECT id::text AS id,kode FROM kota WHERE kode IS NOT NULL");
-    const codes = new Map((codeResult.rows ?? []).map((row) => [String(row.id), row.kode]));
+    const codeResult = await database.raw("SELECT id::text AS id,kode,nama FROM kota");
+    const references = new Map((codeResult.rows ?? []).map((row) => [String(row.id), row]));
     rows = source.regions.map((region) => ({
       key: plan.semantic === "kota_id"
         ? String(region.id)
         : plan.semantic === "kota_kode"
-          ? (codes.get(String(region.id)) || "unknown")
-          : (region.name || "Tidak diketahui"),
-      label: region.name || "Tidak diketahui",
+          ? (references.get(String(region.id))?.kode || "unknown")
+          : (region.name || references.get(String(region.id))?.nama || "Tidak diketahui"),
+      label: region.name || references.get(String(region.id))?.nama || "Tidak diketahui",
       value: Number(region.value || 0),
     }));
-    unknown = source.regions.filter((region) => region.name === "Tidak diketahui").reduce((sum, region) => sum + Number(region.value || 0), 0);
+    unknown = source.regions.filter((region) => String(region.id) === "unknown" || region.name === "Tidak diketahui").reduce((sum, region) => sum + Number(region.value || 0), 0);
   } else if (plan.semantic === "skala_dilaporkan") {
     rows = [["micro", "Mikro", source.scales.mikro], ["small", "Kecil", source.scales.kecil], ["medium", "Menengah", source.scales.menengah]]
       .map(([key, label, value]) => ({ key, label, value: Number(value || 0) }))
@@ -97,6 +97,45 @@ async function querySnapshot(database, source, plan) {
       conservedTotal: groups.reduce((sum, group) => sum + group.value, 0) === population,
     },
   };
+}
+
+async function queryGenerationAggregate(database, source, plan) {
+  if (
+    source.kind !== "generation"
+    || plan.breakdown
+    || plan.normalized.filters.length
+    || !["kota_id", "kota_kode", "kota_nama", "skala_dilaporkan"].includes(plan.semantic)
+  ) return null;
+
+  const column = plan.semantic === "skala_dilaporkan" ? "skala" : "kota_id";
+  // ponytail: scan the existing compact dimension index; materialize per-generation aggregates if it outgrows the synchronous budget.
+  const result = await withBudgetTransaction(database, (trx) => trx.raw(`
+    WITH totals AS (
+      SELECT ${column} AS dimension_value, COUNT(*)::bigint AS value
+      FROM analitik_usaha_current
+      WHERE generation_id=?
+      GROUP BY ${column}
+    ), archived AS (
+      SELECT ${column} AS dimension_value, COUNT(*)::bigint AS value
+      FROM analitik_usaha_current
+      WHERE generation_id=? AND status='archived'
+      GROUP BY ${column}
+    )
+    SELECT totals.dimension_value, (totals.value-COALESCE(archived.value,0))::integer AS value
+    FROM totals
+    LEFT JOIN archived ON archived.dimension_value IS NOT DISTINCT FROM totals.dimension_value
+    WHERE totals.value>COALESCE(archived.value,0)
+  `, [source.generationId, source.generationId]));
+  const rows = result.rows ?? [];
+  const population = rows.reduce((sum, row) => sum + Number(row.value || 0), 0);
+  const aggregateSource = { ...source, kind: "snapshot", population, regions: [], scales: {} };
+  if (column === "kota_id") {
+    aggregateSource.regions = rows.map((row) => ({ id: row.dimension_value ?? "unknown", value: row.value }));
+  } else {
+    const values = new Map(rows.map((row) => [String(row.dimension_value ?? "unknown"), Number(row.value || 0)]));
+    aggregateSource.scales = { mikro: values.get("micro") || 0, kecil: values.get("small") || 0, menengah: values.get("medium") || 0 };
+  }
+  return querySnapshot(database, aggregateSource, plan);
 }
 
 async function withBudgetTransaction(database, fn) {
@@ -126,7 +165,7 @@ async function queryAnalytics(database, request, opts = {}) {
     const registryResult = await database.raw(`SELECT id,semantic_id,lifecycle_status,semantic_role FROM analitik_field`);
     const registry = registryResult.rows ?? registryResult[0] ?? [];
     const plan = compileQuery(request, registry);
-    const snapshotResponse = await querySnapshot(database, source, plan);
+    const snapshotResponse = await querySnapshot(database, source, plan) ?? await queryGenerationAggregate(database, source, plan);
     if (snapshotResponse) return snapshotResponse;
     const scopedWhere = `${source.scopeSql} AND ${plan.whereSql}`;
     const params = [...source.scopeParams, ...plan.params];
