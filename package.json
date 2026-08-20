@@ -1,7 +1,13 @@
 {
   "name": "basis-data-umkm-diskuk",
   "private": true,
+  "type": "module",
   "scripts": {
-    "dev:direct": "bash scripts/dev-direct.sh"
+    "dev:direct": "bash scripts/dev-direct.sh",
+    "lint:oxlint": "oxlint"
+  },
+  "devDependencies": {
+    "@oxlint/plugins": "1.78.0",
+    "oxlint": "1.78.0"
   }
 }
