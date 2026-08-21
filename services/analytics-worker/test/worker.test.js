@@ -14,5 +14,13 @@ test("source projector uses fixed SQL and no raw source payload", async () => { 
 
 import { aggregateCsv, csvCell } from "../src/exporter.js";
 import { renderPng, renderPdf } from "../src/export-renderer.js";
+import { DIM_AGGREGATE_SQL } from "../src/rebuild.js";
+test("dimension rollup covers every compiler dimension and stays scoped to one generation", () => {
+  const dimensions = [...DIM_AGGREGATE_SQL.matchAll(/SELECT '([a-z_]+)'/g)].map((match) => match[1]);
+  assert.deepEqual(dimensions, ["kota_id","kota_kode","kota_nama","kecamatan_id","kecamatan_nama","kelurahan_id","kelurahan_nama","sektor_kbli","kbli_kode","skala_dilaporkan","status_hukum","status_usaha","quality_geography","quality_kbli"]);
+  const scoped = DIM_AGGREGATE_SQL.match(/WHERE a\.generation_id=\$1/g)?.length ?? 0;
+  assert.equal(scoped, 14); // every UNION ALL branch is generation-scoped
+  assert.match(DIM_AGGREGATE_SQL, /ON CONFLICT \(generation_id,dimension,dimension_value,status\)/);
+});
 test("export CSV neutralizes spreadsheet formulas and has Indonesian BOM",()=>{const csv=aggregateCsv({groups:[{label:"=FORMULA",value:1,share:100}],meta:{dataAsOf:"2026-08-17T00:00:00Z"}});assert.equal(csv.charCodeAt(0),0xfeff);assert.match(csv,/'=FORMULA/);assert.equal(csvCell("a,b"),"\"a,b\"");});
 test("renderers emit parseable artifact signatures and semantic text",()=>{const png=renderPng();assert.equal(png.subarray(0,8).toString("hex"),"89504e470d0a1a0a");const pdf=renderPdf({title:"Sebaran UMKM",lines:["Bogor: 4"]});assert.equal(pdf.subarray(0,8).toString(),"%PDF-1.4");assert.match(pdf.toString(),/Sebaran UMKM/);});

@@ -2,7 +2,8 @@ const crypto = require("node:crypto");
 const { AnalyticsApiError } = require("./errors.js");
 const { baseMeta } = require("./meta.js");
 const { compileFiltersOnly } = require("./query-compiler.js");
-const { resolveAnalyticsSource } = require("./source-service.js");
+const { resolveAnalyticsSourceCached } = require("./source-service.js");
+const { loadRegistryCached, __resetRuntimeCachesForTests } = require("./runtime-cache.js");
 const { QUERY_BUDGET } = require("../../../analytics-shared/contracts.cjs");
 
 const rateWindowMs = 60_000;
@@ -30,7 +31,7 @@ function enterConcurrency(user) {
   let released = false;
   return () => { if (released) return; released = true; const after = (concurrencyMap.get(user) || 1) - 1; if (after <= 0) concurrencyMap.delete(user); else concurrencyMap.set(user, after); };
 }
-function __resetBudgetForTests() { rateMap.clear(); concurrencyMap.clear(); }
+function __resetBudgetForTests() { rateMap.clear(); concurrencyMap.clear(); __resetRuntimeCachesForTests(); }
 
 function secret() { return process.env.DIRECTUS_SECRET || process.env.NUXT_SESSION_POLICY_SECRET || "analytics-development-secret"; }
 function signCursor(payload) { const body = Buffer.from(JSON.stringify(payload)).toString("base64url"); const sig = crypto.createHmac("sha256", secret()).update(body).digest("base64url"); return `${body}.${sig}`; }
@@ -61,8 +62,8 @@ async function listRecords(database, request, opts = {}) {
   if (user) checkRateLimit(String(user));
   const release = enterConcurrency(user ? String(user) : null);
   try {
-    const registry = (await database.raw(`SELECT id,semantic_id,lifecycle_status FROM analitik_field`)).rows ?? [];
-    const source = await resolveAnalyticsSource(database);
+    const registry = await loadRegistryCached(database);
+    const source = await resolveAnalyticsSourceCached(database);
     if (!source) throw new AnalyticsApiError(503, "NO_PUBLISHED_SNAPSHOT", "Data sedang disiapkan. Silakan coba lagi.");
     const rawPageSize = Number(request.pageSize ?? 20);
     if (!Number.isInteger(rawPageSize) || rawPageSize < 1) throw new AnalyticsApiError(422, "QUERY_COMPLEXITY");

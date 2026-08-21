@@ -141,3 +141,32 @@ export function canonicalizeAnalysisUrl(config: AnalysisConfig) {
   const serialized = serializeAnalysisUrl(config)
   return serialized ? `?${serialized}` : ""
 }
+
+// Canonical cache keys for the analytics API responses. Only inputs that
+// change the server response participate: visual/page/cursor never alter the
+// aggregate payload, and filter/value order is irrelevant to SQL semantics,
+// so reordering must not invalidate the cache.
+function canonicalFilterEntries(filters: AnalyticsFilter[] | undefined) {
+  return (filters ?? [])
+    .map((filter) => [filter.fieldId, filter.operator, Array.isArray(filter.value) ? [...filter.value].sort() : filter.value] as const)
+    .sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)))
+}
+
+export function canonicalAggregateKey(config: AnalysisConfig): string {
+  return JSON.stringify({
+    schemaVersion: config.schemaVersion,
+    metric: config.metric,
+    groupBy: config.groupBy,
+    breakdown: config.breakdown ?? null,
+    filters: canonicalFilterEntries(config.filters),
+    includeOthers: config.includeOthers !== false,
+  })
+}
+
+export function canonicalRecordsKey(config: AnalysisConfig): string {
+  return JSON.stringify({
+    schemaVersion: config.schemaVersion,
+    filters: canonicalFilterEntries(config.filters),
+    sort: config.sort === "nama" ? "nama" : "id",
+  })
+}

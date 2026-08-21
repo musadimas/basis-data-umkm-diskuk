@@ -1,8 +1,9 @@
 const { AnalyticsApiError } = require("./errors.js");
 const { baseMeta } = require("./meta.js");
 const { compileQuery } = require("./query-compiler.js");
-const { resolveAnalyticsSource } = require("./source-service.js");
+const { resolveAnalyticsSourceCached } = require("./source-service.js");
 const { QUERY_BUDGET } = require("../../../analytics-shared/contracts.cjs");
+const { loadRegistryCached, __resetRuntimeCachesForTests } = require("./runtime-cache.js");
 
 // In-process per-user rate + concurrency guard (single Directus instance per plan)
 // 30 req/min/user, 2 concurrent queries/user
@@ -42,8 +43,8 @@ function enterConcurrency(user) {
   };
 }
 
-// For tests: reset limiters
-function __resetBudgetForTests() { rateMap.clear(); concurrencyMap.clear(); }
+// For tests: reset limiters and runtime caches
+function __resetBudgetForTests() { rateMap.clear(); concurrencyMap.clear(); __resetRuntimeCachesForTests(); }
 
 async function activeGeneration(database) {
   const result = await database.raw(`SELECT g.id,g.status,g.data_as_of,g.reconciled_at FROM analitik_active_generation p JOIN analitik_generation g ON g.id=p.active_generation_id WHERE p.id=1`);
@@ -138,6 +139,68 @@ async function queryGenerationAggregate(database, source, plan) {
   return querySnapshot(database, aggregateSource, plan);
 }
 
+// Shared shaping for generation-model responses (single-scan path and the
+// per-generation rollup fast path below).
+function finalizeGenerationGroups({ rows, plan, source, matched, population }) {
+  const overflow = rows.length > plan.limit ? rows.slice(plan.limit) : [];
+  const limited = rows.slice(0, plan.limit);
+  const overflowValue = overflow.reduce((sum, row) => sum + Number(row.value || 0), 0);
+  const groups = limited.map((row) => {
+    const group = {
+      key: String(row.group_key),
+      label: row.group_label || "Tidak diketahui",
+      value: Number(row.value || 0),
+      share: matched ? Number((Number(row.value || 0) * 100 / matched).toFixed(1)) : 0,
+    };
+    if (plan.breakdown) group.breakdown = { key: String(row.breakdown_key), label: row.breakdown_label || "Tidak diketahui" };
+    return group;
+  });
+  if (overflowValue && plan.includeOthers) groups.push({ key: "others", label: "Lainnya", value: overflowValue, share: matched ? Number((overflowValue * 100 / matched).toFixed(1)) : 0 });
+  const unknown = groups.filter((group) => group.key === "unknown" || group.label === "Tidak diketahui" || group.label === "Tidak ada kode" || group.label === "Tidak terpetakan").reduce((sum, group) => sum + group.value, 0);
+  return {
+    meta: baseMeta({ dataAsOf: source.dataAsOf, status: source.status, population, matched, coverage: { matched, total: population, unknown }, warnings: source.warnings }),
+    data: {
+      metric: { key: plan.metricKey, label: plan.metric.label, aggregation: "count_distinct" },
+      groups,
+      normalizedFilters: plan.normalized,
+      conservedTotal: groups.reduce((sum, group) => sum + group.value, 0) === matched,
+    },
+  };
+}
+
+// Dimensions pre-aggregated per generation by the analytics worker into
+// analitik_dim_aggregate. Serves unfiltered single-dimension GROUP BYs from a
+// bounded indexed lookup instead of scanning the fact table; expressions are
+// kept aligned with DIMENSIONS in query-compiler.js (see DIM_AGGREGATE_SQL).
+const ROLLUP_DIMENSIONS = new Set([
+  "kota_id", "kota_kode", "kota_nama", "kecamatan_id", "kecamatan_nama",
+  "kelurahan_id", "kelurahan_nama", "sektor_kbli", "kbli_kode",
+  "skala_dilaporkan", "status_hukum", "status_usaha", "quality_geography", "quality_kbli",
+]);
+
+async function queryGenerationRollup(database, source, plan) {
+  if (source.kind !== "generation" || plan.breakdown || plan.normalized.filters.length) return null;
+  if (!ROLLUP_DIMENSIONS.has(plan.semantic)) return null;
+  let rows;
+  try {
+    const result = await withBudgetTransaction(database, (trx) => trx.raw(
+      // Default scope is active-only: subtract archived counts exactly like
+      // the live aggregate path does.
+      `SELECT dimension_value,label,SUM(CASE WHEN status='archived' THEN 0 ELSE value END)::bigint AS value FROM analitik_dim_aggregate WHERE generation_id=? AND dimension=? GROUP BY dimension_value,label`,
+      [source.generationId, plan.semantic]));
+    rows = result.rows ?? [];
+  } catch (error) {
+    if (error?.code === "57014" || error?.code === "55P03") throw new AnalyticsApiError(504, "QUERY_TIMEOUT", "Query melebihi batas waktu. Coba filter yang lebih spesifik.");
+    if (error?.code === "42P01") return null; // rollup table not migrated yet – fall through
+    throw error;
+  }
+  if (!rows.length) return null; // generation predates rollup population – fall through
+  const groups = rows.map((row) => ({ group_key: row.dimension_value, group_label: row.label, value: Number(row.value || 0) }));
+  const matched = groups.reduce((sum, group) => sum + group.value, 0);
+  const population = source.activeRowCount != null ? source.activeRowCount : matched;
+  return finalizeGenerationGroups({ rows: groups, plan, source, matched, population });
+}
+
 async function withBudgetTransaction(database, fn) {
   if (typeof database.transaction === "function") {
     return database.transaction(async (trx) => {
@@ -160,12 +223,11 @@ async function queryAnalytics(database, request, opts = {}) {
   }
   const releaseConcurrency = enterConcurrency(user ? String(user) : null);
   try {
-    const source = await resolveAnalyticsSource(database);
+    const source = await resolveAnalyticsSourceCached(database);
     if (!source) throw new AnalyticsApiError(503, "NO_PUBLISHED_SNAPSHOT", "Data sedang disiapkan. Silakan coba lagi.");
-    const registryResult = await database.raw(`SELECT id,semantic_id,lifecycle_status,semantic_role FROM analitik_field`);
-    const registry = registryResult.rows ?? registryResult[0] ?? [];
+    const registry = await loadRegistryCached(database);
     const plan = compileQuery(request, registry);
-    const snapshotResponse = await querySnapshot(database, source, plan) ?? await queryGenerationAggregate(database, source, plan);
+    const snapshotResponse = await querySnapshot(database, source, plan) ?? await queryGenerationRollup(database, source, plan) ?? await queryGenerationAggregate(database, source, plan);
     if (snapshotResponse) return snapshotResponse;
     const scopedWhere = `${source.scopeSql} AND ${plan.whereSql}`;
     const params = [...source.scopeParams, ...plan.params];
@@ -173,14 +235,21 @@ async function queryAnalytics(database, request, opts = {}) {
     let rows;
     let matched;
     try {
-      const result = await withBudgetTransaction(database, async (trx) => {
-        const groupRows = (await trx.raw(`SELECT ${plan.selectSql} FROM ${source.fromSql} WHERE ${scopedWhere} GROUP BY ${plan.groupBySql} ORDER BY value DESC, group_key ASC LIMIT ?`, [...params, plan.limit + 1])).rows ?? [];
-        // Use COUNT(*) for generation model (PK guarantees 1 row per usaha) – faster than COUNT(DISTINCT)
-        const matchedCount = Number(((await trx.raw(`SELECT COUNT(*)::integer AS count FROM ${source.fromSql} WHERE ${scopedWhere}`, params)).rows ?? [])[0]?.count ?? 0);
-        return { groupRows, matchedCount };
-      });
-      rows = result.groupRows;
-      matched = result.matchedCount;
+      // Single scan serves both the GROUP BY and the exact matched total:
+      // SUM(COUNT(*)) OVER () folds COUNT(*) across every group of the same
+      // WHERE pass, halving fact-table I/O versus the previous two statements.
+      // COUNT(*) is safe for the generation model (PK guarantees 1 row per usaha).
+      const orderSql = plan.breakdown ? "value DESC, group_key ASC, breakdown_key ASC" : "value DESC, group_key ASC";
+      rows = (await withBudgetTransaction(database, async (trx) => (await trx.raw(`
+        SELECT group_key, group_label${plan.breakdown ? ", breakdown_key, breakdown_label" : ""}, value::integer AS value, matched::integer AS matched FROM (
+          SELECT ${plan.aggregateSelectSql}, COUNT(*)::bigint AS value, SUM(COUNT(*)) OVER ()::bigint AS matched
+          FROM ${source.fromSql} WHERE ${scopedWhere}
+          GROUP BY ${plan.groupBySql}
+        ) g
+        ORDER BY ${orderSql}
+        LIMIT ?
+      `, [...params, plan.limit + 1])).rows ?? []));
+      matched = Number(rows[0]?.matched ?? 0);
     } catch (error) {
       if (error?.code === "57014" || error?.code === "55P03" || error instanceof AnalyticsApiError && error.code === "QUERY_TIMEOUT") throw new AnalyticsApiError(504, "QUERY_TIMEOUT", "Query melebihi batas waktu. Coba filter yang lebih spesifik.");
       if (error instanceof AnalyticsApiError) throw error;
@@ -244,30 +313,7 @@ async function queryAnalytics(database, request, opts = {}) {
       }
     }
 
-    const overflow = rows.length > plan.limit ? rows.slice(plan.limit) : [];
-    rows = rows.slice(0, plan.limit);
-    const overflowValue = overflow.reduce((sum, row) => sum + Number(row.value || 0), 0);
-    const groups = rows.map((row) => {
-      const group = {
-        key: row.group_key,
-        label: row.group_label || "Tidak diketahui",
-        value: Number(row.value || 0),
-        share: matched ? Number((Number(row.value || 0) * 100 / matched).toFixed(1)) : 0,
-      };
-      if (plan.breakdown) group.breakdown = { key: row.breakdown_key, label: row.breakdown_label || "Tidak diketahui" };
-      return group;
-    });
-    if (overflowValue && plan.includeOthers) groups.push({ key: "others", label: "Lainnya", value: overflowValue, share: matched ? Number((overflowValue * 100 / matched).toFixed(1)) : 0 });
-    const unknown = groups.filter((group) => group.key === "unknown" || group.label === "Tidak diketahui" || group.label === "Tidak ada kode" || group.label === "Tidak terpetakan").reduce((sum, group) => sum + group.value, 0);
-    return {
-      meta: baseMeta({ dataAsOf: source.dataAsOf, status: source.status, population, matched, coverage: { matched, total: population, unknown }, warnings: source.warnings }),
-      data: {
-        metric: { key: plan.metricKey, label: plan.metric.label, aggregation: "count_distinct" },
-        groups,
-        normalizedFilters: plan.normalized,
-        conservedTotal: groups.reduce((sum, group) => sum + group.value, 0) === matched,
-      },
-    };
+    return finalizeGenerationGroups({ rows, plan, source, matched, population });
   } finally {
     releaseConcurrency();
   }

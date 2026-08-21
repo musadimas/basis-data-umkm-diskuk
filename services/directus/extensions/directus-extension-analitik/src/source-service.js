@@ -1,3 +1,5 @@
+const { sourceCache } = require("./runtime-cache.js");
+
 const CURRENT_SOURCE = "analitik_usaha_current a";
 const SNAPSHOT_SOURCE = `(
   SELECT
@@ -60,4 +62,15 @@ async function resolveAnalyticsSource(database) {
   };
 }
 
-module.exports = { resolveAnalyticsSource, CURRENT_SOURCE, SNAPSHOT_SOURCE };
+// Hot-path wrapper: the active-generation lookup runs on every analytics
+// request; a 5s TTL keeps promotion lag negligible while removing one round
+// trip per request. Callers must treat the returned object as immutable.
+async function resolveAnalyticsSourceCached(database) {
+  const cached = sourceCache.get();
+  if (cached) return cached;
+  const source = await resolveAnalyticsSource(database);
+  if (source) sourceCache.set(source);
+  return source;
+}
+
+module.exports = { resolveAnalyticsSource, resolveAnalyticsSourceCached, CURRENT_SOURCE, SNAPSHOT_SOURCE };

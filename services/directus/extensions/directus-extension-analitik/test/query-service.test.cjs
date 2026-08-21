@@ -1,6 +1,9 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const { queryAnalytics } = require("../src/query-service.js");
+const { queryAnalytics, __resetBudgetForTests } = require("../src/query-service.js");
+
+// Runtime TTL caches (source/registry) must not leak between tests.
+test.beforeEach(() => __resetBudgetForTests());
 
 test("city distribution uses the published snapshot when no generation is active", async () => {
   const calls = [];
@@ -43,6 +46,8 @@ test("active generation city distribution uses the existing city index path", as
         id: "generation-1", status: "active", data_as_of: "2026-08-19T15:00:00Z", reconciled_at: "2026-08-19T20:00:00Z",
         row_count: 10, active_row_count: 9, archived_row_count: 1,
       }] };
+      // Empty rollup → must fall through to the live aggregate path below.
+      if (sql.includes("FROM analitik_dim_aggregate")) return { rows: [] };
       if (sql.includes("FROM analitik_field")) return { rows: [
         { id: "metric", semantic_id: "jumlah_umkm", lifecycle_status: "active", semantic_role: "metric" },
         { id: "city", semantic_id: "kota_nama", lifecycle_status: "active", semantic_role: "dimension" },
@@ -97,4 +102,66 @@ test("scale distribution uses the published aggregate without scanning the tabul
   ]);
   assert.equal(result.data.conservedTotal, true);
   assert.equal(calls.some((sql) => sql.includes("FROM usaha_tabular") || sql.includes("FROM kota")), false);
+});
+
+test("unfiltered sector distribution is served from the per-generation rollup without a fact scan", async () => {
+  const calls = [];
+  const database = {
+    async raw(sql) {
+      calls.push(sql);
+      if (sql.includes("FROM analitik_active_generation")) return { rows: [{
+        id: "generation-1", status: "active", data_as_of: "2026-08-19T15:00:00Z", reconciled_at: "2026-08-19T20:00:00Z",
+        row_count: 10, active_row_count: 9, archived_row_count: 1,
+      }] };
+      if (sql.includes("FROM analitik_field")) return { rows: [
+        { id: "metric", semantic_id: "jumlah_umkm", lifecycle_status: "active", semantic_role: "metric" },
+        { id: "sector", semantic_id: "sektor_kbli", lifecycle_status: "active", semantic_role: "dimension" },
+      ] };
+      if (sql.includes("FROM analitik_dim_aggregate")) return { rows: [
+        { dimension_value: "G", label: "G", value: 6 },
+        { dimension_value: "C", label: "C", value: 3 },
+      ] };
+      throw new Error(`Unexpected SQL: ${sql}`);
+    },
+  };
+  const result = await queryAnalytics(database, { schemaVersion: 1, metric: "jumlah_umkm", groupBy: "sektor_kbli", filters: [], limit: 20 });
+  assert.equal(result.meta.status, "current");
+  assert.equal(result.meta.population, 9);
+  assert.equal(result.meta.matched, 9);
+  assert.deepEqual(result.data.groups.map(({ key, value }) => ({ key, value })), [
+    { key: "G", value: 6 },
+    { key: "C", value: 3 },
+  ]);
+  // Fast path must short-circuit before any fact-table aggregation.
+  assert.equal(calls.some((sql) => sql.includes("WITH totals AS") || sql.includes("SUM(COUNT(*)) OVER ()")), false);
+});
+
+test("runtime caches serve repeated requests without re-resolving source and reset for tests", async () => {
+  let generationLookups = 0;
+  const database = {
+    async raw(sql) {
+      if (sql.includes("FROM analitik_active_generation")) {
+        generationLookups += 1;
+        return { rows: [{
+          id: "generation-1", status: "active", data_as_of: "2026-08-19T15:00:00Z", reconciled_at: "2026-08-19T20:00:00Z",
+          row_count: 10, active_row_count: 9, archived_row_count: 1,
+        }] };
+      }
+      if (sql.includes("FROM analitik_field")) return { rows: [
+        { id: "metric", semantic_id: "jumlah_umkm", lifecycle_status: "active", semantic_role: "metric" },
+        { id: "city", semantic_id: "kota_nama", lifecycle_status: "active", semantic_role: "dimension" },
+      ] };
+      if (sql.includes("FROM analitik_dim_aggregate")) return { rows: [] };
+      if (sql.includes("WITH totals AS")) return { rows: [{ dimension_value: 1, value: 6 }, { dimension_value: 2, value: 3 }] };
+      if (sql.includes("FROM kota")) return { rows: [{ id: "1", kode: "32.04", nama: "KAB. BANDUNG" }, { id: "2", kode: "32.73", nama: "KOTA BANDUNG" }] };
+      throw new Error(`Unexpected SQL: ${sql}`);
+    },
+  };
+  const request = { schemaVersion: 1, metric: "jumlah_umkm", groupBy: "kota_nama", filters: [], limit: 20 };
+  await queryAnalytics(database, request);
+  await queryAnalytics(database, request);
+  assert.equal(generationLookups, 1); // second request served from the 5s source cache
+  __resetBudgetForTests();
+  await queryAnalytics(database, request);
+  assert.equal(generationLookups, 2); // reset forces a fresh resolution
 });

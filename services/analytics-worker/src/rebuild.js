@@ -326,6 +326,47 @@ async function refreshLegacySnapshots(client, dataAsOf) {
   }
 }
 
+// Dimension rollup expressions – MUST stay aligned with DIMENSIONS in
+// directus-extension-analitik/src/query-compiler.js so the API fast path can
+// trust dimension_value/label semantics without re-deriving them.
+export const DIM_AGGREGATE_SQL = `
+  INSERT INTO analitik_dim_aggregate(generation_id,dimension,dimension_value,label,status,value)
+  SELECT $1, u.dimension, u.dimension_value, u.label, u.status, u.value FROM (
+    SELECT 'kota_id' AS dimension, COALESCE(a.kota_id::text,'unknown') AS dimension_value, COALESCE(a.kota_nama,'Tidak diketahui') AS label, a.status AS status, COUNT(*)::bigint AS value FROM analitik_usaha_current a WHERE a.generation_id=$1 GROUP BY 2,3,4
+    UNION ALL
+    SELECT 'kota_kode', COALESCE(a.kota_kode,'unknown'), COALESCE(a.kota_nama,'Tidak diketahui'), a.status, COUNT(*)::bigint FROM analitik_usaha_current a WHERE a.generation_id=$1 GROUP BY 2,3,4
+    UNION ALL
+    SELECT 'kota_nama', COALESCE(a.kota_nama,'Tidak diketahui'), COALESCE(a.kota_nama,'Tidak diketahui'), a.status, COUNT(*)::bigint FROM analitik_usaha_current a WHERE a.generation_id=$1 GROUP BY 2,3,4
+    UNION ALL
+    SELECT 'kecamatan_id', COALESCE(a.kecamatan_id::text,'unknown'), COALESCE(a.kecamatan_nama,'Tidak diketahui'), a.status, COUNT(*)::bigint FROM analitik_usaha_current a WHERE a.generation_id=$1 GROUP BY 2,3,4
+    UNION ALL
+    SELECT 'kecamatan_nama', COALESCE(a.kecamatan_nama,'Tidak diketahui'), COALESCE(a.kecamatan_nama,'Tidak diketahui'), a.status, COUNT(*)::bigint FROM analitik_usaha_current a WHERE a.generation_id=$1 GROUP BY 2,3,4
+    UNION ALL
+    SELECT 'kelurahan_id', COALESCE(a.kelurahan_id::text,'unknown'), COALESCE(a.kelurahan_nama,'Tidak diketahui'), a.status, COUNT(*)::bigint FROM analitik_usaha_current a WHERE a.generation_id=$1 GROUP BY 2,3,4
+    UNION ALL
+    SELECT 'kelurahan_nama', COALESCE(a.kelurahan_nama,'Tidak diketahui'), COALESCE(a.kelurahan_nama,'Tidak diketahui'), a.status, COUNT(*)::bigint FROM analitik_usaha_current a WHERE a.generation_id=$1 GROUP BY 2,3,4
+    UNION ALL
+    SELECT 'sektor_kbli', COALESCE(a.sektor_kbli,'unknown'), COALESCE(a.sektor_kbli,'Tidak diketahui'), a.status, COUNT(*)::bigint FROM analitik_usaha_current a WHERE a.generation_id=$1 GROUP BY 2,3,4
+    UNION ALL
+    SELECT 'kbli_kode', COALESCE(a.kode_kbli,'unknown'), COALESCE(a.kode_kbli,'Tidak diketahui'), a.status, COUNT(*)::bigint FROM analitik_usaha_current a WHERE a.generation_id=$1 GROUP BY 2,3,4
+    UNION ALL
+    SELECT 'skala_dilaporkan', COALESCE(a.skala,'unknown'), CASE a.skala WHEN 'micro' THEN 'Mikro' WHEN 'small' THEN 'Kecil' WHEN 'medium' THEN 'Menengah' ELSE 'Tidak diketahui' END, a.status, COUNT(*)::bigint FROM analitik_usaha_current a WHERE a.generation_id=$1 GROUP BY 2,3,4
+    UNION ALL
+    SELECT 'status_hukum', COALESCE(a.status_hukum,'unknown'), COALESCE(a.status_hukum,'Tidak diketahui'), a.status, COUNT(*)::bigint FROM analitik_usaha_current a WHERE a.generation_id=$1 GROUP BY 2,3,4
+    UNION ALL
+    SELECT 'status_usaha', COALESCE(a.status,'unknown'), CASE a.status WHEN 'active' THEN 'Aktif' WHEN 'archived' THEN 'Diarsipkan' ELSE 'Tidak diketahui' END, a.status, COUNT(*)::bigint FROM analitik_usaha_current a WHERE a.generation_id=$1 GROUP BY 2,3,4
+    UNION ALL
+    SELECT 'quality_geography', CASE WHEN a.kota_id IS NULL OR a.kecamatan_id IS NULL OR a.kelurahan_id IS NULL THEN 'unknown' ELSE 'mapped' END, CASE WHEN a.kota_id IS NULL OR a.kecamatan_id IS NULL OR a.kelurahan_id IS NULL THEN 'Tidak diketahui' ELSE 'Terpetakan' END, a.status, COUNT(*)::bigint FROM analitik_usaha_current a WHERE a.generation_id=$1 GROUP BY 2,3,4
+    UNION ALL
+    SELECT 'quality_kbli', CASE WHEN a.kode_kbli IS NULL THEN 'missing' WHEN a.sektor_kbli IS NULL THEN 'unmapped' ELSE 'mapped' END, CASE WHEN a.kode_kbli IS NULL THEN 'Tidak ada kode' WHEN a.sektor_kbli IS NULL THEN 'Tidak terpetakan' ELSE 'Terpetakan' END, a.status, COUNT(*)::bigint FROM analitik_usaha_current a WHERE a.generation_id=$1 GROUP BY 2,3,4
+  ) u
+  ON CONFLICT (generation_id,dimension,dimension_value,status)
+  DO UPDATE SET label=EXCLUDED.label, value=EXCLUDED.value`;
+
+async function populateDimAggregate(pool, generationId) {
+  await pool.query(DIM_AGGREGATE_SQL, [generationId]);
+}
+
 export async function rebuildCurrentModel(pool, { logger, batchSize = 50_000 } = {}) {
   const lock = await pool.query("SELECT pg_try_advisory_lock(hashtext('diskuk.analytics.rebuild')) AS locked"); if (!lock.rows[0]?.locked) return { skipped: "rebuild_locked" };
   let generationId;
@@ -402,6 +443,10 @@ export async function rebuildCurrentModel(pool, { logger, batchSize = 50_000 } =
     } catch {
       await pool.query(`UPDATE analitik_generation SET row_count=$2,outbox_high_water=$3,build_finished_at=NOW() WHERE id=$1`, [generationId,finalCount,tailHighWater]);
     }
+    // Pre-aggregate per-dimension counts for the candidate so unfiltered
+    // analytics GROUP BYs never scan the 5.4M-row fact table (see ADR-0002 #7:
+    // precompute common aggregates; the denormalized model stays the base).
+    await populateDimAggregate(pool, generationId);
     const reconciliation = await withTransaction(pool, async (client) => reconcileGeneration(client,generationId));
     if (!reconciliation.passed) throw Object.assign(new Error("Candidate reconciliation failed"), { code: "RECONCILIATION_FAILED", reconciliation });
     // Bulk inserts leave the candidate's heap pages outside the visibility map.
@@ -409,6 +454,7 @@ export async function rebuildCurrentModel(pool, { logger, batchSize = 50_000 } =
     // the synchronous analytics API budget. PARALLEL 0 fits the container's
     // deliberately small /dev/shm allocation.
     await pool.query("VACUUM (ANALYZE, PARALLEL 0) analitik_usaha_current");
+    await pool.query("VACUUM (ANALYZE, PARALLEL 0) analitik_dim_aggregate");
     // Atomic promotion + legacy snapshot refresh in single transaction
     // This ensures one publish yields same generation/dataAsOf across all four surfaces
     await withTransaction(pool, async (client) => {

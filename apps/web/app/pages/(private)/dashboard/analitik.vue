@@ -2,6 +2,7 @@
 import { useAnalyticsCatalog } from "~/composables/useAnalyticsCatalog"
 import { useAnalysisState } from "~/composables/useAnalysisState"
 import { useAnalyticsQuery } from "~/composables/useAnalyticsQuery"
+import { canonicalRecordsKey } from "~/lib/analytics-query"
 import type { AnalysisConfig, AnalyticsGroup, SavedAnalysis, AnalyticsExportType, AnalyticsQueryResponse } from "~/types/analytics"
 import { useSavedAnalyses } from "~/composables/useSavedAnalyses"
 import { useAnalyticsExports } from "~/composables/useAnalyticsExports"
@@ -26,12 +27,12 @@ const warning = ref(state.warning.value)
 const recordsCursor = ref<string | null>(null)
 const cursorStack = ref<string[]>([])
 const recordsPending = ref(query.recordsPending.value)
-watch(query.response, (value) => {
-  response.value = value
-  if (!value) return
+watch(query.response, (value) => { response.value = value })
+// Table pagination resets when the applied analysis changes (canonical key),
+// not on background revalidations of the same analysis.
+watch(() => canonicalRecordsKey(state.applied.value), () => {
   recordsCursor.value = null
   cursorStack.value = []
-  void query.fetchRecords(null)
 })
 watch(query.pending, (value) => { pending.value = value })
 watch(query.recordsPending, (value) => { recordsPending.value = value })
