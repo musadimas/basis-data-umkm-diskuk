@@ -24,6 +24,44 @@ export async function installMockDirectus(page, { authenticated = false, renderM
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: [{ id: 111, nama: "Pakansari" }] }) });
       return;
     }
+    if (path === "/panel/tabular/") {
+      const allRows = Array.from({ length: 12 }, (_, index) => ({
+        id: `11111111-1111-4111-8111-${String(index + 1).padStart(12, "0")}`,
+        nama: `Usaha ${String(index + 1).padStart(2, "0")}`,
+        skala: index < 8 ? "micro" : index < 11 ? "small" : "medium",
+        produkUtama: index % 2 === 0 ? "Keripik Singkong" : "Pakaian",
+        kegiatanUtama: index % 2 === 0 ? "Produksi makanan ringan" : "Perdagangan pakaian",
+        kodeKbli: index % 2 === 0 ? "10794" : "47112",
+        kategoriKbli: index % 2 === 0 ? "INDUSTRI PENGOLAHAN" : "PERDAGANGAN",
+        kota: "Kabupaten Bogor",
+        kecamatan: "Cibinong",
+        kelurahan: "Pakansari",
+      }));
+      const scale = url.searchParams.get("skala");
+      const filteredRows = scale ? allRows.filter((item) => item.skala === scale) : allRows;
+      const pageNumber = Number(url.searchParams.get("page") || "1");
+      const pageSize = Number(url.searchParams.get("page_size") || "10");
+      const start = (pageNumber - 1) * pageSize;
+      const data = filteredRows.slice(start, start + pageSize);
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data,
+          meta: {
+            filterCount: filteredRows.length,
+            mikro: filteredRows.filter((item) => item.skala === "micro").length,
+            kecil: filteredRows.filter((item) => item.skala === "small").length,
+            menengah: filteredRows.filter((item) => item.skala === "medium").length,
+            page: pageNumber,
+            pageSize,
+            nextCursor: start + data.length < filteredRows.length ? "next-page" : null,
+            hasNext: start + data.length < filteredRows.length,
+          },
+        }),
+      });
+      return;
+    }
     if (path === "/panel/infografis/") {
       const filtered = url.searchParams.has("skala");
       const regions = renderMap ? Array.from({ length: 27 }, (_, index) => {
