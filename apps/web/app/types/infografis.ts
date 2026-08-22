@@ -51,6 +51,11 @@ export interface InfografisData {
     kecil: number
     menengah: number
   }
+  /** Cakupan klasifikasi KBLI: jumlah usaha terpetakan sektor vs tidak. */
+  sectorCoverage?: {
+    mapped: number
+    unclassified: number
+  }
   regions: InfografisRegion[]
   regionLevel?: "kota" | "kecamatan" | "kelurahan"
   geometryReady?: boolean

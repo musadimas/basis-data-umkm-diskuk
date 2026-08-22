@@ -29,6 +29,32 @@ export const DASHBOARD_SECTIONS = {
       "Berikut ini adalah perbandingan Pengusaha berdasarkan Jenis Kelamin.",
     tooltip: "Perbandingan demografi tenaga kerja UMKM",
   },
+  topSector: {
+    title: "5 Sektor KBLI Teratas",
+    description:
+      "Lima sektor dengan jumlah UMKM terbanyak. Klik untuk membuka analitik sektor.",
+    tooltip:
+      "Peringkat sektor KBLI (A–U) berdasarkan jumlah UMKM pada filter aktif",
+  },
+  topRegion: {
+    title: "5 Kabupaten/Kota Teratas",
+    description:
+      "Lima kabupaten/kota dengan jumlah UMKM terbanyak. Klik untuk membuka analitik wilayah.",
+    tooltip: "Peringkat kabupaten/kota berdasarkan jumlah UMKM pada filter aktif",
+  },
+  topKbli: {
+    title: "5 Kode KBLI Teratas",
+    description:
+      "Lima kode KBLI spesifik dengan jumlah UMKM terbanyak. Klik untuk membuka analitik kode.",
+    tooltip: "Peringkat kode KBLI berdasarkan jumlah UMKM pada filter aktif",
+  },
+  coverage: {
+    title: "Kualitas Klasifikasi KBLI",
+    description:
+      "Proporsi UMKM dengan kode KBLI yang berhasil dipetakan ke sektor.",
+    tooltip:
+      "Kualitas data: usaha terpetakan memiliki kode KBLI valid yang dikenali sistem",
+  },
   kbliAccordion: {
     title: "Rincian UMKM Berdasarkan Kategori KBLI",
     description:

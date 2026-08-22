@@ -1,19 +1,20 @@
 import { test, expect } from "@playwright/test";
 import { installMockDirectus, loginMock } from "../fixtures/mock-directus.mjs";
 
-test("infografis renders NIB and marketing cards below the sector chart", async ({ page }) => {
+test("infografis renders the combined scale summary with NIB and marketing breakdowns", async ({ page }) => {
   await installMockDirectus(page, { authenticated: true });
   await loginMock(page, "/dashboard");
 
   await expect(
-    page.getByRole("heading", { name: "Jumlah UMKM Berdasarkan Kategori Lapangan Usaha" }),
+    page.getByRole("heading", { name: "Rincian UMKM Berdasarkan Kategori KBLI" }),
   ).toBeVisible();
-  await expect(page.getByText("Kepemilikan NIB")).toBeVisible();
-  await expect(page.getByText("Memiliki NIB", { exact: true })).toBeVisible();
-  await expect(
-    page.getByRole("heading", { name: /^Metode Pemasaran/ }),
-  ).toBeVisible();
-  await expect(page.getByTitle("Non-digital", { exact: true })).toBeVisible();
+  await expect(page.getByText("Skala yang dilaporkan")).toBeVisible();
+  const summary = page.getByLabel("Rincian skala usaha, kepemilikan NIB, dan metode pemasaran");
+  await expect(summary).toBeVisible();
+  await expect(summary.getByText("Kepemilikan NIB")).toBeVisible();
+  await expect(summary.getByText("Memiliki NIB", { exact: true })).toBeVisible();
+  await expect(summary.getByText(/^Metode Pemasaran/)).toBeVisible();
+  await expect(summary.getByTitle("Non-digital", { exact: true })).toBeVisible();
 });
 
 test("infografis applies the reusable compact filter FAB", async ({ page }) => {
