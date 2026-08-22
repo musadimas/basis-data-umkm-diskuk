@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { KbliCategoryItem, KbliCodeItem } from "~/types/dashboard";
 import { ArrowUpRight, ChevronDown, Search, SearchX } from "@lucide/vue";
+import { kategoriBpsFor } from "~/lib/kbli-sectors";
 
 interface Props {
   items: KbliCategoryItem[];
@@ -322,8 +323,17 @@ function subKategoriOf(code: string) {
                         <span class="text-xs font-semibold text-foreground">{{ subKategoriOf(code.code).golongan }}</span>
                         <span class="text-[0.65rem] text-muted-foreground">{{ subKategoriOf(code.code).subGolongan }}</span>
                       </span>
-                      <span class="min-w-0 flex-1 truncate text-muted-foreground" :title="code.title ?? undefined">
-                        {{ code.title || "Kategori tidak dideskripsikan" }}
+                      <span class="min-w-0 flex-1 truncate text-muted-foreground">
+                        <span class="block truncate" :title="code.title ?? undefined">
+                          {{ code.title || "Kategori tidak dideskripsikan" }}
+                        </span>
+                        <span
+                          v-if="kategoriBpsFor(code.code)"
+                          class="block truncate text-[0.7rem] text-muted-foreground/80"
+                          :title="`Kategori BPS resmi: ${kategoriBpsFor(code.code)}`"
+                        >
+                          {{ kategoriBpsFor(code.code) }}
+                        </span>
                       </span>
                       <span class="hidden shrink-0 gap-3 text-xs tabular-nums text-muted-foreground sm:flex">
                         <span class="w-14 text-right">{{ formatNumber(code.mikro) }}</span>

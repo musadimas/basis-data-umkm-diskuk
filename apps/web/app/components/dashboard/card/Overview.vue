@@ -159,16 +159,25 @@ const genderLegends = computed(() => {
 });
 
 // ── Top sektor & top wilayah ────────────────────────────────────────────────
-/** API sudah mengurutkan berdasarkan total desc; ambil lima teratas. */
+/** Ambil lima sektor dengan total UMKM terbanyak (urutkan eksplisit, jangan
+ *  bergantung pada urutan dari API). */
 const topSectors = computed(() =>
-  props.sectors.filter((item) => item.total > 0).slice(0, 5),
+  [...props.sectors]
+    .filter((item) => item.total > 0)
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 5),
 );
 const maxSectorValue = computed(() =>
   Math.max(0, ...topSectors.value.map((item) => item.total)),
 );
 
+/** Lima kabupaten/kota dengan jumlah UMKM terbanyak (berdasarkan `value`) —
+ *  diurutkan eksplisit desc agar tidak bergantung pada urutan dari API. */
 const topRegions = computed(() =>
-  props.regions.filter((item) => item.value > 0).slice(0, 5),
+  [...props.regions]
+    .filter((item) => item.value > 0)
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 5),
 );
 const maxRegionValue = computed(() =>
   Math.max(0, ...topRegions.value.map((item) => item.value)),
@@ -185,7 +194,10 @@ function regionShare(value: number) {
 
 // ── Top kode KBLI ───────────────────────────────────────────────────────────
 const topKbli = computed(() =>
-  props.kbli.filter((item) => item.total > 0).slice(0, 5),
+  [...props.kbli]
+    .filter((item) => item.total > 0)
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 5),
 );
 const maxKbliValue = computed(() =>
   Math.max(0, ...topKbli.value.map((item) => item.total)),
