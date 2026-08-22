@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { KbliCategoryItem, KbliCodeItem } from "~/types/dashboard";
-import { ChevronDown, Search, SearchX } from "@lucide/vue";
+import { ArrowUpRight, ChevronDown, Search, SearchX } from "@lucide/vue";
 
 interface Props {
   items: KbliCategoryItem[];
@@ -14,6 +14,7 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<{
   (e: "view:data", item: KbliCategoryItem): void;
+  (e: "drill:kode", code: KbliCodeItem): void;
 }>();
 
 const searchQuery = ref("");
@@ -73,6 +74,23 @@ function toggleItem(code: string) {
 /** Kode KBLI milik sebuah sektor, untuk tampilan drill-down. */
 function codesFor(code: string): KbliCodeItem[] {
   return props.codesBySector[code] ?? [];
+}
+
+/** Drill-down ke analitik untuk satu kode KBLI. */
+function drillCode(code: KbliCodeItem) {
+  emit("drill:kode", code);
+}
+
+/**
+ * Pecahan hierarki KBLI per kode 5 digit: Golongan (3 digit, level 3) dan
+ * Sub-Golongan (4 digit, level 4). Diturunkan langsung dari kode untuk
+ * membedakan baris yang punya deskripsi panjang identik di referensi KBLI.
+ */
+function subKategoriOf(code: string) {
+  return {
+    golongan: code.slice(0, 3),
+    subGolongan: code.slice(0, 4),
+  };
 }
 </script>
 
@@ -262,37 +280,6 @@ function codesFor(code: string): KbliCodeItem[] {
                         </strong>
                       </span>
                     </div>
-
-                    <!-- Drill-down: kode KBLI dalam sektor ini -->
-                    <template v-if="codesFor(item.code).length">
-                      <p class="mb-1.5 mt-4 text-xs font-semibold text-muted-foreground">
-                        Kode KBLI dalam sektor ini
-                      </p>
-                      <ul
-                        class="max-h-64 space-y-0.5 divide-y divide-border/40 overflow-y-auto rounded-lg border border-border/60 bg-white dark:bg-card"
-                      >
-                        <li
-                          v-for="code in codesFor(item.code)"
-                          :key="code.code"
-                          class="flex items-center gap-3 px-3 py-1.5 text-sm hover:bg-slate-50/70 dark:hover:bg-slate-900/30"
-                        >
-                          <span class="w-14 shrink-0 font-semibold tabular-nums text-foreground">
-                            {{ code.code }}
-                          </span>
-                          <span class="min-w-0 flex-1 truncate text-muted-foreground" :title="code.title ?? undefined">
-                            {{ code.title || "Kategori tidak dideskripsikan" }}
-                          </span>
-                          <span class="hidden shrink-0 gap-3 text-xs tabular-nums text-muted-foreground sm:flex">
-                            <span class="w-14 text-right">{{ formatNumber(code.mikro) }}</span>
-                            <span class="w-14 text-right">{{ formatNumber(code.kecil) }}</span>
-                            <span class="w-14 text-right">{{ formatNumber(code.menengah) }}</span>
-                          </span>
-                          <span class="w-16 shrink-0 text-right font-bold tabular-nums text-foreground">
-                            {{ formatNumber(code.totalUmkm) }}
-                          </span>
-                        </li>
-                      </ul>
-                    </template>
                   </div>
 
                   <button
@@ -303,6 +290,56 @@ function codesFor(code: string): KbliCodeItem[] {
                     Lihat Data
                   </button>
                 </div>
+
+                <!-- Drill-down: kode KBLI dalam sektor ini (full width) -->
+                <template v-if="codesFor(item.code).length">
+                  <p class="mb-1.5 mt-4 text-xs font-semibold text-muted-foreground">
+                    Kode KBLI dalam sektor ini
+                  </p>
+                  <ul
+                    class="max-h-64 space-y-0.5 divide-y divide-border/40 overflow-y-auto rounded-lg border border-border/60 bg-white dark:bg-card"
+                    data-lenis-prevent-wheel
+                  >
+                    <li
+                      v-for="code in codesFor(item.code)"
+                      :key="code.code"
+                      class="group flex cursor-pointer items-center gap-3 px-3 py-1.5 text-sm transition-colors hover:bg-slate-50/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green focus-visible:ring-inset dark:hover:bg-slate-900/30"
+                      role="button"
+                      tabindex="0"
+                      :title="`Lihat data untuk KBLI ${code.code}`"
+                      @click="drillCode(code)"
+                      @keydown.enter.prevent="drillCode(code)"
+                      @keydown.space.prevent="drillCode(code)"
+                    >
+                      <span class="w-14 shrink-0 font-semibold tabular-nums text-brand-green group-hover:underline">
+                        {{ code.code }}
+                      </span>
+                      <span
+                        class="flex shrink-0 flex-col items-start justify-center leading-tight tabular-nums"
+                        :title="`Sub-kategori ${subKategoriOf(code.code).golongan} (golongan) · ${subKategoriOf(code.code).subGolongan} (sub-golongan)`"
+                        aria-label="Sub-kategori dan sub-golongan KBLI"
+                      >
+                        <span class="text-xs font-semibold text-foreground">{{ subKategoriOf(code.code).golongan }}</span>
+                        <span class="text-[0.65rem] text-muted-foreground">{{ subKategoriOf(code.code).subGolongan }}</span>
+                      </span>
+                      <span class="min-w-0 flex-1 truncate text-muted-foreground" :title="code.title ?? undefined">
+                        {{ code.title || "Kategori tidak dideskripsikan" }}
+                      </span>
+                      <span class="hidden shrink-0 gap-3 text-xs tabular-nums text-muted-foreground sm:flex">
+                        <span class="w-14 text-right">{{ formatNumber(code.mikro) }}</span>
+                        <span class="w-14 text-right">{{ formatNumber(code.kecil) }}</span>
+                        <span class="w-14 text-right">{{ formatNumber(code.menengah) }}</span>
+                      </span>
+                      <span class="w-16 shrink-0 text-right font-bold tabular-nums text-foreground">
+                        {{ formatNumber(code.totalUmkm) }}
+                      </span>
+                      <ArrowUpRight
+                        class="h-4 w-4 shrink-0 text-muted-foreground transition-colors group-hover:text-brand-green"
+                        aria-hidden="true"
+                      />
+                    </li>
+                  </ul>
+                </template>
               </td>
             </tr>
           </template>

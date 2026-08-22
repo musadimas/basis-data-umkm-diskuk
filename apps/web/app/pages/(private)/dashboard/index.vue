@@ -17,9 +17,6 @@ import type {
 import { DASHBOARD_SECTIONS } from "~/constants/DASHBOARD";
 import { defaultAnalysis, serializeAnalysisUrl } from "~/lib/analytics-query"
 import { sectorForKbli } from "~/lib/kbli-sectors";
-import DashboardChartMarketingMethods from "~/components/dashboard/chart/MarketingMethods.vue";
-import DashboardChartNibOwnership from "~/components/dashboard/chart/NibOwnership.vue";
-
 definePageMeta({
   layout: "dashboard",
 });
@@ -203,11 +200,11 @@ const showRegions = ref(true);
 const showPoints = ref(false);
 const POINT_LIMIT = 1000;
 
-const apiToSkala: Record<string, SkalaUsaha> = {
+const apiToSkala = {
   micro: "mikro",
   small: "kecil",
   medium: "menengah",
-};
+} satisfies Record<string, SkalaUsaha>;
 
 // Titik mengikuti level drill-down peta + filter global (skala, kegiatan, KBLI).
 const pointsQuery = computed(() => ({
@@ -365,6 +362,11 @@ function openKbliSector(item: KbliCategoryItem) {
   openAnalytics("sektor_kbli", item.code);
 }
 
+/** Drill-down dari kode KBLI spesifik ke halaman analitik. */
+function openKbliCode(code: KbliCodeItem) {
+  openAnalytics("kbli_kode", code.code);
+}
+
 /**
  * Kode KBLI dikelompokkan per huruf sektor untuk drill-down.
  * API sudah mengirim seluruh kode (bukan hanya lima teratas) pada field `kbli`.
@@ -390,10 +392,19 @@ const kbliCodesBySector = computed<Record<string, KbliCodeItem[]>>(() => {
 
 <template>
   <div class="space-y-5 pb-8">
-    <!-- Top Hero Banner -->
-    <DashboardCardBanner
-      title="Infografis UMKM"
-      description="Lorem ipsum dolor sit amet, consectetur adipiscing elit. Praesent dictum tortor eu dictum pulvinar. Fusce pulvinar enim ac dui luctus, ac tempus nisl vestibulum. Sed sit amet ante sit amet sapien dictum ultrices quis at augue. Nulla pharetra ex dictum, venenatis nunc a, tempor lectus."
+    <!-- Section 1: Ringkasan Infografis (skala, NIB, metode pemasaran) -->
+    <DashboardCardOverview
+      :items="scaleItems"
+      :nib="nibData"
+      :marketing-methods="marketingMethods ?? []"
+      :sectors="infografis?.sectors ?? []"
+      :regions="infografis?.regions ?? []"
+      :kbli="infografis?.topKbli ?? []"
+      :sector-coverage="infografis?.sectorCoverage"
+      :workforce="infografis?.workforce"
+      @drill:sektor="openAnalytics('sektor_kbli', $event)"
+      @drill:kota="openAnalytics('kota_id', $event)"
+      @drill:kbli="openAnalytics('kbli_kode', $event)"
     />
 
     <p
@@ -408,26 +419,6 @@ const kbliCodesBySector = computed<Record<string, KbliCodeItem[]>>(() => {
     >
       Opsi filter belum dapat dimuat. Silakan coba lagi.
     </p>
-
-    <!-- Section 1: Jumlah Usaha Berdasarkan Skala Usaha -->
-    <DashboardCardSection
-      v-bind="DASHBOARD_SECTIONS.scale"
-      title="Skala yang dilaporkan"
-      card-class="p-3!"
-      header-class="mb-3!"
-    >
-      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <DashboardCardScaleStat
-          v-for="item in scaleItems"
-          :key="item.id"
-          :title="item.title"
-          :value="item.value"
-          :category="item.category"
-          :button-text="item.buttonText"
-          :button-href="item.buttonHref"
-        />
-      </div>
-    </DashboardCardSection>
 
     <!-- Section 2: Peta Sebaran Usaha Berdasarkan Wilayah -->
     <DashboardCardSection
@@ -461,38 +452,11 @@ const kbliCodesBySector = computed<Record<string, KbliCodeItem[]>>(() => {
         :items="kbliItems"
         :codes-by-sector="kbliCodesBySector"
         @view:data="openKbliSector"
+        @drill:kode="openKbliCode"
       />
     </DashboardCardSection>
 
-    <!-- Section 4: NIB & Marketing Methods -->
-    <div
-      v-if="nibData || marketingMethods"
-      class="grid grid-cols-1 gap-5 lg:grid-cols-2"
-    >
-      <DashboardCardSection
-        v-if="nibData"
-        v-bind="DASHBOARD_SECTIONS.nib"
-        card-class="flex flex-col justify-between h-full"
-      >
-        <DashboardChartNibOwnership
-          :data="nibData"
-          button-href="/dashboard/tabular"
-        />
-      </DashboardCardSection>
-
-      <DashboardCardSection
-        v-if="marketingMethods"
-        v-bind="DASHBOARD_SECTIONS.marketing"
-        card-class="flex flex-col justify-between h-full"
-      >
-        <DashboardChartMarketingMethods
-          :items="marketingMethods"
-          button-href="/dashboard/tabular"
-        />
-      </DashboardCardSection>
-    </div>
-
-    <!-- Section 5: Gender Distribution -->
+    <!-- Section 4: Gender Distribution -->
     <DashboardCardSection
       v-if="workforceEnabled"
       v-bind="DASHBOARD_SECTIONS.gender"
