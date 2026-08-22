@@ -8,17 +8,8 @@ export const DASHBOARD_SECTIONS = {
   },
   regionalMap: {
     title: "Peta Sebaran Usaha Berdasarkan Wilayah",
-    description:
-      "Menyajikan informasi sebaran jumlah UMKM berdasarkan wilayah.",
     tooltip:
-      "Sebaran data spasial konsentrasi UMKM di 27 Kabupaten/Kota Jawa Barat",
-  },
-  category: {
-    title: "Jumlah UMKM Berdasarkan Kategori Lapangan Usaha",
-    description:
-      "Dikelompokkan berdasarkan 21 kategori lapangan usaha dalam KBLI.",
-    tooltip:
-      "Kategori A–U berdasarkan Klasifikasi Baku Lapangan Usaha Indonesia (KBLI)",
+      "Sebaran data spasial konsentrasi UMKM di 27 Kabupaten/Kota Jawa Barat. Klik wilayah untuk memperbesar, aktifkan Titik UMKM untuk melihat lokasi usaha.",
   },
   nib: {
     title: "Kepemilikan NIB",
@@ -32,12 +23,6 @@ export const DASHBOARD_SECTIONS = {
       "Berikut ini adalah data agregasi UMKM berdasarkan metode pemasarannya.",
     tooltip: "Distribusi UMKM berdasarkan metode pemasaran",
   },
-  topCategories: {
-    title: "Lima Kategori Lapangan Usaha Teratas",
-    description:
-      "Menyajikan jumlah data usaha berdasarkan Klasifikasi Baku Lapangan Usaha Indonesia (KBLI) 2020.",
-    tooltip: "5 Kategori KBLI dengan populasi usaha tertinggi",
-  },
   gender: {
     title: "Persentase Tenaga Kerja Berdasarkan Gender",
     description:
@@ -47,7 +32,7 @@ export const DASHBOARD_SECTIONS = {
   kbliAccordion: {
     title: "Rincian UMKM Berdasarkan Kategori KBLI",
     description:
-      "Dikelompokkan berdasarkan huruf kategori KBLI dan diurutkan dari jumlah UMKM terbanyak.",
+      "Dikelompokkan berdasarkan huruf kategori KBLI (A–U), diurutkan dari jumlah UMKM terbanyak. Klik baris untuk melihat komposisi skala usaha dan rincian kode KBLI.",
     tooltip:
       "Kategori A–U berdasarkan Klasifikasi Baku Lapangan Usaha Indonesia (KBLI)",
   },

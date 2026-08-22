@@ -1,19 +1,22 @@
 <script setup lang="ts">
 import type {
-  ClusterItem,
   GenderDistributionData,
   KbliCategoryItem,
+  KbliCodeItem,
   ScaleStatItem,
-  TopCategoryItem,
+  SkalaUsaha,
+  SpasialUmkmItem,
 } from "~/types/dashboard";
 import type { InfografisData } from "~/types/infografis";
 import type {
   TabularKbliOption,
   TabularKelurahanItem,
   TabularOptions,
+  TabularSpasialResponse,
 } from "~/types/tabular";
 import { DASHBOARD_SECTIONS } from "~/constants/DASHBOARD";
 import { defaultAnalysis, serializeAnalysisUrl } from "~/lib/analytics-query"
+import { sectorForKbli } from "~/lib/kbli-sectors";
 import DashboardChartMarketingMethods from "~/components/dashboard/chart/MarketingMethods.vue";
 import DashboardChartNibOwnership from "~/components/dashboard/chart/NibOwnership.vue";
 
@@ -30,7 +33,6 @@ useSeoMeta({
 const router = useRouter();
 const runtimeConfig = useRuntimeConfig();
 function openAnalytics(fieldId: string, value: string) { const config = { ...defaultAnalysis, groupBy: fieldId, filters: [{ fieldId, operator: "eq" as const, value }] }; router.push(`/dashboard/analitik?${serializeAnalysisUrl(config)}`) }
-function openKbli(item?: TopCategoryItem) { if (item?.code) openAnalytics("kbli_kode", item.code) }
 const workforceEnabled = computed(() => runtimeConfig.public.enableWorkforce === true);
 
 interface InfografisFilters {
@@ -164,12 +166,22 @@ type InfografisMapData = Pick<InfografisData,
 const mapKota = ref("semua");
 const mapKecamatan = ref("semua");
 const mapKelurahan = ref("semua");
+const mapKotaName = ref("");
+const mapKecamatanName = ref("");
+
+/** Cari nama kab/kota dari data dasar (daftar 27 kota Jabar). */
+function kotaNameById(id: string): string {
+  return data.value?.data?.regions.find((region) => region.id === id)?.name ?? "";
+}
+
 watch(
   () => [appliedFilters.kabupatenKota, appliedFilters.kecamatan, appliedFilters.desaKelurahan] as const,
   ([kota, kecamatan, kelurahan]) => {
     mapKota.value = kota;
     mapKecamatan.value = kecamatan;
     mapKelurahan.value = kelurahan;
+    mapKotaName.value = kota !== "semua" ? kotaNameById(kota) : "";
+    mapKecamatanName.value = "";
   },
   { immediate: true },
 );
@@ -184,6 +196,58 @@ const mapQuery = computed(() => ({
 const { data: mapData, error: mapError } = await useFetch<{ data: InfografisMapData }>(
   "/panel/infografis/map",
   { query: mapQuery },
+);
+
+// ── Titik UMKM (diambil lazily saat saklar titik diaktifkan) ────────────────
+const showRegions = ref(true);
+const showPoints = ref(false);
+const POINT_LIMIT = 1000;
+
+const apiToSkala: Record<string, SkalaUsaha> = {
+  micro: "mikro",
+  small: "kecil",
+  medium: "menengah",
+};
+
+// Titik mengikuti level drill-down peta + filter global (skala, kegiatan, KBLI).
+const pointsQuery = computed(() => ({
+  kota: mapKota.value !== "semua" ? mapKota.value : undefined,
+  kecamatan: mapKecamatan.value !== "semua" ? mapKecamatan.value : undefined,
+  skala: appliedFilters.skala !== "semua" ? skalaToApi.get(appliedFilters.skala) : undefined,
+  kegiatan: appliedFilters.kegiatanUsaha !== "semua" ? appliedFilters.kegiatanUsaha : undefined,
+  kbli: appliedFilters.kodeKbli !== "semua" ? appliedFilters.kodeKbli : undefined,
+  limit: POINT_LIMIT,
+}));
+
+const { data: pointsData, execute: fetchPoints } = await useFetch<TabularSpasialResponse>(
+  "/panel/tabular/spasial",
+  { query: pointsQuery, immediate: false },
+);
+
+let pointsLoaded = false;
+watch(showPoints, async (enabled) => {
+  if (!enabled || pointsLoaded) return;
+  pointsLoaded = true;
+  await fetchPoints();
+});
+watch(pointsQuery, () => {
+  // Muat ulang titik saat filter/drill-down berubah setelah dimuat pertama kali.
+  if (showPoints.value && pointsLoaded) void fetchPoints();
+});
+
+const mapPointItems = computed<SpasialUmkmItem[]>(() =>
+  (pointsData.value?.data ?? []).map((point) => ({
+    id: point.id,
+    namaUsaha: point.nama,
+    skala: apiToSkala[point.skala] ?? "mikro",
+    kabupatenKota: point.kota,
+    kecamatan: point.kecamatan,
+    produkUtama: point.produkUtama ?? "–",
+    kegiatanUsaha: point.kategoriKbli ?? "–",
+    kodeKbli: point.kodeKbli ?? "–",
+    latitude: point.latitude,
+    longitude: point.longitude,
+  })),
 );
 
 const activeFilterCount = computed(() =>
@@ -201,23 +265,39 @@ const mapInfografis = computed(() => mapData.value?.data ?? infografis.value);
 const canMapGoBack = computed(() => [mapKota.value, mapKecamatan.value, mapKelurahan.value]
   .some((value) => value !== "semua"));
 
-function openRegion(region: { id: string }) {
+function openRegion(region: { id: string; name?: string }) {
   const level = mapInfografis.value?.regionLevel ?? "kota";
   if (level === "kelurahan") return openAnalytics("kelurahan_id", region.id);
   if (level === "kota") {
     mapKota.value = region.id;
+    mapKotaName.value = region.name ?? kotaNameById(region.id);
     mapKecamatan.value = "semua";
   } else {
     mapKecamatan.value = region.id;
+    mapKecamatanName.value = region.name ?? "";
   }
   mapKelurahan.value = "semua";
 }
 
 function mapBack() {
-  if (mapKelurahan.value !== "semua") mapKelurahan.value = "semua";
-  else if (mapKecamatan.value !== "semua") mapKecamatan.value = "semua";
-  else mapKota.value = "semua";
+  if (mapKelurahan.value !== "semua") {
+    mapKelurahan.value = "semua";
+  } else if (mapKecamatan.value !== "semua") {
+    mapKecamatan.value = "semua";
+    mapKecamatanName.value = "";
+  } else {
+    mapKota.value = "semua";
+    mapKotaName.value = "";
+  }
 }
+
+/** Teks crumb kedua pada breadcrumb peta: wilayah yang sedang dipilih. */
+const mapSelectionLabel = computed(() => {
+  const level = mapInfografis.value?.regionLevel ?? "kota";
+  if (level === "kelurahan") return mapKecamatanName.value || "Kecamatan";
+  if (level === "kecamatan") return mapKotaName.value || "Kabupaten/Kota";
+  return "Jawa Barat";
+});
 
 const scaleItems = computed<ScaleStatItem[]>(() => {
   const scales = infografis.value?.scales;
@@ -253,25 +333,6 @@ const scaleItems = computed<ScaleStatItem[]>(() => {
   ];
 });
 
-const topCategoryItems = computed<TopCategoryItem[]>(() =>
-  (infografis.value?.topKbli ?? []).map(({ code, name, total }) => ({
-    code,
-    name,
-    value: total,
-  })),
-);
-
-const sectorItems = computed<ClusterItem[]>(() =>
-  (infografis.value?.sectors ?? []).map(
-    ({ code, name, total, percentage }) => ({
-      id: code,
-      name,
-      value: total,
-      percentage,
-    }),
-  ),
-);
-
 const genderData = computed<GenderDistributionData | undefined>(() => {
   const workforce = infografis.value?.workforce;
   return (
@@ -292,15 +353,39 @@ const kbliItems = computed<KbliCategoryItem[]>(() =>
   (infografis.value?.sectors ?? []).map((item) => ({
     code: item.code,
     title: item.name,
-    description: "Sektor lapangan usaha berdasarkan KBLI.",
     totalUmkm: item.total,
-    subItems: [
-      { title: "Usaha Mikro", value: item.mikro, category: "mikro" },
-      { title: "Usaha Kecil", value: item.kecil, category: "kecil" },
-      { title: "Usaha Menengah", value: item.menengah, category: "menengah" },
-    ],
+    percentage: item.percentage,
+    mikro: item.mikro,
+    kecil: item.kecil,
+    menengah: item.menengah,
   })),
 );
+
+function openKbliSector(item: KbliCategoryItem) {
+  openAnalytics("sektor_kbli", item.code);
+}
+
+/**
+ * Kode KBLI dikelompokkan per huruf sektor untuk drill-down.
+ * API sudah mengirim seluruh kode (bukan hanya lima teratas) pada field `kbli`.
+ */
+const kbliCodesBySector = computed<Record<string, KbliCodeItem[]>>(() => {
+  const grouped: Record<string, KbliCodeItem[]> = {};
+  for (const item of infografis.value?.kbli ?? []) {
+    const sector = sectorForKbli(item.code);
+    if (!sector) continue;
+    (grouped[sector] ??= []).push({
+      code: item.code,
+      title: item.description ?? item.name,
+      totalUmkm: item.total,
+      mikro: item.mikro,
+      kecil: item.kecil,
+      menengah: item.menengah,
+    });
+  }
+  // API sudah mengurutkan berdasarkan total desc; pertahankan urutan itu.
+  return grouped;
+});
 </script>
 
 <template>
@@ -345,22 +430,38 @@ const kbliItems = computed<KbliCategoryItem[]>(() =>
     </DashboardCardSection>
 
     <!-- Section 2: Peta Sebaran Usaha Berdasarkan Wilayah -->
-    <DashboardCardSection v-bind="DASHBOARD_SECTIONS.regionalMap">
+    <DashboardCardSection
+      v-bind="DASHBOARD_SECTIONS.regionalMap"
+      card-class="relative gap-0! overflow-hidden p-0!"
+      header-class="hidden"
+    >
       <DashboardMapInfographic
+        :title="DASHBOARD_SECTIONS.regionalMap.title"
+        :tooltip="DASHBOARD_SECTIONS.regionalMap.tooltip"
+        :selection="mapSelectionLabel"
         :regions="mapInfografis?.regions"
         :region-level="mapInfografis?.regionLevel"
         :geometry-ready="mapInfografis?.geometryReady"
         :geometry-missing="mapInfografis?.geometryMissing"
         :geometry-source="mapInfografis?.geometrySource"
         :can-go-back="canMapGoBack"
+        :points="mapPointItems"
+        :show-regions="showRegions"
+        :show-points="showPoints"
+        @update:show-regions="showRegions = $event"
+        @update:show-points="showPoints = $event"
         @select="openRegion"
         @back="mapBack"
       />
     </DashboardCardSection>
 
-    <!-- Section 3: Jumlah UMKM Berdasarkan Kategori Lapangan Usaha -->
-    <DashboardCardSection v-bind="DASHBOARD_SECTIONS.category">
-      <DashboardChartClusterBar :items="sectorItems" />
+    <!-- Section 3: Rincian UMKM Berdasarkan Kategori KBLI -->
+    <DashboardCardSection v-bind="DASHBOARD_SECTIONS.kbliAccordion">
+      <DashboardAccordionListKBLI
+        :items="kbliItems"
+        :codes-by-sector="kbliCodesBySector"
+        @view:data="openKbliSector"
+      />
     </DashboardCardSection>
 
     <!-- Section 4: NIB & Marketing Methods -->
@@ -391,28 +492,13 @@ const kbliItems = computed<KbliCategoryItem[]>(() =>
       </DashboardCardSection>
     </div>
 
-    <!-- Section 5: Top Categories & Gender Distribution -->
-    <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
-      <DashboardCardSection
-        v-bind="DASHBOARD_SECTIONS.topCategories"
-        card-class="flex flex-col justify-between h-full"
-      >
-        <DashboardChartTopCategories :items="topCategoryItems" @click:action="openKbli" />
-      </DashboardCardSection>
-
-      <!-- Gender Distribution -->
-      <DashboardCardSection
-        v-if="workforceEnabled"
-        v-bind="DASHBOARD_SECTIONS.gender"
-        card-class="flex flex-col justify-between h-full"
-      >
-        <DashboardChartGenderDistribution :data="genderData" />
-      </DashboardCardSection>
-    </div>
-
-    <!-- Section 6: Category Accordion List -->
-    <DashboardCardSection v-bind="DASHBOARD_SECTIONS.kbliAccordion">
-      <DashboardAccordionListKBLI :items="kbliItems" />
+    <!-- Section 5: Gender Distribution -->
+    <DashboardCardSection
+      v-if="workforceEnabled"
+      v-bind="DASHBOARD_SECTIONS.gender"
+      card-class="flex flex-col justify-between h-full"
+    >
+      <DashboardChartGenderDistribution :data="genderData" />
     </DashboardCardSection>
 
     <DashboardFilterFab

@@ -11,21 +11,6 @@ export interface ScaleStatItem {
   buttonHref?: string
 }
 
-export interface ClusterItem {
-  id: string
-  name: string
-  value: number
-  formattedValue?: string
-  percentage?: number
-}
-
-export interface TopCategoryItem {
-  code: string
-  name: string
-  value: number
-  formattedValue?: string
-}
-
 export interface GenderDistributionData {
   malePercentage: number
   femalePercentage: number
@@ -34,21 +19,26 @@ export interface GenderDistributionData {
   totalWorkers?: number
 }
 
-export interface KbliSubItem {
-  title: string
-  value: number | string
-  formattedValue?: string
-  category: ScaleCategory
-}
-
 export interface KbliCategoryItem {
+  /** Huruf kategori KBLI (A–U). */
   code: string
   title: string
-  description: string
-  totalUmkm: number | string
-  formattedTotal?: string
-  subItems?: KbliSubItem[]
-  isExpandedDefault?: boolean
+  totalUmkm: number
+  /** Bagian dari total UMKM terfilter, dalam persen (0–100). */
+  percentage?: number
+  mikro?: number
+  kecil?: number
+  menengah?: number
+}
+
+/** Kode KBLI spesifik di bawah sebuah sektor, untuk drill-down. */
+export interface KbliCodeItem {
+  code: string
+  title: string | null
+  totalUmkm: number
+  mikro?: number
+  kecil?: number
+  menengah?: number
 }
 
 export type SkalaUsaha = "mikro" | "kecil" | "menengah"

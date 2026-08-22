@@ -3,7 +3,6 @@ import {
   Download,
   Info,
   LayoutDashboard,
-  MapPinned,
   MessageCircle,
   Store,
   Table,
@@ -28,12 +27,6 @@ export const NAVIGATION_LINKS = {
       label: "Data Tabular UMKM",
       to: "/dashboard/tabular",
       icon: Table,
-    },
-    {
-      id: "spasial",
-      label: "Peta Spasial UMKM",
-      to: "/dashboard/spasial",
-      icon: MapPinned,
     },
   ],
   website: [
