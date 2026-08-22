@@ -69,7 +69,7 @@ export async function installMockDirectus(page, { authenticated = false, renderM
         const latitude = -7.5 + Math.floor(index / 9) * 0.25;
         return { id: String(index + 1), name: `Wilayah ${index + 1}`, value: index + 1, code: `32.${String(index + 1).padStart(2, "0")}`, geometry: { type: "Polygon", coordinates: [[[longitude, latitude], [longitude + 0.2, latitude], [longitude + 0.2, latitude + 0.2], [longitude, latitude + 0.2], [longitude, latitude]]] } };
       }) : [];
-      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: { scales: filtered ? { total: 2, mikro: 2, kecil: 0, menengah: 0 } : { total: 3, mikro: 2, kecil: 1, menengah: 0 }, regions, geometryReady: renderMap, sectors: [], topKbli: [], kbli: [], nib: filtered ? undefined : { total: 3, withNib: 2, withoutNib: 1, withPercentage: 66.7, withoutPercentage: 33.3 }, marketingMethods: filtered ? undefined : [{ key: "non-digital", label: "Non-digital", value: 2, percentage: 66.7 }, { key: "digital", label: "Digital", value: 1, percentage: 33.3 }], dataAsOf: "2026-08-17T00:30:00Z" } }) });
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: { scales: filtered ? { total: 2, mikro: 2, kecil: 0, menengah: 0 } : { total: 3, mikro: 2, kecil: 1, menengah: 0 }, regions: renderMap ? regions : [{ id: "1", name: "Kabupaten Bogor", value: 2 }, { id: "2", name: "Kota Depok", value: 1 }], geometryReady: renderMap, sectors: filtered ? [] : [{ code: "G", name: "Perdagangan Besar dan Eceran", total: 1, mikro: 1, kecil: 0, menengah: 0, percentage: 33.3 }, { code: "C", name: "Industri Pengolahan", total: 2, mikro: 1, kecil: 1, menengah: 0, percentage: 66.7 }], topKbli: filtered ? [] : [{ code: "47112", name: "Perdagangan eceran", description: null, total: 2, mikro: 2, kecil: 0, menengah: 0 }, { code: "10794", name: "Industri makanan", description: null, total: 1, mikro: 0, kecil: 1, menengah: 0 }], kbli: [], sectorCoverage: filtered ? undefined : { mapped: 3, unclassified: 0 }, nib: filtered ? undefined : { total: 3, withNib: 2, withoutNib: 1, withPercentage: 66.7, withoutPercentage: 33.3 }, marketingMethods: filtered ? undefined : [{ key: "non-digital", label: "Non-digital", value: 2, percentage: 66.7 }, { key: "digital", label: "Digital", value: 1, percentage: 33.3 }], workforce: { male: 2, female: 1, total: 3, malePercentage: 66.7, femalePercentage: 33.3 }, dataAsOf: "2026-08-17T00:30:00Z" } }) });
       return;
     }
     if (path === "/panel/analitik/metadata") { await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ schemaVersion: 1, fields: [{ id: "kota_nama", key: "kota_nama", label: "Kabupaten/kota", group: "Wilayah", order: 1, role: "dimension", type: "text", status: "active", privacy: "aggregate", capabilities: ["group"], schemaVersion: 1 }, { id: "skala_dilaporkan", key: "skala_dilaporkan", label: "Skala", group: "Usaha", order: 2, role: "dimension", type: "text", status: "active", privacy: "aggregate", capabilities: ["group", "filter"], schemaVersion: 1 }], warnings: [] }) } ); return; }
@@ -77,6 +77,29 @@ export async function installMockDirectus(page, { authenticated = false, renderM
     if (path === "/panel/analitik/query") { await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ meta: { schemaVersion: 1, dataAsOf: "2026-08-17T00:30:00Z", generatedAt: "2026-08-17T00:31:00Z", status: "current", source: "analytics", population: 3, matched: 3, coverage: { matched: 3, total: 3, unknown: 0 }, warnings: [] }, data: { metric: { key: "jumlah_umkm", label: "Jumlah UMKM", aggregation: "count_distinct" }, groups: [{ key: "bogor", label: "Kabupaten Bogor", value: 2, share: 66.7 }, { key: "depok", label: "Kota Depok", value: 1, share: 33.3 }] } }) }); return; }
     if (path === "/panel/analitik/records") { await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ meta: { schemaVersion: 1, dataAsOf: "2026-08-17T00:30:00Z", generatedAt: "2026-08-17T00:31:00Z", status: "current", source: "analytics", population: 3, matched: 3, coverage: { matched: 3, total: 3 }, warnings: [] }, data: { records: [], nextCursor: null } }) }); return; }
     if (path.startsWith("/panel/analitik/umkm/")) { await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ meta: { schemaVersion: 1, dataAsOf: "2026-08-17T00:30:00Z", generatedAt: "2026-08-17T00:31:00Z", status: "current", source: "analytics", population: 1, matched: 1, coverage: { matched: 1, total: 1 }, warnings: [] }, data: { id: "11111111-1111-4111-8111-111111111111", title: "Usaha Canari", badges: ["Aktif"], hero: { name: "Usaha Canari", location: "Bogor", image: null }, sections: [{ id: "ringkasan", label: "Ringkasan", fields: [{ fieldId: "masked_nik", label: "NIK", value: "************1234", displayValue: "************1234", qualityStatus: "reported", dataType: "text" }] }], actions: { canEdit: true, canArchive: true, canRestore: false, editPath: "/admin/content/usaha/11111111-1111-4111-8111-111111111111" }, maskingVersion: 1 } }) }); return; }
+    if (path === "/panel/analitik/metadata/options") {
+      // Mock opsi filter: skala statis, wilayah dari daftar pendek.
+      const fieldId = url.searchParams.get("fieldId") || "";
+      const search = (url.searchParams.get("search") || "").toLowerCase();
+      const parent = url.searchParams.get("parent") || "";
+      let options;
+      if (fieldId === "skala_dilaporkan") options = [{ id: "micro", label: "Mikro" }, { id: "small", label: "Kecil" }, { id: "medium", label: "Menengah" }];
+      else if (fieldId === "kota_nama") options = [{ id: "1", label: "Kabupaten Bogor" }, { id: "2", label: "Kota Depok" }];
+      else if (fieldId === "kecamatan_nama") options = parent ? [{ id: "11", label: "Cibinong" }] : [];
+      else options = [];
+      const filtered = search ? options.filter((option) => option.label.toLowerCase().startsWith(search)) : options;
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ fieldId, options: filtered }) });
+      return;
+    }
+    if (path === "/panel/infografis/map") {
+      const regions = Array.from({ length: 27 }, (_, index) => {
+        const longitude = 106 + (index % 9) * 0.25;
+        const latitude = -7.5 + Math.floor(index / 9) * 0.25;
+        return { id: String(index + 1), name: `Wilayah ${index + 1}`, code: `32.${String(index + 1).padStart(2, "0")}`, geometry: { type: "Polygon", coordinates: [[[longitude, latitude], [longitude + 0.2, latitude], [longitude + 0.2, latitude + 0.2], [longitude, latitude + 0.2], [longitude, latitude]]] } };
+      });
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: { regions, regionLevel: "kota", geometryReady: true, geometryMissing: 0 } }) });
+      return;
+    }
     if (path === "/panel/items/analitik_view") { await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: [] }) }); return; }
     if (path.startsWith("/panel/items/usaha/")) { await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: { status: "archived" } }) }); return; }
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: {} }) });
