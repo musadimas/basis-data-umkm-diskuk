@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { AnalyticsField, AnalysisConfig, AnalyticsFilter, AnalyticsVisual } from "~/types/analytics"
+import { filterConfigFor, operatorsFor, type FilterOption } from "~/lib/analytics-filters"
 
 const props = defineProps<{ fields: AnalyticsField[]; modelValue: AnalysisConfig; dirty?: boolean }>()
 const emit = defineEmits<{
@@ -9,20 +10,131 @@ const emit = defineEmits<{
 }>()
 
 const dimensions = computed(() => props.fields.filter((field) => field.status === "active" && field.role === "dimension"))
-const filterFields = computed(() => props.fields.filter((field) => field.status === "active" && (field.role === "filter" || field.role === "dimension")))
 const metrics = computed(() => props.fields.filter((field) => field.status === "active" && field.role === "metric"))
+
+/**
+ * Field picker dikelompokkan sesuai ux-spec §5. Grup mengikuti urutan registry;
+ * label dipetakan ke bahasa manusia bila server masih memakai grup teknis.
+ */
+const GROUP_LABELS = {
+  wilayah: "Wilayah",
+  usaha: "Profil usaha",
+  kbli: "KBLI",
+  tenaga_kerja: "Tenaga kerja",
+  kualitas: "Kualitas data",
+  analytics: "Semua field",
+} as const
+const groupOrder = ["wilayah", "usaha", "kbli", "tenaga_kerja", "kualitas"] as const
+type GroupKey = (typeof groupOrder)[number] | "analytics"
+function groupKey(field: AnalyticsField): GroupKey {
+  const normalized = field.group.toLowerCase()
+  const matched = groupOrder.find((key) => normalized.includes(key))
+  return matched ?? "analytics"
+}
+const dimensionGroups = computed(() => {
+  const groups = new Map<GroupKey, AnalyticsField[]>()
+  for (const field of dimensions.value) {
+    const key = groupKey(field)
+    const bucket = groups.get(key) || []
+    bucket.push(field)
+    groups.set(key, bucket)
+  }
+  return [...groups.entries()].map(([key, fields]) => ({ key, label: GROUP_LABELS[key], fields }))
+})
+const metricGroupLabel = computed(() => (metrics.value[0] ? GROUP_LABELS[groupKey(metrics.value[0]!)] : "Metrik resmi"))
+
 const visuals: Array<{ value: AnalyticsVisual; label: string }> = [
   { value: "bar", label: "Batang" },
   { value: "stacked", label: "Batang bertumpuk" },
   { value: "donut", label: "Donat" },
   { value: "histogram", label: "Histogram" },
-  { value: "choropleth", label: "Peta (jika geometri siap)" },
+  { value: "choropleth", label: "Peta" },
   { value: "table", label: "Tabel" },
 ]
+
 const filterField = ref("")
 const filterValue = ref("")
 const filterOperator = ref<AnalyticsFilter["operator"]>("eq")
-const selectedField = computed(() => filterFields.value.find((field) => field.key === filterField.value))
+const selectedField = computed(() => props.fields.find((field) => field.key === filterField.value))
+const selectedConfig = computed(() => (filterField.value ? filterConfigFor(filterField.value) : undefined))
+
+// ── Opsi filter (searchable + cascading) ────────────────────────────────────
+const catalogApi = useAnalyticsCatalog()
+const optionList = ref<FilterOption[]>([])
+const optionPending = ref(false)
+let optionSequence = 0
+
+async function loadOptions() {
+  if (!selectedField.value) {
+    optionList.value = []
+    return
+  }
+  const config = selectedConfig.value
+  if (config?.staticOptions) {
+    const term = searchDebounce.value.trim().toLowerCase()
+    optionList.value = term ? config.staticOptions.filter((option) => option.label.toLowerCase().includes(term)) : config.staticOptions
+    return
+  }
+  const requestId = ++optionSequence
+  optionPending.value = true
+  try {
+    const cascade = config?.cascade?.({ filters: props.modelValue.filters })
+    const response = await catalogApi.options(filterField.value, searchDebounce.value.trim(), cascade?.parentValue)
+    if (requestId !== optionSequence) return
+    optionList.value = response.options.map((option) => ({ id: String(option.id), label: option.label }))
+  } catch {
+    if (requestId === optionSequence) optionList.value = []
+  } finally {
+    if (requestId === optionSequence) optionPending.value = false
+  }
+}
+
+const searchDebounce = ref("")
+let searchTimer: ReturnType<typeof setTimeout> | null = null
+/** Debounce 250 ms agar tiap ketikan tidak memicu request ke server. */
+watch(searchDebounce, () => {
+  if (searchTimer) clearTimeout(searchTimer)
+  searchTimer = setTimeout(() => { void loadOptions() }, 250)
+})
+watch(selectedField, () => {
+  filterOperator.value = operatorsFor(selectedField.value)[0] || "eq"
+  filterValue.value = ""
+  if (searchTimer) { clearTimeout(searchTimer); searchTimer = null }
+  void loadOptions()
+})
+onMounted(() => { void loadOptions() })
+onBeforeUnmount(() => { if (searchTimer) clearTimeout(searchTimer) })
+
+/**
+ * Parent berubah → opsi anak di-refresh dan nilai anak yang tidak kompatibel
+ * dibersihkan (ux-spec §6). Deep watch aman: filters maksimal QUERY_BUDGET
+ * (8 item) sehingga traversalnya murah.
+ */
+watch(() => props.modelValue.filters.map((filter) => `${filter.fieldId}:${filter.operator}:${Array.isArray(filter.value) ? filter.value.join("|") : filter.value}`).join(";"), () => {
+  const cascade = selectedConfig.value?.cascade?.({ filters: props.modelValue.filters })
+  if (!cascade) return
+  filterValue.value = ""
+  void loadOptions()
+})
+
+const operatorChoices = computed(() => operatorsFor(selectedField.value))
+const operatorLabels = {
+  eq: "sama dengan",
+  neq: "tidak sama",
+  contains: "mengandung",
+  starts_with: "diawali",
+  in: "salah satu",
+} as const
+/** Label induk cascade untuk hint; kosong bila field tidak cascading atau induk sudah dipilih. */
+const cascadeHint = computed(() => {
+  const config = filterField.value ? filterConfigFor(filterField.value) : undefined
+  if (!config?.cascade) return ""
+  const parent = config.cascade({ filters: props.modelValue.filters })
+  if (!parent?.parentField || parent.parentValue) return ""
+  return parent.parentField === "kota_nama"
+    ? "Tips: pilih kabupaten/kota dulu agar daftar kecamatan lebih pendek."
+    : "Tips: pilih nilai induknya dulu agar daftar lebih pendek."
+})
 
 function patch(event: Event, key: keyof AnalysisConfig) {
   // SAFETY: patch() hanya dipasang pada handler @change elemen <select>, sehingga event.target pasti HTMLSelectElement.
@@ -68,7 +180,9 @@ function addFilter() {
           :value="modelValue.groupBy"
           @change="patch($event, 'groupBy')"
         >
-          <option v-for="field in dimensions" :key="field.key" :value="field.key">{{ field.label }}</option>
+          <optgroup v-for="group in dimensionGroups" :key="group.key" :label="group.label">
+            <option v-for="field in group.fields" :key="field.key" :value="field.key">{{ field.label }}</option>
+          </optgroup>
         </select>
       </label>
 
@@ -81,7 +195,9 @@ function addFilter() {
           @change="patch($event, 'breakdown')"
         >
           <option value="">Tidak ada</option>
-          <option v-for="field in dimensions" :key="field.key" :value="field.key" :disabled="field.key === modelValue.groupBy">{{ field.label }}</option>
+          <optgroup v-for="group in dimensionGroups" :key="group.key" :label="group.label">
+            <option v-for="field in group.fields" :key="field.key" :value="field.key" :disabled="field.key === modelValue.groupBy">{{ field.label }}</option>
+          </optgroup>
         </select>
       </label>
 
@@ -130,31 +246,59 @@ function addFilter() {
             aria-label="Field filter"
           >
             <option value="">Pilih field</option>
-            <option v-for="field in filterFields" :key="field.key" :value="field.key">{{ field.label }}</option>
+            <option v-for="field in fields.filter((item) => item.status === 'active' && (item.role === 'filter' || item.role === 'dimension'))" :key="field.key" :value="field.key">{{ field.label }}</option>
           </select>
-          <div class="grid grid-cols-[auto_minmax(0,1fr)] gap-1.5">
-            <select v-model="filterOperator" class="h-8 rounded-md border bg-background px-1 text-xs" aria-label="Operator filter">
-              <option value="eq">sama dengan</option>
-              <option value="neq">tidak sama</option>
-              <option value="contains">mengandung</option>
-              <option value="starts_with">diawali</option>
-            </select>
-            <input
-              v-model="filterValue"
-              class="h-8 min-w-0 rounded-md border bg-background px-2 text-sm"
-              :placeholder="selectedField?.label || 'Nilai filter'"
-              aria-label="Nilai filter"
-              @keyup.enter="addFilter"
+
+          <template v-if="selectedField">
+            <div class="grid" :class="operatorChoices.length > 1 ? 'grid-cols-[auto_minmax(0,1fr)]' : 'grid-cols-1'">
+              <select
+                v-if="operatorChoices.length > 1"
+                v-model="filterOperator"
+                class="h-8 rounded-md border bg-background px-1 text-xs"
+                aria-label="Operator filter"
+              >
+                <option v-for="choice in operatorChoices" :key="choice" :value="choice">{{ operatorLabels[choice] ?? choice }}</option>
+              </select>
+
+              <template v-if="optionList.length || optionPending">
+                <div class="relative min-w-0">
+                  <input
+                    v-model="searchDebounce"
+                    type="search"
+                    class="h-8 w-full min-w-0 rounded-md border bg-background px-2 pr-12 text-sm"
+                    :placeholder="`Cari ${selectedField.label.toLowerCase()}…`"
+                    aria-label="Cari nilai filter"
+                  >
+                  <span v-if="optionPending" class="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">memuat…</span>
+                </div>
+                <select
+                  v-model="filterValue"
+                  class="h-8 min-w-0 rounded-md border bg-background px-2 text-sm"
+                  aria-label="Nilai filter"
+                >
+                  <option value="">Pilih nilai{{ optionList.length ? ` (${optionList.length})` : "" }}</option>
+                  <option v-for="option in optionList" :key="option.id" :value="option.id">{{ option.label }}</option>
+                </select>
+              </template>
+              <input
+                v-else
+                v-model="filterValue"
+                class="h-8 min-w-0 rounded-md border bg-background px-2 text-sm"
+                :placeholder="selectedField.label"
+                aria-label="Nilai filter"
+                @keyup.enter="addFilter"
+              >
+            </div>
+            <p v-if="cascadeHint" class="text-[10px] leading-tight text-muted-foreground">{{ cascadeHint }}</p>
+            <button
+              type="button"
+              class="h-8 rounded-md border px-3 text-xs font-semibold disabled:opacity-50"
+              :disabled="!filterValue.trim()"
+              @click="addFilter"
             >
-          </div>
-          <button
-            type="button"
-            class="h-8 rounded-md border px-3 text-xs font-semibold disabled:opacity-50"
-            :disabled="!filterField || !filterValue.trim()"
-            @click="addFilter"
-          >
-            Tambah
-          </button>
+              Tambah
+            </button>
+          </template>
         </div>
       </fieldset>
     </div>

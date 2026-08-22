@@ -1,33 +1,41 @@
 <script setup lang="ts">
 import type { SavedAnalysis } from "~/types/analytics"
-defineProps<{ modelValue: boolean; items: Array<SavedAnalysis> }>()
+
+const props = defineProps<{ modelValue: boolean; items: Array<SavedAnalysis> }>()
 const emit = defineEmits<{
-  (event: "close"): void
+  (event: "update:modelValue", value: boolean): void
   (event: "open", item: SavedAnalysis): void
   (event: "remove", id: string): void
   (event: "rename", payload: { id: string; name: string }): void
 }>()
+
 const editing = ref<string | null>(null)
 const name = ref("")
-function begin(item: SavedAnalysis) { editing.value = item.id; name.value = item.name }
-function commit(id: string) { if (name.value.trim()) emit("rename", { id, name: name.value.trim() }); editing.value = null }
+
+watch(() => props.modelValue, (open) => {
+  if (!open) editing.value = null
+})
+
+function begin(item: SavedAnalysis) {
+  editing.value = item.id
+  name.value = item.name
+}
+function commit(id: string) {
+  if (name.value.trim()) emit("rename", { id, name: name.value.trim() })
+  editing.value = null
+}
 </script>
 
 <template>
-  <div
-    v-if="modelValue"
-    class="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 pt-20"
-    role="dialog"
-    aria-modal="true"
-    aria-labelledby="saved-analysis-title"
-  >
-    <section class="w-full max-w-md rounded-lg bg-background p-4 shadow-xl">
-      <div class="flex items-center justify-between gap-2">
-        <h2 id="saved-analysis-title" class="text-base font-bold">Analisis tersimpan</h2>
-        <button type="button" class="rounded-md border px-2 py-1 text-xs font-semibold" @click="emit('close')">Tutup</button>
-      </div>
-      <p v-if="!items.length" class="mt-3 text-sm text-muted-foreground">Belum ada analisis tersimpan.</p>
-      <ul v-else class="mt-3 max-h-72 space-y-1.5 overflow-auto">
+  <UiDialog :open="modelValue" @update:open="emit('update:modelValue', $event)">
+    <UiDialogContent class="max-w-md" aria-labelledby="saved-analysis-title">
+      <!-- SAFETY: DialogContent reka-ui yang menangani focus trap dan pemulihan fokus. -->
+      <UiDialogHeader>
+        <UiDialogTitle id="saved-analysis-title">Analisis tersimpan</UiDialogTitle>
+      </UiDialogHeader>
+
+      <p v-if="!items.length" class="text-sm text-muted-foreground">Belum ada analisis tersimpan.</p>
+      <ul v-else class="max-h-72 space-y-1.5 overflow-auto">
         <li v-for="item in items" :key="item.id" class="flex flex-wrap items-center justify-between gap-2 rounded-md border px-2 py-1.5 text-sm">
           <template v-if="editing === item.id">
             <input v-model="name" class="h-8 min-w-0 flex-1 rounded-md border px-2" aria-label="Nama analisis baru" @keyup.enter="commit(item.id)">
@@ -43,7 +51,8 @@ function commit(id: string) { if (name.value.trim()) emit("rename", { id, name: 
           </template>
         </li>
       </ul>
-      <p class="mt-3 text-xs text-muted-foreground">Analisis dijalankan ulang pada data saat ini setiap kali dibuka.</p>
-    </section>
-  </div>
+
+      <p class="text-xs text-muted-foreground">Analisis dijalankan ulang pada data saat ini setiap kali dibuka.</p>
+    </UiDialogContent>
+  </UiDialog>
 </template>

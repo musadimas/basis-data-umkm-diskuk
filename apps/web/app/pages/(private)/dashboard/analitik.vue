@@ -18,25 +18,23 @@ function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T
 }
 const query = useAnalyticsQuery(state.applied)
-const response = ref<AnalyticsQueryResponse | null>(query.response.value)
-const pending = ref(query.pending.value)
-const error = shallowRef(query.error.value)
+// Respons query bersifat read-only untuk halaman; computed langsung menghindari
+// mirror ref + watch boilerplate dan tetap reaktif terhadap cache TanStack.
+const response = computed<AnalyticsQueryResponse | null>(() => query.response.value)
+const pending = computed(() => query.pending.value)
+const recordsPending = computed(() => query.recordsPending.value)
+const error = computed(() => query.error.value)
 const draft = reactive(clone(state.draft.value))
 const applied = reactive(clone(state.applied.value))
 const warning = ref(state.warning.value)
 const recordsCursor = ref<string | null>(null)
 const cursorStack = ref<string[]>([])
-const recordsPending = ref(query.recordsPending.value)
-watch(query.response, (value) => { response.value = value })
-// Table pagination resets when the applied analysis changes (canonical key),
-// not on background revalidations of the same analysis.
 watch(() => canonicalRecordsKey(state.applied.value), () => {
+  // Table pagination resets when the applied analysis changes (canonical key),
+  // not on background revalidations of the same analysis.
   recordsCursor.value = null
   cursorStack.value = []
 })
-watch(query.pending, (value) => { pending.value = value })
-watch(query.recordsPending, (value) => { recordsPending.value = value })
-watch(query.error, (value) => { error.value = value })
 watch(state.draft, (value) => Object.assign(draft, clone(value)))
 watch(state.applied, (value) => Object.assign(applied, clone(value)))
 watch(state.warning, (value) => { warning.value = value })
@@ -46,12 +44,9 @@ const records = computed(() => query.records.value?.data.records || [])
 const nextCursor = computed(() => query.records.value?.data.nextCursor || null)
 const savedItems = computed(() => savedApi.items.value)
 const catalogTemplates = computed(() => catalogApi.templates.value)
-const savedPending = ref(savedApi.pending.value)
-const exportStatus = shallowRef(exportApi.status.value)
-const exportPending = ref(exportApi.pending.value)
-watch(savedApi.pending, value => { savedPending.value = value })
-watch(exportApi.status, value => { exportStatus.value = value })
-watch(exportApi.pending, value => { exportPending.value = value })
+const savedPending = computed(() => savedApi.pending.value)
+const exportStatus = computed(() => exportApi.status.value)
+const exportPending = computed(() => exportApi.pending.value)
 const showSave = ref(false)
 const showExport = ref(false)
 const showSaved = ref(false)
@@ -80,8 +75,6 @@ onMounted(() => {
     if (saved?.path === route.fullPath && Number.isFinite(saved.scrollY)) requestAnimationFrame(() => window.scrollTo(0, saved.scrollY))
   } catch { /* Restoring scroll position is best-effort. */ }
 })
-const currentResponse = () => response.value
-const currentMeta = () => meta.value
 const groups = computed(() => response.value?.data.groups || [])
 const drillField = computed(() => DRILL_PATH.get(applied.groupBy) || null)
 const dimensionLabel = computed(() => fields.value.find((field) => field.key === applied.groupBy)?.label || "kelompok")
@@ -109,12 +102,23 @@ function openSaved(item: SavedAnalysis) { state.updateDraft(item.config); state.
 async function removeSaved(id: string) { await savedApi.remove(id) }
 async function renameSaved(payload: { id: string; name: string }) { await savedApi.rename(payload.id, payload.name) }
 async function startExport(type: AnalyticsExportType) { await exportApi.submit(type, state.applied.value) }
+/** Empty state “Reset filter”: kembalikan konfigurasi default dan langsung jalankan. */
+function resetFromEmptyState() { state.reset(); state.apply() }
+
+// ── Cross-filter selected state (ux-spec §8) ────────────────────────────────
+/** Nilai filter eq pada dimensi aktif = kelompok yang sedang menyeleksi canvas. */
+const selectedGroupKey = computed(() => {
+  const filter = applied.filters.find((item) => item.fieldId === applied.groupBy && item.operator !== "neq")
+  if (!filter) return null
+  return Array.isArray(filter.value) ? String(filter.value[0]) : String(filter.value)
+})
+function clearGroupSelection() { state.removeFilter(applied.groupBy) }
 </script>
 
 <template>
   <div class="flex min-h-0 flex-col gap-2 lg:flex-1 lg:overflow-hidden">
     <AnalyticsToolbar
-      :meta="currentMeta()"
+      :meta="meta"
       :config="draft"
       :fields="fields"
       :templates="catalogTemplates"
@@ -135,8 +139,9 @@ async function startExport(type: AnalyticsExportType) { await exportApi.submit(t
       :pending="pending"
       :error="error"
       :warning="warning"
-      :has-data="Boolean(currentResponse())"
-      :status="currentMeta()?.status"
+      :has-data="Boolean(response)"
+      :status="meta?.status"
+      @reset="resetFromEmptyState"
     />
 
     <div
@@ -154,29 +159,33 @@ async function startExport(type: AnalyticsExportType) { await exportApi.submit(t
       />
 
       <div class="flex min-h-0 flex-col gap-2 lg:overflow-hidden">
-        <AnalyticsMetricSummary :response="currentResponse()" :meta="currentMeta()" />
+        <AnalyticsMetricSummary :response="response" :meta="meta" />
 
         <AnalyticsInsightPanel :groups="groups" :coverage="coverage" :unknown-share="unknownShare" @evidence="tableOpen = true" />
 
         <div class="grid min-h-0 gap-2 lg:flex-1 lg:grid-cols-2 lg:grid-rows-[minmax(0,1fr)_minmax(0,1fr)] lg:overflow-hidden 2xl:grid-cols-3 2xl:grid-rows-1">
           <AnalyticsVisual
-            v-if="currentResponse()"
+            v-if="response"
             v-model:table-open="tableOpen"
             :groups="groups"
             :visual="applied.visual"
+            :selected-key="selectedGroupKey"
+            :include-others="applied.includeOthers !== false"
             @select="selectGroup"
+            @clear-select="clearGroupSelection"
           />
           <AnalyticsGroupList
             :groups="groups"
             :dimension-label="dimensionLabel"
             :drill-field="drillField"
+            :selected-key="selectedGroupKey"
             @select="selectGroup"
             @drill="drillGroup"
           />
           <AnalyticsRecordTable
             class="lg:col-span-2 2xl:col-span-1"
             :records="records"
-            :matched="currentMeta()?.matched"
+            :matched="meta?.matched"
             :page-index="cursorStack.length"
             :page-size="20"
             :has-next="Boolean(nextCursor)"
@@ -191,14 +200,13 @@ async function startExport(type: AnalyticsExportType) { await exportApi.submit(t
     </div>
 
     <AnalyticsSavedAnalysisMenu
-      :model-value="showSaved"
+      v-model="showSaved"
       :items="savedItems"
-      @close="showSaved = false"
       @open="openSaved"
       @remove="removeSaved"
       @rename="renameSaved"
     />
-    <AnalyticsSaveAnalysisDialog :model-value="showSave" :config="applied" :busy="savedPending" @close="showSave = false" @save="saveAnalysis" />
-    <AnalyticsExportDialog :model-value="showExport" :config="applied" :status="exportStatus" :busy="exportPending" @close="showExport = false" @submit="startExport" />
+    <AnalyticsSaveAnalysisDialog v-model="showSave" :config="applied" :busy="savedPending" @save="saveAnalysis" />
+    <AnalyticsExportDialog v-model="showExport" :config="applied" :status="exportStatus" :busy="exportPending" @submit="startExport" />
   </div>
 </template>
