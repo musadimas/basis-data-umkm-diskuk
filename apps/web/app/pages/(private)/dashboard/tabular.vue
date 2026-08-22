@@ -308,10 +308,13 @@ const lastVisibleRow = computed(() => Math.min(
 const activeFilterCount = computed(() =>
   Object.values(appliedFilters).filter((value) => value !== "semua").length,
 );
-const filtersAreDirty = computed(() =>
-  (Object.keys(filters) as (keyof TabularFilters)[])
-    .some((key) => filters[key] !== appliedFilters[key]),
-);
+const filtersAreDirty = computed(() => {
+  // SAFETY: filters adalah reactive<TabularFilters>, jadi Object.keys menghasilkan
+  // tepat keyof TabularFilters; assertion hanya memulihkan narrowing yang hilang
+  // oleh signature Object.keys(string[]).
+  const keys = Object.keys(filters) as (keyof TabularFilters)[];
+  return keys.some((key) => filters[key] !== appliedFilters[key]);
+});
 
 const resetPagination = () => {
   page.value = 1;

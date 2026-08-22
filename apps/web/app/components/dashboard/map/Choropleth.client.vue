@@ -68,16 +68,16 @@ const legendItems = computed(() => {
 });
 
 // ── Titik UMKM ──────────────────────────────────────────────────────────────
-const skalaColors: Record<SkalaUsaha, string> = {
+const skalaColors = {
   mikro: "#16A75C",
   kecil: "#0ea5e9",
   menengah: "#fbbf24",
-};
-const skalaLabels: Record<SkalaUsaha, string> = {
+} satisfies Record<SkalaUsaha, string>;
+const skalaLabels = {
   mikro: "Usaha Mikro",
   kecil: "Usaha Kecil",
   menengah: "Usaha Menengah",
-};
+} satisfies Record<SkalaUsaha, string>;
 const pointsVisible = computed(() => props.showPoints && props.points.length > 0);
 
 function skalaColorExpression(): string | ExpressionSpecification {
@@ -192,6 +192,7 @@ function updateSource() {
   hoveredRegionId = null;
   if (map.getLayer("jabar-fill")) map.setPaintProperty("jabar-fill", "fill-color", colorExpression());
   // Titik UMKM: perbarui data + visibilitas sesuai saklar.
+  // SAFETY: source "umkm-points" selalu didaftarkan bertipe geojson oleh komponen ini saat map load.
   (map.getSource("umkm-points") as GeoJSONSource | undefined)?.setData(pointsFeatureCollection());
   applyLayersVisibility();
   const bounds = new LngLatBounds();
@@ -239,13 +240,18 @@ function onRegionClick(event: MapLayerMouseEvent) {
 /** Klik klaster → zoom halus ke tingkat di mana klaster tersebut mengembang. */
 async function onClusterClick(event: MapLayerMouseEvent) {
   const feature = event.features?.[0];
-  const clusterId = feature?.properties?.clusterId;
-  if (!feature || typeof clusterId !== "number") return;
+  // clusterId ditulis oleh MapBox/MapLibre cluster sendiri ke properties dan selalu berupa angka;
+  // Number() memvalidasi representasinya di boundary sebelum dipakai ke API cluster.
+  const clusterId = Number(feature?.properties?.clusterId);
+  if (!feature || !Number.isFinite(clusterId)) return;
+  // SAFETY: source "umkm-points" selalu didaftarkan bertipe geojson oleh komponen ini saat map load.
   const source = event.target.getSource("umkm-points") as GeoJSONSource | undefined;
   if (!source) return;
   const zoom = await source.getClusterExpansionZoom(clusterId);
+  // SAFETY: layer cluster hanya menerima feature Point yang dibuat oleh pointsFeatureCollection().
+  const center = (feature.geometry as GeoJSON.Point).coordinates as [number, number];
   event.target.easeTo({
-    center: (feature.geometry as GeoJSON.Point).coordinates as [number, number],
+    center,
     zoom: Math.min(zoom + 0.2, event.target.getMaxZoom()),
     duration: 600,
   });
@@ -256,6 +262,8 @@ function onPointClick(event: MapLayerMouseEvent) {
   const properties = event.features?.[0]?.properties;
   if (!properties) return;
   popup?.remove();
+  // SAFETY: skala pada feature berasal dari pointsFeatureCollection() yang menyalin SkalaUsaha apa adanya;
+  // fallback "#64748b"/teks mentah di bawah menangani nilai di luar union.
   const skala = (properties.skala ?? "") as SkalaUsaha;
   const content = document.createElement("div");
   content.className = "space-y-1";
