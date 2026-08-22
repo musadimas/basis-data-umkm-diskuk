@@ -16,13 +16,19 @@ export function useAnalyticsQuery(config: Readonly<{ value: AnalysisConfig }>) {
   // the Nuxt context even though queryFn runs asynchronously.
   const ssrHeaders = import.meta.server ? useRequestHeaders(["cookie"]) : undefined
 
+  // The signal lets vue-query cancel in-flight requests when the applied
+  // config changes mid-flight; the Nuxt proxy forwards the abort upstream, so
+  // the abandoned Postgres query stops burning its 4.5s budget too.
   const aggregateQuery = useQuery<AnalyticsQueryResponse>({
     queryKey: ["analitik", "aggregate", computed(() => canonicalAggregateKey(config.value))],
-    queryFn: () => $fetch<AnalyticsQueryResponse>("/panel/analitik/query", {
+    // SAFETY: vue-query always supplies QueryFunctionContext with a live
+    // AbortSignal; the assertion only narrows the generic context type.
+    queryFn: (ctx) => $fetch<AnalyticsQueryResponse>("/panel/analitik/query", {
       method: "POST",
       body: config.value,
       credentials: "include",
       headers: ssrHeaders,
+      signal: ctx.signal as AbortSignal,
     }),
     staleTime: ANALYTICS_STALE_MS,
     gcTime: ANALYTICS_GC_MS,
@@ -32,11 +38,13 @@ export function useAnalyticsQuery(config: Readonly<{ value: AnalysisConfig }>) {
   // the first page loads in parallel instead of waiting for the chart query.
   const firstPageQuery = useQuery<AnalyticsRecordsResponse>({
     queryKey: ["analitik", "records", computed(() => canonicalRecordsKey(config.value))],
-    queryFn: () => $fetch<AnalyticsRecordsResponse>("/panel/analitik/records", {
+    // SAFETY: same vue-query context contract as the aggregate query above.
+    queryFn: (ctx) => $fetch<AnalyticsRecordsResponse>("/panel/analitik/records", {
       method: "POST",
       body: { schemaVersion: 1, filters: config.value.filters, pageSize: 20, sort: config.value.sort },
       credentials: "include",
       headers: ssrHeaders,
+      signal: ctx.signal as AbortSignal,
     }),
     staleTime: ANALYTICS_STALE_MS,
     gcTime: ANALYTICS_GC_MS,

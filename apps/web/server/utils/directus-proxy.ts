@@ -116,14 +116,20 @@ export async function proxyToDirectus(event: H3Event) {
   }
 
   let response: Response;
+  // SAFETY: undici's fetch accepts a standard AbortSignal; combining the
+  // timeout with the client-disconnect signal via AbortSignal.any is the
+  // documented composition API. The raw body originates from readRawBody (a
+  // validated string proxy payload), which is a valid BodyInit.
   try {
-    // SAFETY: the raw body originates from readRawBody (a validated string proxy payload), which is a valid BodyInit.
+    const clientGone = new AbortController();
+    event.node.req.on("close", () => clientGone.abort());
     response = await fetch(target, {
       method: event.node.req.method,
       headers,
+      // SAFETY: readRawBody returned a validated string proxy payload, which is a valid BodyInit.
       body: body === undefined || body === null ? undefined : (body as BodyInit),
       redirect: "manual",
-      signal: AbortSignal.timeout(15_000),
+      signal: AbortSignal.any([AbortSignal.timeout(15_000), clientGone.signal]),
     });
   } catch {
     setJsonError(event, 502, "UPSTREAM_UNAVAILABLE", requestId);
