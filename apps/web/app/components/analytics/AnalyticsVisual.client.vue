@@ -43,12 +43,8 @@ const seriesKeys = computed(() => {
 
 interface TotalEntry { group: AnalyticsGroup; value: number; values: number[] }
 
-/**
- * Satu baris per kelompok (breakdown dijumlahkan per seri). Saat includeOthers
- * aktif dan jumlah kelompok melewati batas chart/donut, sisanya diagregasi ke
- * satu baris “Lainnya” (product-spec §6.5) sehingga total tetap terjaga.
- */
-const totals = computed<TotalEntry[]>(() => {
+/** Satu baris per kelompok (breakdown dijumlahkan per seri), terurut menurun. */
+const aggregated = computed<TotalEntry[]>(() => {
   const map = new Map<string, TotalEntry>()
   const keys = seriesKeys.value
   for (const group of props.groups) {
@@ -58,7 +54,16 @@ const totals = computed<TotalEntry[]>(() => {
     if (index >= 0) entry.values[index] = Number(group.value || 0)
     map.set(group.key, entry)
   }
-  const sorted = [...map.values()].sort((a, b) => b.value - a.value)
+  return [...map.values()].sort((a, b) => b.value - a.value)
+})
+
+/**
+ * Batasan visual chart: saat jumlah kelompok melewati batas chart/donut,
+ * sisanya diagregasi ke satu baris “Lainnya” (product-spec §6.5) sehingga total
+ * tetap terjaga. Tabel data tidak memakai pemangkasan ini — lihat tableGroups.
+ */
+const totals = computed<TotalEntry[]>(() => {
+  const sorted = aggregated.value
 
   // Kelompok unknown/tidak diketahui tidak boleh hilang di dalam “Lainnya”.
   const isUnknown = (entry: TotalEntry) => entry.group.key === "unknown" || /tidak diketahui|tidak ada kode|tidak terpetakan/i.test(entry.group.label)
@@ -80,8 +85,11 @@ const totals = computed<TotalEntry[]>(() => {
   const totalOthers = othersValue + (includeOverflow ? overflowValue : 0)
   if (!totalOthers) return kept
   const othersShare = grandTotal ? Number((totalOthers * 100 / grandTotal).toFixed(1)) : 0
-  return [...kept, { group: { key: "others", label: "Lainnya", value: totalOthers, share: othersShare }, value: totalOthers, values: keys.map(() => 0) }]
+  return [...kept, { group: { key: "others", label: "Lainnya", value: totalOthers, share: othersShare }, value: totalOthers, values: seriesKeys.value.map(() => 0) }]
 })
+
+/** Tabel data menampilkan SEMUA kelompok yang dikirim server — tanpa “Lainnya” klien. */
+const tableGroups = computed(() => aggregated.value.map((entry) => entry.group))
 
 interface ChartRow extends TotalEntry {
   index: number
@@ -320,7 +328,7 @@ const barHeight = computed(() => Math.max(140, chartRows.value.length * BAR_SLOT
     </div>
 
     <p class="sr-only">
-      {{ groups.map((group) => `${group.label}: ${formatAnalyticsNumber(group.value)} UMKM`).join(". ") }}
+      {{ totals.map((entry) => `${entry.group.label}: ${formatAnalyticsNumber(entry.value)} UMKM`).join(". ") }}
     </p>
 
     <div class="min-h-0 flex-1 overflow-auto" data-lenis-prevent-wheel>
@@ -401,7 +409,7 @@ const barHeight = computed(() => Math.max(140, chartRows.value.length * BAR_SLOT
         </VisXYContainer>
       </div>
 
-      <AnalyticsDataTable v-else-if="tableOpen || visual === 'table'" :groups="totals.map((entry) => entry.group)" />
+      <AnalyticsDataTable v-else-if="tableOpen || visual === 'table'" :groups="tableGroups" />
 
       <p v-else class="py-8 text-center text-xs text-muted-foreground">Belum ada data untuk filter ini.</p>
     </div>

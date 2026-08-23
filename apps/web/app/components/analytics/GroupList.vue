@@ -32,6 +32,10 @@ const rows = computed(() => {
   if (sort.value === "label_asc") return [...filtered].sort((a, b) => a.group.label.localeCompare(b.group.label, "id-ID"))
   return filtered
 })
+// Render bertahap: pencarian/urut tetap di atas semua grup, hanya DOM yang dibatasi.
+const RENDER_CHUNK = 100
+const visibleCount = ref(RENDER_CHUNK)
+watch([search, sort, () => props.groups], () => { visibleCount.value = RENDER_CHUNK })
 </script>
 
 <template>
@@ -72,7 +76,7 @@ const rows = computed(() => {
 
       <div v-if="rows.length" role="list" aria-label="Kelompok hasil" class="divide-y">
         <div
-          v-for="row in rows"
+          v-for="row in rows.slice(0, visibleCount)"
           :key="`${row.group.key}-${row.group.breakdown?.key || ''}`"
           role="listitem"
           class="rounded-sm py-1 transition-colors"
@@ -111,7 +115,15 @@ const rows = computed(() => {
           </div>
         </div>
       </div>
-      <p v-else class="py-8 text-center text-xs text-muted-foreground">
+      <button
+        v-if="rows.length > visibleCount"
+        type="button"
+        class="mt-1 w-full shrink-0 rounded-md border py-1 text-xs font-semibold text-muted-foreground hover:bg-muted"
+        @click="visibleCount = rows.length"
+      >
+        Tampilkan semua ({{ rows.length - visibleCount }} kelompok lagi)
+      </button>
+      <p v-if="!rows.length" class="py-8 text-center text-xs text-muted-foreground">
         {{ groups.length ? "Tidak ada kelompok yang cocok dengan pencarian." : "Belum ada data untuk filter ini." }}
       </p>
     </div>

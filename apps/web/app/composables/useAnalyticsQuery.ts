@@ -1,6 +1,6 @@
 import type { AnalysisConfig, AnalyticsQueryResponse, AnalyticsRecordsResponse } from "~/types/analytics"
 import { useQuery } from "@tanstack/vue-query"
-import { canonicalAggregateKey, canonicalRecordsKey } from "~/lib/analytics-query"
+import { canonicalAggregateKey, canonicalRecordsKey, REQUESTED_GROUPS } from "~/lib/analytics-query"
 import { isAbortError, isUnauthorized } from "~/lib/request-error"
 
 // Aggregate/record responses are immutable per read-model generation, so they
@@ -25,7 +25,9 @@ export function useAnalyticsQuery(config: Readonly<{ value: AnalysisConfig }>) {
     // AbortSignal; the assertion only narrows the generic context type.
     queryFn: (ctx) => $fetch<AnalyticsQueryResponse>("/panel/analitik/query", {
       method: "POST",
-      body: config.value,
+      // limit konstan tidak ikut canonicalAggregateKey; server memangkasnya ke
+      // QUERY_BUDGET.maxGroups sehingga payload tetap terjangkau.
+      body: { ...config.value, limit: REQUESTED_GROUPS },
       credentials: "include",
       headers: ssrHeaders,
       signal: ctx.signal as AbortSignal,

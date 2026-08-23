@@ -4,7 +4,11 @@ const SCHEMA_VERSION = 1;
 const MASKING_VERSION = 1;
 const APPLICATION_ROLE_ID = "7d6d493c-1a6d-4c59-9e74-40d42a7862eb";
 const ANALYTICS_POLICY_ID = "9325db4b-9518-41db-b122-8c667f2ce510";
-const QUERY_BUDGET = Object.freeze({ maxFilters: 8, maxDimensions: 2, maxGroups: 20, maxDonutGroups: 6, recordsPageSize: 100, detailExportRows: 50000, statementTimeoutMs: 4500, lockTimeoutMs: 500 });
+// maxGroups hanya membatasi jumlah baris hasil, bukan kerja agregasi: GROUP BY
+// (dan tabel rollup analitik_dim_aggregate) sudah menghitung semua grup apapun
+// LIMIT-nya, jadi batas ini murni menjaga ukuran payload — 2000 menutup semua
+// kardinalitas dimensi terbesar (kelurahan Jabar ±1.600 baris).
+const QUERY_BUDGET = Object.freeze({ maxFilters: 8, maxDimensions: 2, maxGroups: 2000, maxDonutGroups: 6, recordsPageSize: 100, detailExportRows: 50000, statementTimeoutMs: 4500, lockTimeoutMs: 500 });
 const LIVE_JOB_STATUSES = Object.freeze(["queued", "processing", "retry"]);
 const JOB_STATUSES = Object.freeze([...LIVE_JOB_STATUSES, "completed", "dead", "cancelled"]);
 const GENERATION_STATUSES = Object.freeze(["candidate", "active", "previous", "failed"]);

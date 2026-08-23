@@ -10,6 +10,11 @@ const rows = computed(() => {
     return { group, rank: index + 1, cumulative }
   })
 })
+// Render bertahap: kumulatif dihitung untuk semua baris, tetapi DOM awal dibatasi
+// agar dimensi ber-kardinalitas tinggi (±2.000 kelurahan/kode KBLI) tetap ringan.
+const RENDER_CHUNK = 100
+const visibleCount = ref(RENDER_CHUNK)
+watch(() => props.groups, () => { visibleCount.value = RENDER_CHUNK })
 </script>
 <template>
   <div id="analytics-data-table" class="overflow-x-auto">
@@ -25,7 +30,7 @@ const rows = computed(() => {
         </tr>
       </thead>
       <tbody>
-        <tr v-for="row in rows" :key="`${row.group.key}-${row.group.breakdown?.key || ''}`" class="border-b">
+        <tr v-for="row in rows.slice(0, visibleCount)" :key="`${row.group.key}-${row.group.breakdown?.key || ''}`" class="border-b">
           <td class="p-1.5 text-right text-muted-foreground">{{ row.rank }}</td>
           <th scope="row" class="p-1.5 font-medium">{{ row.group.label }}</th>
           <td class="p-1.5 text-right">{{ formatAnalyticsNumber(row.group.value) }}</td>
@@ -34,5 +39,13 @@ const rows = computed(() => {
         </tr>
       </tbody>
     </table>
+    <button
+      v-if="rows.length > visibleCount"
+      type="button"
+      class="mt-1 w-full rounded-md border py-1 text-xs font-semibold text-muted-foreground hover:bg-muted"
+      @click="visibleCount = rows.length"
+    >
+      Tampilkan semua ({{ formatAnalyticsNumber(rows.length - visibleCount) }} kelompok lagi)
+    </button>
   </div>
 </template>

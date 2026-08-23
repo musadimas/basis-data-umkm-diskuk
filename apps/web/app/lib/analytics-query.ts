@@ -8,6 +8,14 @@ const FORBIDDEN_IDENTIFIER = /(nik|phone|telepon|birth|password|token|cookie|rec
 const FORBIDDEN_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const ALLOWED_KEYS = new Set(["metric", "groupBy", "breakdown", "visual", "others", "filter", "sort", "page", "cursor"])
 
+/**
+ * Jumlah grup maksimum yang diminta dari server. Harus <= QUERY_BUDGET.maxGroups
+ * (contracts.cjs). Agregasi SQL menghitung semua grup apapun LIMIT-nya, jadi
+ * meminta semua baris hanya memperbesar payload secukupnya; pemangkasan visual
+ * (top-N chart) tetap dilakukan di klien.
+ */
+export const REQUESTED_GROUPS = 2000
+
 function safeIdentifier(value: string | null | undefined): value is string {
   return value != null && SAFE_TOKEN.test(value) && !FORBIDDEN_IDENTIFIER.test(value)
 }
