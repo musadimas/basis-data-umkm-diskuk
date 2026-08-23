@@ -115,7 +115,7 @@ function tooltipTemplate(
 
 <template>
   <div :class="cn('w-full h-48 flex flex-col items-end', $attrs.class ?? '')">
-    <VisSingleContainer :style="{ height: isMounted ? '100%' : 'auto' }" :margin="{ left: 20, right: 20 }" :data="data">
+    <VisSingleContainer class="w-full" :style="{ height: isMounted ? '100%' : 'auto' }" :margin="{ left: 20, right: 20 }" :data="data">
       <VisTooltip
         v-if="showTooltip"
         :horizontal-shift="20"
