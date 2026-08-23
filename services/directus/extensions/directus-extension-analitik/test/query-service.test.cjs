@@ -136,6 +136,37 @@ test("unfiltered sector distribution is served from the per-generation rollup wi
   assert.equal(calls.some((sql) => sql.includes("WITH totals AS") || sql.includes("SUM(COUNT(*)) OVER ()")), false);
 });
 
+test("scale-filtered city distribution uses the conditional rollup without a fact scan", async () => {
+  const calls = [];
+  const database = {
+    async raw(sql, params) {
+      calls.push({ sql, params });
+      if (sql.includes("FROM analitik_active_generation")) return { rows: [{
+        id: "generation-1", status: "active", data_as_of: "2026-08-19T15:00:00Z", reconciled_at: "2026-08-19T20:00:00Z",
+        row_count: 10, active_row_count: 10, archived_row_count: 0,
+      }] };
+      if (sql.includes("FROM analitik_field")) return { rows: [
+        { id: "metric", semantic_id: "jumlah_umkm", lifecycle_status: "active", semantic_role: "metric" },
+        { id: "city", semantic_id: "kota_nama", lifecycle_status: "active", semantic_role: "dimension" },
+        { id: "scale", semantic_id: "skala_dilaporkan", lifecycle_status: "active", semantic_role: "dimension" },
+      ] };
+      if (sql.includes("dimension=ANY")) return { rows: [
+        { dimension_value: "KAB. BANDUNG", label: "KAB. BANDUNG", value: 6 },
+        { dimension_value: "KOTA BANDUNG", label: "KOTA BANDUNG", value: 2 },
+      ] };
+      throw new Error(`Unexpected SQL: ${sql}`);
+    },
+  };
+  const result = await queryAnalytics(database, { schemaVersion: 1, metric: "jumlah_umkm", groupBy: "city", filters: [{ fieldId: "scale", operator: "eq", value: "micro" }], limit: 20 });
+  assert.equal(result.meta.population, 10);
+  assert.equal(result.meta.matched, 8);
+  assert.deepEqual(result.data.groups.map(({ key, value }) => ({ key, value })), [
+    { key: "KAB. BANDUNG", value: 6 }, { key: "KOTA BANDUNG", value: 2 },
+  ]);
+  assert.deepEqual(calls.find(({ sql }) => sql.includes("dimension=ANY")).params, ["generation-1", ["scale:micro:kota_nama"]]);
+  assert.equal(calls.some(({ sql }) => sql.includes("SUM(COUNT(*)) OVER ()")), false);
+});
+
 test("runtime caches serve repeated requests without re-resolving source and reset for tests", async () => {
   let generationLookups = 0;
   const database = {

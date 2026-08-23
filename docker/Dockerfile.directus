@@ -4,7 +4,10 @@ RUN apk add --no-cache python3 g++ make bash postgresql-client \
     && corepack enable \
     && corepack prepare pnpm@9.15.9 --activate
 WORKDIR /directus
-RUN npm init -y && npm install --no-save argon2
+# The official Node image already ships matching headers under /usr/local.
+# Point node-gyp at them so musl-native addons do not depend on the
+# unofficial-builds.nodejs.org header mirror during deployments.
+RUN npm init -y && npm_config_nodedir=/usr/local npm install --no-save argon2
 COPY services/directus/extensions /directus/extensions
 COPY services/directus/migrations /directus/migrations
 COPY services/directus/package.json services/directus/pnpm-lock.yaml /directus/service-package/

@@ -201,6 +201,34 @@ async function queryGenerationRollup(database, source, plan) {
   return finalizeGenerationGroups({ rows: groups, plan, source, matched, population });
 }
 
+async function queryGenerationScaleRollup(database, source, plan) {
+  if (source.kind !== "generation" || plan.breakdown || plan.normalized.filters.length !== 1) return null;
+  if (plan.filterSemantics[0] !== "skala_dilaporkan" || !ROLLUP_DIMENSIONS.has(plan.semantic)) return null;
+  const filter = plan.normalized.filters[0];
+  const values = filter.operator === "in" ? filter.value : (filter.operator || "eq") === "eq" ? [filter.value] : [];
+  if (!Array.isArray(values) || !values.length || !values.every((value) => ["micro","small","medium","unknown"].includes(String(value)))) return null;
+  const dimensions = values.map((value) => `scale:${value}:${plan.semantic}`);
+  let rows;
+  try {
+    const result = await withBudgetTransaction(database, (trx) => trx.raw(
+      `SELECT dimension_value,label,SUM(CASE WHEN status='archived' THEN 0 ELSE value END)::bigint AS value
+       FROM analitik_dim_aggregate
+       WHERE generation_id=? AND dimension=ANY(?::text[])
+       GROUP BY dimension_value,label
+       ORDER BY value DESC,dimension_value ASC`,
+      [source.generationId, dimensions]));
+    rows = result.rows ?? [];
+  } catch (error) {
+    if (error?.code === "57014" || error?.code === "55P03") throw new AnalyticsApiError(504, "QUERY_TIMEOUT", "Query melebihi batas waktu. Coba filter yang lebih spesifik.");
+    throw error;
+  }
+  if (!rows.length) return null;
+  const groups = rows.map((row) => ({ group_key: row.dimension_value, group_label: row.label, value: Number(row.value || 0) }));
+  const matched = groups.reduce((sum, group) => sum + group.value, 0);
+  const population = source.activeRowCount != null ? source.activeRowCount : matched;
+  return finalizeGenerationGroups({ rows: groups, plan, source, matched, population });
+}
+
 async function withBudgetTransaction(database, fn) {
   if (typeof database.transaction === "function") {
     return database.transaction(async (trx) => {
@@ -227,7 +255,7 @@ async function queryAnalytics(database, request, opts = {}) {
     if (!source) throw new AnalyticsApiError(503, "NO_PUBLISHED_SNAPSHOT", "Data sedang disiapkan. Silakan coba lagi.");
     const registry = await loadRegistryCached(database);
     const plan = compileQuery(request, registry);
-    const snapshotResponse = await querySnapshot(database, source, plan) ?? await queryGenerationRollup(database, source, plan) ?? await queryGenerationAggregate(database, source, plan);
+    const snapshotResponse = await querySnapshot(database, source, plan) ?? await queryGenerationRollup(database, source, plan) ?? await queryGenerationScaleRollup(database, source, plan) ?? await queryGenerationAggregate(database, source, plan);
     if (snapshotResponse) return snapshotResponse;
     const scopedWhere = `${source.scopeSql} AND ${plan.whereSql}`;
     const params = [...source.scopeParams, ...plan.params];

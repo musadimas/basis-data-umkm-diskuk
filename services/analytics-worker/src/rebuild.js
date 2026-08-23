@@ -3,6 +3,49 @@ import { reconcileGeneration } from "./reconcile.js";
 import { projectRecord, safeProjection } from "./projector.js";
 
 const SECTORS_SQL = `SELECT code,division_start,division_end FROM analitik_kbli_sector WHERE schema_version=1 ORDER BY code`;
+const GENERATION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export function generationPartitionName(generationId) {
+  const value = String(generationId || "");
+  if (!GENERATION_ID.test(value)) throw new Error("INVALID_GENERATION_ID");
+  return `analitik_usaha_g_${value.replaceAll("-", "_").toLowerCase()}`;
+}
+
+async function parentIsPartitioned(client) {
+  const result = await client.query(`SELECT EXISTS (
+    SELECT 1 FROM pg_partitioned_table p
+    WHERE p.partrelid='public.analitik_usaha_current'::regclass
+  ) AS partitioned`);
+  return Boolean(result.rows[0]?.partitioned);
+}
+
+export async function createGenerationPartition(client, generationId) {
+  const partition = generationPartitionName(generationId);
+  if (!await parentIsPartitioned(client)) throw Object.assign(new Error("Analytics projection is not partitioned"), { code: "ANALYTICS_SCHEMA_NOT_PARTITIONED" });
+  await client.query(`CREATE TABLE IF NOT EXISTS "${partition}" PARTITION OF analitik_usaha_current FOR VALUES IN ('${generationId}'::uuid)`);
+  return partition;
+}
+
+export async function dropGenerationPartition(client, generationId) {
+  const partition = generationPartitionName(generationId);
+  if (!await parentIsPartitioned(client)) return false;
+  const attached = await client.query(`SELECT EXISTS (
+    SELECT 1 FROM pg_inherits i
+    JOIN pg_class child ON child.oid=i.inhrelid
+    WHERE i.inhparent='public.analitik_usaha_current'::regclass
+      AND child.relnamespace='public'::regnamespace
+      AND child.relname=$1
+  ) AS attached`, [partition]);
+  if (!attached.rows[0]?.attached) return false;
+  await client.query(`DROP TABLE "${partition}"`);
+  return true;
+}
+
+async function discardGenerationProjection(client, generationId) {
+  const dropped = await dropGenerationPartition(client, generationId);
+  await client.query(`DELETE FROM analitik_dim_aggregate WHERE generation_id=$1`, [generationId]);
+  return dropped;
+}
 
 // Bulk source fetch – same joins as projector.SOURCE_SQL but ranged
 const BULK_SOURCE_SQL = `
@@ -363,18 +406,53 @@ export const DIM_AGGREGATE_SQL = `
   ON CONFLICT (generation_id,dimension,dimension_value,status)
   DO UPDATE SET label=EXCLUDED.label, value=EXCLUDED.value`;
 
+const SCALE_ROLLUP_DIMENSIONS = Object.freeze([
+  ["kota_id", "COALESCE(a.kota_id::text,'unknown')", "COALESCE(a.kota_nama,'Tidak diketahui')"],
+  ["kota_kode", "COALESCE(a.kota_kode,'unknown')", "COALESCE(a.kota_nama,'Tidak diketahui')"],
+  ["kota_nama", "COALESCE(a.kota_nama,'Tidak diketahui')", "COALESCE(a.kota_nama,'Tidak diketahui')"],
+  ["kecamatan_id", "COALESCE(a.kecamatan_id::text,'unknown')", "COALESCE(a.kecamatan_nama,'Tidak diketahui')"],
+  ["kecamatan_nama", "COALESCE(a.kecamatan_nama,'Tidak diketahui')", "COALESCE(a.kecamatan_nama,'Tidak diketahui')"],
+  ["kelurahan_id", "COALESCE(a.kelurahan_id::text,'unknown')", "COALESCE(a.kelurahan_nama,'Tidak diketahui')"],
+  ["kelurahan_nama", "COALESCE(a.kelurahan_nama,'Tidak diketahui')", "COALESCE(a.kelurahan_nama,'Tidak diketahui')"],
+  ["sektor_kbli", "COALESCE(a.sektor_kbli,'unknown')", "COALESCE(a.sektor_kbli,'Tidak diketahui')"],
+  ["kbli_kode", "COALESCE(a.kode_kbli,'unknown')", "COALESCE(a.kode_kbli,'Tidak diketahui')"],
+  ["skala_dilaporkan", "COALESCE(a.skala,'unknown')", "CASE a.skala WHEN 'micro' THEN 'Mikro' WHEN 'small' THEN 'Kecil' WHEN 'medium' THEN 'Menengah' ELSE 'Tidak diketahui' END"],
+  ["status_hukum", "COALESCE(a.status_hukum,'unknown')", "COALESCE(a.status_hukum,'Tidak diketahui')"],
+  ["status_usaha", "COALESCE(a.status,'unknown')", "CASE a.status WHEN 'active' THEN 'Aktif' WHEN 'archived' THEN 'Diarsipkan' ELSE 'Tidak diketahui' END"],
+  ["quality_geography", "CASE WHEN a.kota_id IS NULL OR a.kecamatan_id IS NULL OR a.kelurahan_id IS NULL THEN 'unknown' ELSE 'mapped' END", "CASE WHEN a.kota_id IS NULL OR a.kecamatan_id IS NULL OR a.kelurahan_id IS NULL THEN 'Tidak diketahui' ELSE 'Terpetakan' END"],
+  ["quality_kbli", "CASE WHEN a.kode_kbli IS NULL THEN 'missing' WHEN a.sektor_kbli IS NULL THEN 'unmapped' ELSE 'mapped' END", "CASE WHEN a.kode_kbli IS NULL THEN 'Tidak ada kode' WHEN a.sektor_kbli IS NULL THEN 'Tidak terpetakan' ELSE 'Terpetakan' END"],
+]);
+
+export const SCALE_DIM_AGGREGATE_SQL = `
+  INSERT INTO analitik_dim_aggregate(generation_id,dimension,dimension_value,label,status,value)
+  SELECT $1, u.dimension, u.dimension_value, u.label, u.status, u.value FROM (
+    ${SCALE_ROLLUP_DIMENSIONS.map(([dimension, value, label]) => `
+      SELECT 'scale:' || COALESCE(a.skala,'unknown') || ':${dimension}' AS dimension,
+        ${value} AS dimension_value, ${label} AS label, a.status AS status, COUNT(*)::bigint AS value
+      FROM analitik_usaha_current a WHERE a.generation_id=$1 GROUP BY 1,2,3,4
+    `).join(" UNION ALL ")}
+  ) u
+  ON CONFLICT (generation_id,dimension,dimension_value,status)
+  DO UPDATE SET label=EXCLUDED.label, value=EXCLUDED.value`;
+
 async function populateDimAggregate(pool, generationId) {
   await pool.query(DIM_AGGREGATE_SQL, [generationId]);
+  await pool.query(SCALE_DIM_AGGREGATE_SQL, [generationId]);
 }
 
 export async function rebuildCurrentModel(pool, { logger, batchSize = 50_000 } = {}) {
   const lock = await pool.query("SELECT pg_try_advisory_lock(hashtext('diskuk.analytics.rebuild')) AS locked"); if (!lock.rows[0]?.locked) return { skipped: "rebuild_locked" };
   let generationId;
+  let promoted = false;
   try {
+    // A worker crash can leave an unreferenced candidate behind. Remove it
+    // before reserving space for another full projection.
+    await cleanupOldGenerations(pool, { retentionHours: 0 });
     const sectors = (await pool.query(SECTORS_SQL)).rows;
     const highWater = Number((await pool.query("SELECT COALESCE(MAX(sequence),0)::bigint AS value FROM analitik_job")).rows[0].value);
     const dataAsOf = new Date();
     generationId = (await pool.query(`INSERT INTO analitik_generation(status,schema_version,registry_version,masking_version,source_high_water,outbox_high_water,build_started_at,reconciliation_status) VALUES ('candidate',1,1,1,$1,$1,NOW(),'pending') RETURNING id`, [highWater])).rows[0].id;
+    await createGenerationPartition(pool, generationId);
     let cursor = null; let total = 0;
     const effectiveBatch = Math.min(batchSize, 50000);
     const INSERT_CHUNK = 1000; // rows per INSERT to stay under PG param limit
@@ -453,32 +531,51 @@ export async function rebuildCurrentModel(pool, { logger, batchSize = 50_000 } =
     // Refresh it before promotion so covering indexes remain index-only within
     // the synchronous analytics API budget. PARALLEL 0 fits the container's
     // deliberately small /dev/shm allocation.
-    await pool.query("VACUUM (ANALYZE, PARALLEL 0) analitik_usaha_current");
+    await pool.query(`VACUUM (ANALYZE, PARALLEL 0) "${generationPartitionName(generationId)}"`);
     await pool.query("VACUUM (ANALYZE, PARALLEL 0) analitik_dim_aggregate");
     // Atomic promotion + legacy snapshot refresh in single transaction
     // This ensures one publish yields same generation/dataAsOf across all four surfaces
-    await withTransaction(pool, async (client) => {
-      const old = (await client.query(`SELECT active_generation_id FROM analitik_active_generation WHERE id=1 FOR UPDATE`)).rows[0]?.active_generation_id;
+    const promotion = await withTransaction(pool, async (client) => {
+      const pointer = (await client.query(`SELECT active_generation_id,previous_generation_id FROM analitik_active_generation WHERE id=1 FOR UPDATE`)).rows[0] || {};
+      const old = pointer.active_generation_id;
+      const retired = pointer.previous_generation_id;
       if (old) await client.query(`UPDATE analitik_generation SET status='previous' WHERE id=$1`, [old]);
+      if (retired && retired !== old) await client.query(`UPDATE analitik_generation SET status='failed',error_code='SUPERSEDED',error_message='Superseded previous generation' WHERE id=$1`, [retired]);
       await client.query(`UPDATE analitik_generation SET status='active',reconciled_at=NOW(),reconciliation_status='passed',data_as_of=$2 WHERE id=$1`, [generationId, dataAsOf]);
       await client.query(`UPDATE analitik_active_generation SET active_generation_id=$1,previous_generation_id=$2,updated_at=NOW() WHERE id=1`, [generationId, old]);
       // Legacy compatibility snapshot – MUST succeed or promotion rolls back
       await refreshLegacySnapshots(client, dataAsOf);
+      return { retired };
     });
+    promoted = true;
+    if (promotion.retired && promotion.retired !== generationId) {
+      await cleanupOldGenerations(pool, { retentionHours: 0 }).catch((error) => logger?.error("generation_cleanup_failed", { errorCode: error.code || "CLEANUP_FAILED" }));
+    }
     logger?.info("generation_promoted", { generationId, rowCount: finalCount, activeCount, archivedCount, statementCount: `batches~${Math.ceil(finalCount/50000)}` });
     return { generationId, rowCount: finalCount, activeCount, archivedCount, promoted: true, dataAsOf };
-  } catch (error) { if (generationId) await pool.query(`UPDATE analitik_generation SET status='failed',reconciliation_status='failed',error_code=$2,error_message='Candidate failed; last-good retained' WHERE id=$1`, [generationId, String(error.code || "REBUILD_FAILED").slice(0,80)]).catch(() => {}); logger?.error("generation_failed", { generationId, errorCode: error.code || "REBUILD_FAILED" }); throw error; } finally { await pool.query("SELECT pg_advisory_unlock(hashtext('diskuk.analytics.rebuild'))").catch(() => {}); }
+  } catch (error) { if (generationId && !promoted) { await discardGenerationProjection(pool, generationId).catch(() => {}); await pool.query(`UPDATE analitik_generation SET status='failed',reconciliation_status='failed',error_code=$2,error_message='Candidate failed; last-good retained' WHERE id=$1`, [generationId, String(error.code || "REBUILD_FAILED").slice(0,80)]).catch(() => {}); } logger?.error("generation_failed", { generationId, errorCode: error.code || "REBUILD_FAILED" }); throw error; } finally { await pool.query("SELECT pg_advisory_unlock(hashtext('diskuk.analytics.rebuild'))").catch(() => {}); }
 }
 
 export async function cleanupOldGenerations(pool, { retentionHours = 24, limit = 10 } = {}) {
-  const result = await pool.query(`WITH eligible AS (
-    SELECT g.id FROM analitik_generation g
+  if (!await parentIsPartitioned(pool)) return { deleted: 0, skipped: "not_partitioned" };
+  const result = await pool.query(`SELECT g.id FROM analitik_generation g
     LEFT JOIN analitik_active_generation p ON p.active_generation_id=g.id OR p.previous_generation_id=g.id
     WHERE p.id IS NULL AND g.status NOT IN ('active','previous')
       AND g.created_at < NOW() - make_interval(hours => $1)
       AND NOT EXISTS (SELECT 1 FROM analitik_job j WHERE COALESCE(j.request,'{}')::text LIKE '%' || g.id::text || '%' OR COALESCE(j.checkpoint,'{}')::text LIKE '%' || g.id::text || '%')
       AND NOT EXISTS (SELECT 1 FROM analitik_health h WHERE COALESCE(h.check_data,'{}')::text LIKE '%' || g.id::text || '%')
-    ORDER BY g.created_at ASC LIMIT $2
-  ) DELETE FROM analitik_generation g USING eligible e WHERE g.id=e.id RETURNING g.id`, [retentionHours, limit]);
-  return { deleted: result.rowCount || 0 };
+    ORDER BY g.created_at ASC LIMIT $2`, [retentionHours, limit]);
+  let deleted = 0;
+  for (const row of result.rows) {
+    deleted += await withTransaction(pool, async (client) => {
+      const pointer = (await client.query(`SELECT active_generation_id,previous_generation_id FROM analitik_active_generation WHERE id=1 FOR UPDATE`)).rows[0] || {};
+      if (row.id === pointer.active_generation_id || row.id === pointer.previous_generation_id) return 0;
+      const generation = await client.query(`SELECT status,created_at FROM analitik_generation WHERE id=$1 FOR UPDATE`, [row.id]);
+      if (!generation.rowCount || ["active", "previous"].includes(generation.rows[0].status)) return 0;
+      await discardGenerationProjection(client, row.id);
+      const removed = await client.query(`DELETE FROM analitik_generation WHERE id=$1`, [row.id]);
+      return removed.rowCount || 0;
+    });
+  }
+  return { deleted };
 }
