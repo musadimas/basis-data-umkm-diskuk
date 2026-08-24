@@ -31,6 +31,22 @@ test.describe("canvas analitik", () => {
     await expect.poll(() => queryRequests.length).toBeGreaterThan(beforeApply);
     expect(new URL(page.url()).search).not.toMatch(/nik|phone|telepon|record/i);
   });
+  test("visual selection lives on the canvas and remains a draft until applied", async ({
+    page,
+  }) => {
+    await installMockDirectus(page, { authenticated: true });
+    await loginMock(page, "/dashboard/analitik");
+    const initialUrl = page.url();
+    await expect(page.getByLabel("Ganti visual")).toBeVisible();
+    await expect(page.getByLabel("Tampilan")).toHaveCount(0);
+    await page.getByLabel("Ganti visual").selectOption("donut");
+    await expect(
+      page.getByRole("heading", { name: "Visualisasi donat" }),
+    ).toBeVisible();
+    expect(page.url()).toBe(initialUrl);
+    await page.getByRole("button", { name: "Terapkan" }).click();
+    await expect.poll(() => new URL(page.url()).search).toContain("visual=donut");
+  });
   test("keyboard and table alternative are present on mobile", async ({
     page,
   }) => {

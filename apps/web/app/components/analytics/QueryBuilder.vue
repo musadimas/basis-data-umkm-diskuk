@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { AnalyticsField, AnalysisConfig, AnalyticsFilter, AnalyticsVisual } from "~/types/analytics"
+import type { AnalyticsField, AnalysisConfig, AnalyticsFilter } from "~/types/analytics"
 import { filterConfigFor, operatorsFor, type FilterOption } from "~/lib/analytics-filters"
 
 const props = defineProps<{ fields: AnalyticsField[]; modelValue: AnalysisConfig; dirty?: boolean }>()
@@ -41,17 +41,6 @@ const dimensionGroups = computed(() => {
   }
   return [...groups.entries()].map(([key, fields]) => ({ key, label: GROUP_LABELS[key], fields }))
 })
-const metricGroupLabel = computed(() => (metrics.value[0] ? GROUP_LABELS[groupKey(metrics.value[0]!)] : "Metrik resmi"))
-
-const visuals: Array<{ value: AnalyticsVisual; label: string }> = [
-  { value: "bar", label: "Batang" },
-  { value: "stacked", label: "Batang bertumpuk" },
-  { value: "donut", label: "Donat" },
-  { value: "histogram", label: "Histogram" },
-  { value: "choropleth", label: "Peta" },
-  { value: "table", label: "Tabel" },
-]
-
 const filterField = ref("")
 const filterValue = ref("")
 const filterOperator = ref<AnalyticsFilter["operator"]>("eq")
@@ -198,18 +187,6 @@ function addFilter() {
           <optgroup v-for="group in dimensionGroups" :key="group.key" :label="group.label">
             <option v-for="field in group.fields" :key="field.key" :value="field.key" :disabled="field.key === modelValue.groupBy">{{ field.label }}</option>
           </optgroup>
-        </select>
-      </label>
-
-      <label class="flex flex-col gap-0.5 text-[11px] font-semibold text-muted-foreground">
-        Tampilan
-        <select
-          aria-label="Tampilan"
-          class="h-8 w-full rounded-md border bg-background px-2 text-sm font-normal text-foreground"
-          :value="modelValue.visual"
-          @change="patch($event, 'visual')"
-        >
-          <option v-for="visual in visuals" :key="visual.value" :value="visual.value">{{ visual.label }}</option>
         </select>
       </label>
 

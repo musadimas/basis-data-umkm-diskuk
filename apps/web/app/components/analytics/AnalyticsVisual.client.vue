@@ -13,13 +13,26 @@ const props = defineProps<{
   /** Ikuti config.includeOthers: false = jangan agregasi “Lainnya” di klien. */
   includeOthers?: boolean
 }>()
-const emit = defineEmits<{ select: [group: AnalyticsGroup]; clearSelect: []; "update:tableOpen": [open: boolean] }>()
+const emit = defineEmits<{
+  select: [group: AnalyticsGroup]
+  clearSelect: []
+  "update:tableOpen": [open: boolean]
+  "update:visual": [visual: AnalyticsVisual]
+}>()
 
 const CHART_LIMIT = 20
 /** ux-spec §7: donut hanya untuk part-to-whole dengan maksimal 6 kategori. */
 const DONUT_LIMIT = 6
 const BAR_SLOT_HEIGHT = 22
 const SERIES_COLORS = ["#059669", "#0d9488", "#0ea5e9", "#7c3aed", "#f59e0b", "#dc2626"]
+const visualOptions: Array<{ value: AnalyticsVisual; label: string }> = [
+  { value: "bar", label: "Batang" },
+  { value: "stacked", label: "Batang bertumpuk" },
+  { value: "donut", label: "Donat" },
+  { value: "histogram", label: "Histogram" },
+  { value: "choropleth", label: "Peta" },
+  { value: "table", label: "Tabel" },
+]
 
 const visualLabel = computed(() => ({
   kpi: "KPI",
@@ -30,6 +43,13 @@ const visualLabel = computed(() => ({
   choropleth: "peta",
   table: "tabel",
 }[props.visual]))
+
+function updateVisual(event: Event) {
+  // SAFETY: handler ini hanya dipasang pada elemen <select> visualisasi.
+  const value = (event.target as HTMLSelectElement).value
+  const option = visualOptions.find((item) => item.value === value)
+  if (option) emit("update:visual", option.value)
+}
 
 /** Groups arrive as flat rows: one row per group, or one row per group+breakdown pair. */
 const seriesKeys = computed(() => {
@@ -313,6 +333,17 @@ const barHeight = computed(() => Math.max(140, chartRows.value.length * BAR_SLOT
         >
           {{ selectedRow.label }} ✕
         </button>
+        <label class="flex items-center gap-1 text-[10px] font-semibold text-muted-foreground">
+          <span class="sr-only">Ganti visual</span>
+          <select
+            aria-label="Ganti visual"
+            class="h-7 max-w-[9rem] rounded-md border bg-background px-1.5 text-[11px] font-semibold text-foreground"
+            :value="visual"
+            @change="updateVisual"
+          >
+            <option v-for="option in visualOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+          </select>
+        </label>
         <button type="button" class="text-xs font-semibold underline" @click="emit('update:tableOpen', !tableOpen)">
           {{ tableOpen ? "Sembunyikan tabel" : "Lihat tabel" }}
         </button>
