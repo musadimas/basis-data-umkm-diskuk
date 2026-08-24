@@ -168,7 +168,7 @@ function clearGroupSelection() { state.removeFilter(applied.groupBy) }
             v-if="response"
             v-model:table-open="tableOpen"
             :groups="groups"
-            :visual="draft.visual"
+            :visual="applied.visual"
             :selected-key="selectedGroupKey"
             :include-others="applied.includeOthers !== false"
             @update:visual="state.setVisual"

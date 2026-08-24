@@ -34,8 +34,7 @@ export function useAnalysisState() {
     }
   }
 
-  function apply() {
-    const next = clone(draft.value)
+  function commit(next: AnalysisConfig) {
     applied.value = next
     warning.value = false
     applying = true
@@ -44,6 +43,7 @@ export function useAnalysisState() {
       applying = false
     }).catch(() => { applying = false })
   }
+  function apply() { commit(clone(draft.value)) }
 
   function reset() { draft.value = clone(defaultAnalysis) }
   function updateDraft(patch: Partial<AnalysisConfig>) {
@@ -55,7 +55,11 @@ export function useAnalysisState() {
   function removeFilter(fieldId: string) {
     draft.value = { ...draft.value, filters: draft.value.filters.filter((item) => item.fieldId !== fieldId) }
   }
-  function setVisual(visual: AnalyticsVisual) { draft.value = { ...draft.value, visual } }
+  /** Visual changes are presentation-only, so apply them without committing other draft controls. */
+  function setVisual(visual: AnalyticsVisual) {
+    draft.value = { ...draft.value, visual }
+    commit(clone({ ...applied.value, visual }))
+  }
   function drillDown(field: string, label: string) {
     draft.value = { ...draft.value, groupBy: field, breakdown: null, cursor: undefined, page: 1 }
     breadcrumbs.value = [...breadcrumbs.value, label].slice(-4)
