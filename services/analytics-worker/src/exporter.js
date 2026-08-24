@@ -74,7 +74,9 @@ export async function queryAggregate(client, config, generationId = null) {
   if (second) select.push(`${second.key} AS breakdown_key`, `${second.label} AS breakdown_label`);
   select.push("COUNT(DISTINCT a.usaha_id)::integer AS value");
   const groupBySql = select.slice(0, second ? 4 : 2).map((_, index) => String(index + 1)).join(", ");
-  const limit = Math.min(Math.max(Number(currentConfig.limit || 20), 1), 20);
+  // Cap payload only: GROUP BY already computes every group, so a generous
+  // bound keeps exports complete (matches QUERY_BUDGET.maxGroups in contracts.cjs).
+  const limit = Math.min(Math.max(Number(currentConfig.limit || 20), 1), 2000);
   const grouped = await client.query(`SELECT ${select.join(", ")} FROM analitik_usaha_current a WHERE ${clauses.join(" AND ")} GROUP BY ${groupBySql} ORDER BY value DESC, group_key ASC LIMIT ${limit + 1}`, params);
   const matched = Number((await client.query(`SELECT COUNT(DISTINCT a.usaha_id)::integer AS count FROM analitik_usaha_current a WHERE ${clauses.join(" AND ")}`, params)).rows[0]?.count || 0);
   const rows = grouped.rows.slice(0, limit);
