@@ -34,7 +34,15 @@ const props = withDefaults(defineProps<{
   showRegions?: boolean
   /** Saklar tampil/sembunyi titik UMKM (v-model:show-points). */
   showPoints?: boolean
-}>(), { level: "kota", points: () => [], showRegions: true, showPoints: false });
+  /** Sembunyikan saklar "Titik UMKM" (mis. landing page publik yang tak menampilkan titik). */
+  hidePointsSwitcher?: boolean
+}>(), {
+  level: "kota",
+  points: () => [],
+  showRegions: true,
+  showPoints: false,
+  hidePointsSwitcher: false,
+});
 const emit = defineEmits<{
   select: [region: InfografisRegion];
   "update:showRegions": [value: boolean];
@@ -489,6 +497,7 @@ onBeforeUnmount(() => {
         <span class="text-slate-700">Wilayah</span>
       </button>
       <button
+        v-if="!hidePointsSwitcher"
         type="button"
         role="switch"
         :aria-checked="showPoints"

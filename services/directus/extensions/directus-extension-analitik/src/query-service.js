@@ -4,8 +4,10 @@ const { compileQuery } = require("./query-compiler.js");
 const { resolveAnalyticsSourceCached } = require("./source-service.js");
 const { QUERY_BUDGET } = require("../../../analytics-shared/contracts.cjs");
 const { loadRegistryCached, __resetRuntimeCachesForTests } = require("./runtime-cache.js");
+const { aggregateCacheKey, getCachedAggregate, setCachedAggregate } = require("./aggregate-cache.js");
 
-// In-process per-user rate + concurrency guard (single Directus instance per plan)
+// Per-user rate + concurrency guard remains in-process; only aggregate responses
+// are shared through Redis.
 // 30 req/min/user, 2 concurrent queries/user
 const rateWindowMs = 60_000;
 const maxPerMinute = 30;
@@ -56,6 +58,7 @@ function rowKey(row) { return `${row.group_key}|${row.breakdown_key ?? ""}`; }
 async function querySnapshot(database, source, plan) {
   if (
     source.kind !== "snapshot"
+    || plan.metricKey !== "jumlah_umkm"
     || plan.breakdown
     || plan.normalized.filters.length
   ) return null;
@@ -92,7 +95,8 @@ async function querySnapshot(database, source, plan) {
   return {
     meta: baseMeta({ dataAsOf: source.dataAsOf, status: source.status, population, matched: population, coverage: { matched: population, total: population, unknown }, warnings: source.warnings }),
     data: {
-      metric: { key: plan.metricKey, label: plan.metric.label, aggregation: "count_distinct" },
+      metric: { key: plan.metricKey, label: plan.metric.label, aggregation: plan.metric.aggregation, unit: plan.metric.unit },
+      total: population,
       groups,
       normalizedFilters: plan.normalized,
       conservedTotal: groups.reduce((sum, group) => sum + group.value, 0) === population,
@@ -103,6 +107,7 @@ async function querySnapshot(database, source, plan) {
 async function queryGenerationAggregate(database, source, plan) {
   if (
     source.kind !== "generation"
+    || plan.metricKey !== "jumlah_umkm"
     || plan.breakdown
     || plan.normalized.filters.length
     || !["kota_id", "kota_kode", "kota_nama", "skala_dilaporkan"].includes(plan.semantic)
@@ -141,29 +146,32 @@ async function queryGenerationAggregate(database, source, plan) {
 
 // Shared shaping for generation-model responses (single-scan path and the
 // per-generation rollup fast path below).
-function finalizeGenerationGroups({ rows, plan, source, matched, population }) {
-  const overflow = rows.length > plan.limit ? rows.slice(plan.limit) : [];
-  const limited = rows.slice(0, plan.limit);
+function finalizeGenerationGroups({ rows, plan, source, matched, population, metricTotal = matched, missing = 0, needsVerification = 0 }) {
+  const sorted = [...rows].sort((left, right) => Number(right.value || 0) - Number(left.value || 0) || String(left.group_key).localeCompare(String(right.group_key)));
+  const overflow = sorted.length > plan.limit ? sorted.slice(plan.limit) : [];
+  const limited = sorted.slice(0, plan.limit);
   const overflowValue = overflow.reduce((sum, row) => sum + Number(row.value || 0), 0);
   const groups = limited.map((row) => {
     const group = {
       key: String(row.group_key),
       label: row.group_label || "Tidak diketahui",
       value: Number(row.value || 0),
-      share: matched ? Number((Number(row.value || 0) * 100 / matched).toFixed(1)) : 0,
+      share: metricTotal ? Number((Number(row.value || 0) * 100 / metricTotal).toFixed(1)) : 0,
     };
     if (plan.breakdown) group.breakdown = { key: String(row.breakdown_key), label: row.breakdown_label || "Tidak diketahui" };
     return group;
   });
-  if (overflowValue && plan.includeOthers) groups.push({ key: "others", label: "Lainnya", value: overflowValue, share: matched ? Number((overflowValue * 100 / matched).toFixed(1)) : 0 });
-  const unknown = groups.filter((group) => group.key === "unknown" || group.label === "Tidak diketahui" || group.label === "Tidak ada kode" || group.label === "Tidak terpetakan").reduce((sum, group) => sum + group.value, 0);
+  if (overflowValue && plan.includeOthers) groups.push({ key: "others", label: "Lainnya", value: overflowValue, share: metricTotal ? Number((overflowValue * 100 / metricTotal).toFixed(1)) : 0 });
+  const unknown = plan.metric.unit === "usaha" ? groups.filter((group) => group.key === "unknown" || group.label === "Tidak diketahui" || group.label === "Tidak ada kode" || group.label === "Tidak terpetakan").reduce((sum, group) => sum + group.value, 0) : 0;
+  const coverageTotal = plan.metric.unit === "usaha" ? population : matched + missing + needsVerification;
   return {
-    meta: baseMeta({ dataAsOf: source.dataAsOf, status: source.status, population, matched, coverage: { matched, total: population, unknown }, warnings: source.warnings }),
+    meta: baseMeta({ dataAsOf: source.dataAsOf, status: source.status, population, matched, coverage: { matched, total: coverageTotal, unknown, missing, needsVerification }, warnings: source.warnings }),
     data: {
-      metric: { key: plan.metricKey, label: plan.metric.label, aggregation: "count_distinct" },
+      metric: { key: plan.metricKey, label: plan.metric.label, aggregation: plan.metric.aggregation, unit: plan.metric.unit },
+      total: metricTotal,
       groups,
       normalizedFilters: plan.normalized,
-      conservedTotal: groups.reduce((sum, group) => sum + group.value, 0) === matched,
+      conservedTotal: groups.reduce((sum, group) => sum + group.value, 0) === metricTotal,
     },
   };
 }
@@ -177,16 +185,25 @@ const ROLLUP_DIMENSIONS = new Set([
   "kelurahan_id", "kelurahan_nama", "sektor_kbli", "kbli_kode",
   "skala_dilaporkan", "status_hukum", "status_usaha", "quality_geography", "quality_kbli",
 ]);
+const ROLLUP_METRICS = Object.freeze({
+  jumlah_umkm: { value: "value", matched: "value", missing: "0", needsVerification: "0" },
+  omzet_tahunan: { value: "omzet_value", matched: "omzet_matched", missing: "omzet_missing", needsVerification: "omzet_needs_verification" },
+  total_aset: { value: "aset_value", matched: "aset_matched", missing: "aset_missing", needsVerification: "aset_needs_verification" },
+});
+
+function rollupSelect(column) { return `SUM(CASE WHEN status='archived' THEN 0 ELSE ${column} END)`; }
 
 async function queryGenerationRollup(database, source, plan) {
   if (source.kind !== "generation" || plan.breakdown || plan.normalized.filters.length) return null;
   if (!ROLLUP_DIMENSIONS.has(plan.semantic)) return null;
+  const metric=ROLLUP_METRICS[plan.metricKey];
+  if (!metric) return null;
   let rows;
   try {
     const result = await withBudgetTransaction(database, (trx) => trx.raw(
       // Default scope is active-only: subtract archived counts exactly like
       // the live aggregate path does.
-      `SELECT dimension_value,label,SUM(CASE WHEN status='archived' THEN 0 ELSE value END)::bigint AS value FROM analitik_dim_aggregate WHERE generation_id=? AND dimension=? GROUP BY dimension_value,label`,
+      `SELECT dimension_value,label,${rollupSelect(metric.value)} AS value,${rollupSelect(metric.matched)}::bigint AS matched,${rollupSelect(metric.missing)}::bigint AS missing,${rollupSelect(metric.needsVerification)}::bigint AS needs_verification FROM analitik_dim_aggregate WHERE generation_id=? AND dimension=? GROUP BY dimension_value,label`,
       [source.generationId, plan.semantic]));
     rows = result.rows ?? [];
   } catch (error) {
@@ -195,15 +212,21 @@ async function queryGenerationRollup(database, source, plan) {
     throw error;
   }
   if (!rows.length) return null; // generation predates rollup population – fall through
-  const groups = rows.map((row) => ({ group_key: row.dimension_value, group_label: row.label, value: Number(row.value || 0) }));
-  const matched = groups.reduce((sum, group) => sum + group.value, 0);
+  const matched = rows.reduce((sum, row) => sum + Number(row.matched ?? (plan.metricKey === "jumlah_umkm" ? row.value : 0)), 0);
+  const missing = rows.reduce((sum, row) => sum + Number(row.missing || 0), 0);
+  const needsVerification = rows.reduce((sum, row) => sum + Number(row.needs_verification || 0), 0);
+  if (plan.metricKey !== "jumlah_umkm" && matched + missing + needsVerification === 0) return null; // financial columns await the next rebuilt generation
+  const groups = rows.filter((row) => Number(row.matched ?? (plan.metricKey === "jumlah_umkm" ? row.value : 0)) > 0).map((row) => ({ group_key: row.dimension_value, group_label: row.label, value: Number(row.value || 0) }));
+  const metricTotal = groups.reduce((sum, group) => sum + group.value, 0);
   const population = source.activeRowCount != null ? source.activeRowCount : matched;
-  return finalizeGenerationGroups({ rows: groups, plan, source, matched, population });
+  return finalizeGenerationGroups({ rows: groups, plan, source, matched, population, metricTotal, missing, needsVerification });
 }
 
 async function queryGenerationScaleRollup(database, source, plan) {
   if (source.kind !== "generation" || plan.breakdown || plan.normalized.filters.length !== 1) return null;
   if (plan.filterSemantics[0] !== "skala_dilaporkan" || !ROLLUP_DIMENSIONS.has(plan.semantic)) return null;
+  const metric=ROLLUP_METRICS[plan.metricKey];
+  if (!metric) return null;
   const filter = plan.normalized.filters[0];
   const values = filter.operator === "in" ? filter.value : (filter.operator || "eq") === "eq" ? [filter.value] : [];
   if (!Array.isArray(values) || !values.length || !values.every((value) => ["micro","small","medium","unknown"].includes(String(value)))) return null;
@@ -211,7 +234,7 @@ async function queryGenerationScaleRollup(database, source, plan) {
   let rows;
   try {
     const result = await withBudgetTransaction(database, (trx) => trx.raw(
-      `SELECT dimension_value,label,SUM(CASE WHEN status='archived' THEN 0 ELSE value END)::bigint AS value
+      `SELECT dimension_value,label,${rollupSelect(metric.value)} AS value,${rollupSelect(metric.matched)}::bigint AS matched,${rollupSelect(metric.missing)}::bigint AS missing,${rollupSelect(metric.needsVerification)}::bigint AS needs_verification
        FROM analitik_dim_aggregate
        WHERE generation_id=? AND dimension=ANY(?::text[])
        GROUP BY dimension_value,label
@@ -223,10 +246,14 @@ async function queryGenerationScaleRollup(database, source, plan) {
     throw error;
   }
   if (!rows.length) return null;
-  const groups = rows.map((row) => ({ group_key: row.dimension_value, group_label: row.label, value: Number(row.value || 0) }));
-  const matched = groups.reduce((sum, group) => sum + group.value, 0);
+  const matched = rows.reduce((sum, row) => sum + Number(row.matched ?? (plan.metricKey === "jumlah_umkm" ? row.value : 0)), 0);
+  const missing = rows.reduce((sum, row) => sum + Number(row.missing || 0), 0);
+  const needsVerification = rows.reduce((sum, row) => sum + Number(row.needs_verification || 0), 0);
+  if (plan.metricKey !== "jumlah_umkm" && matched + missing + needsVerification === 0) return null;
+  const groups = rows.filter((row) => Number(row.matched ?? (plan.metricKey === "jumlah_umkm" ? row.value : 0)) > 0).map((row) => ({ group_key: row.dimension_value, group_label: row.label, value: Number(row.value || 0) }));
+  const metricTotal = groups.reduce((sum, group) => sum + group.value, 0);
   const population = source.activeRowCount != null ? source.activeRowCount : matched;
-  return finalizeGenerationGroups({ rows: groups, plan, source, matched, population });
+  return finalizeGenerationGroups({ rows: groups, plan, source, matched, population, metricTotal, missing, needsVerification });
 }
 
 async function withBudgetTransaction(database, fn) {
@@ -245,7 +272,7 @@ async function withBudgetTransaction(database, fn) {
 
 async function queryAnalytics(database, request, opts = {}) {
   const user = opts.user || request?.user || null;
-  // Rate + concurrency guards (in-process, per plan single instance without Redis)
+  // Rate + concurrency guards remain ahead of cache reads, so hits cannot bypass protection.
   if (user) {
     checkRateLimit(String(user));
   }
@@ -255,29 +282,44 @@ async function queryAnalytics(database, request, opts = {}) {
     if (!source) throw new AnalyticsApiError(503, "NO_PUBLISHED_SNAPSHOT", "Data sedang disiapkan. Silakan coba lagi.");
     const registry = await loadRegistryCached(database);
     const plan = compileQuery(request, registry);
+    if (source.kind === "snapshot" && plan.metricKey !== "jumlah_umkm") throw new AnalyticsApiError(409, "FIELD_UNAVAILABLE", "Metrik finansial menunggu read-model analitik aktif.");
+    const cacheKey = aggregateCacheKey({ source, plan, registry, permissionScope: opts.permissionScope || "application" });
+    const cachedResponse = await getCachedAggregate(cacheKey);
+    if (cachedResponse) return cachedResponse;
     const snapshotResponse = await querySnapshot(database, source, plan) ?? await queryGenerationRollup(database, source, plan) ?? await queryGenerationScaleRollup(database, source, plan) ?? await queryGenerationAggregate(database, source, plan);
-    if (snapshotResponse) return snapshotResponse;
+    if (snapshotResponse) return setCachedAggregate(cacheKey, snapshotResponse);
     const scopedWhere = `${source.scopeSql} AND ${plan.whereSql}`;
     const params = [...source.scopeParams, ...plan.params];
 
     let rows;
     let matched;
+    let missing;
+    let needsVerification;
+    let metricTotal;
     try {
-      // Single scan serves both the GROUP BY and the exact matched total:
-      // SUM(COUNT(*)) OVER () folds COUNT(*) across every group of the same
-      // WHERE pass, halving fact-table I/O versus the previous two statements.
-      // COUNT(*) is safe for the generation model (PK guarantees 1 row per usaha).
+      // One grouped scan returns metric values and explicit financial quality
+      // coverage. NULL/invalid values never become zero-valued observations.
       const orderSql = plan.breakdown ? "value DESC, group_key ASC, breakdown_key ASC" : "value DESC, group_key ASC";
       rows = (await withBudgetTransaction(database, async (trx) => (await trx.raw(`
-        SELECT group_key, group_label${plan.breakdown ? ", breakdown_key, breakdown_label" : ""}, value::integer AS value, matched::integer AS matched FROM (
-          SELECT ${plan.aggregateSelectSql}, COUNT(*)::bigint AS value, SUM(COUNT(*)) OVER ()::bigint AS matched
+        SELECT group_key, group_label${plan.breakdown ? ", breakdown_key, breakdown_label" : ""}, value, eligible::integer AS eligible, matched::integer AS matched, missing::integer AS missing, needs_verification::integer AS needs_verification, metric_total FROM (
+          SELECT ${plan.aggregateSelectSql}, ${plan.metric.sql} AS value,
+            ${plan.metric.eligibleSql} AS eligible,
+            SUM(${plan.metric.eligibleSql}) OVER ()::bigint AS matched,
+            SUM(${plan.metric.missingSql}) OVER ()::bigint AS missing,
+            SUM(${plan.metric.needsVerificationSql}) OVER ()::bigint AS needs_verification,
+            SUM(${plan.metric.sql}) OVER () AS metric_total
           FROM ${source.fromSql} WHERE ${scopedWhere}
           GROUP BY ${plan.groupBySql}
         ) g
+        WHERE eligible > 0 OR matched = 0
         ORDER BY ${orderSql}
         LIMIT ?
       `, [...params, plan.limit + 1])).rows ?? []));
       matched = Number(rows[0]?.matched ?? 0);
+      missing = Number(rows[0]?.missing ?? 0);
+      needsVerification = Number(rows[0]?.needs_verification ?? 0);
+      metricTotal = Number(rows[0]?.metric_total ?? 0);
+      if (plan.metricKey !== "jumlah_umkm") rows = rows.filter((row) => Number(row.eligible || 0) > 0);
     } catch (error) {
       if (error?.code === "57014" || error?.code === "55P03" || error instanceof AnalyticsApiError && error.code === "QUERY_TIMEOUT") throw new AnalyticsApiError(504, "QUERY_TIMEOUT", "Query melebihi batas waktu. Coba filter yang lebih spesifik.");
       if (error instanceof AnalyticsApiError) throw error;
@@ -341,7 +383,7 @@ async function queryAnalytics(database, request, opts = {}) {
       }
     }
 
-    return finalizeGenerationGroups({ rows, plan, source, matched, population });
+    return setCachedAggregate(cacheKey, finalizeGenerationGroups({ rows, plan, source, matched, population, metricTotal, missing, needsVerification }));
   } finally {
     releaseConcurrency();
   }

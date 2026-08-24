@@ -18,6 +18,11 @@ const DIMENSIONS = Object.freeze({
   quality_kbli: { key: "CASE WHEN a.kode_kbli IS NULL THEN 'missing' WHEN a.sektor_kbli IS NULL THEN 'unmapped' ELSE 'mapped' END", label: "CASE WHEN a.kode_kbli IS NULL THEN 'Tidak ada kode' WHEN a.sektor_kbli IS NULL THEN 'Tidak terpetakan' ELSE 'Terpetakan' END" },
 });
 const FILTER_KEYS = Object.freeze(Object.fromEntries(Object.entries(DIMENSIONS).map(([key, value]) => [key, value.key])));
+const METRICS = Object.freeze({
+  jumlah_umkm: { sql: "COUNT(*)", eligible: "COUNT(*)", missing: "0::bigint", needsVerification: "0::bigint", label: "Jumlah UMKM", aggregation: "count_distinct", unit: "usaha" },
+  omzet_tahunan: { sql: "COALESCE(SUM(a.omzet_tahunan) FILTER (WHERE a.omzet_quality='reported'),0)", eligible: "COUNT(*) FILTER (WHERE a.omzet_quality='reported')", missing: "COUNT(*) FILTER (WHERE a.omzet_quality='missing')", needsVerification: "COUNT(*) FILTER (WHERE a.omzet_quality='needs_verification')", label: "Total omzet tahunan dilaporkan", aggregation: "sum", unit: "IDR" },
+  total_aset: { sql: "COALESCE(SUM(a.total_aset) FILTER (WHERE a.aset_quality='reported'),0)", eligible: "COUNT(*) FILTER (WHERE a.aset_quality='reported')", missing: "COUNT(*) FILTER (WHERE a.aset_quality='missing')", needsVerification: "COUNT(*) FILTER (WHERE a.aset_quality='needs_verification')", label: "Total aset dilaporkan", aggregation: "sum", unit: "IDR" },
+});
 function identifier(value) { return typeof value === "string" && Object.hasOwn(DIMENSIONS, value) ? value : null; }
 export function csvCell(value) {
   const text = value === null || value === undefined ? "" : String(value);
@@ -25,8 +30,8 @@ export function csvCell(value) {
   return /[",\r\n]/.test(safe) ? `"${safe.replaceAll('"', '""')}"` : safe;
 }
 export function csvRow(values) { return values.map(csvCell).join(",") + "\r\n"; }
-export function aggregateCsv({ groups = [], meta = {}, title = "Analitik UMKM" } = {}) {
-  const header = "\ufeff" + csvRow(["Kelompok", "Jumlah UMKM", "Bagian dari total terfilter"]);
+export function aggregateCsv({ groups = [], meta = {}, metric = {}, title = "Analitik UMKM" } = {}) {
+  const header = "\ufeff" + csvRow(["Kelompok", metric.label || "Jumlah UMKM", "Bagian dari total terfilter"]);
   const body = groups.map((group) => csvRow([group.label, group.value, `${group.share || 0}%`])).join("");
   return header + csvRow(["Judul", title]) + csvRow(["Data per", meta.dataAsOf || "Belum tersedia"]) + body;
 }
@@ -61,6 +66,8 @@ export async function activeGenerationId(client) {
 }
 export async function queryAggregate(client, config, generationId = null) {
   const currentConfig = configOf({ config });
+  const metricKey = typeof currentConfig.metric === "string" ? currentConfig.metric : currentConfig.metric?.key || currentConfig.metric?.fieldId || "jumlah_umkm";
+  const metric = METRICS[metricKey]; if (!metric) throw Object.assign(new Error("METRIC_NOT_ALLOWED"), { code: "INVALID_ANALYSIS_CONFIG" });
   const groupBy = identifier(currentConfig.groupBy || "kota_nama"); if (!groupBy) throw Object.assign(new Error("GROUP_NOT_ALLOWED"), { code: "INVALID_ANALYSIS_CONFIG" });
   const breakdown = currentConfig.breakdown ? identifier(currentConfig.breakdown) : null;
   if (currentConfig.breakdown && !breakdown) throw Object.assign(new Error("BREAKDOWN_NOT_ALLOWED"), { code: "INVALID_ANALYSIS_CONFIG" });
@@ -72,24 +79,26 @@ export async function queryAggregate(client, config, generationId = null) {
   const second = breakdown ? DIMENSIONS[breakdown] : null;
   const select = [`${first.key} AS group_key`, `${first.label} AS group_label`];
   if (second) select.push(`${second.key} AS breakdown_key`, `${second.label} AS breakdown_label`);
-  select.push("COUNT(DISTINCT a.usaha_id)::integer AS value");
+  select.push(`${metric.sql} AS value`, `${metric.eligible} AS eligible`);
   const groupBySql = select.slice(0, second ? 4 : 2).map((_, index) => String(index + 1)).join(", ");
   // Cap payload only: GROUP BY already computes every group, so a generous
   // bound keeps exports complete (matches QUERY_BUDGET.maxGroups in contracts.cjs).
   const limit = Math.min(Math.max(Number(currentConfig.limit || 20), 1), 2000);
-  const grouped = await client.query(`SELECT ${select.join(", ")} FROM analitik_usaha_current a WHERE ${clauses.join(" AND ")} GROUP BY ${groupBySql} ORDER BY value DESC, group_key ASC LIMIT ${limit + 1}`, params);
-  const matched = Number((await client.query(`SELECT COUNT(DISTINCT a.usaha_id)::integer AS count FROM analitik_usaha_current a WHERE ${clauses.join(" AND ")}`, params)).rows[0]?.count || 0);
+  const grouped = await client.query(`SELECT * FROM (SELECT ${select.join(", ")} FROM analitik_usaha_current a WHERE ${clauses.join(" AND ")} GROUP BY ${groupBySql}) grouped WHERE eligible>0 ORDER BY value DESC, group_key ASC LIMIT ${limit + 1}`, params);
+  const coverage = (await client.query(`SELECT COUNT(*)::integer AS total,(${metric.eligible})::integer AS matched,(${metric.missing})::integer AS missing,(${metric.needsVerification})::integer AS needs_verification,${metric.sql} AS metric_total FROM analitik_usaha_current a WHERE ${clauses.join(" AND ")}`, params)).rows[0] || {};
+  const matched = Number(coverage.matched || 0);
+  const metricTotal = Number(coverage.metric_total || 0);
   const rows = grouped.rows.slice(0, limit);
   const overflow = grouped.rows.slice(limit).reduce((sum, row) => sum + Number(row.value || 0), 0);
   const groups = rows.map((row) => {
-    const group = { key: row.group_key, label: row.group_label || "Tidak diketahui", value: Number(row.value || 0), share: matched ? Number((Number(row.value || 0) * 100 / matched).toFixed(1)) : 0 };
+    const group = { key: row.group_key, label: row.group_label || "Tidak diketahui", value: Number(row.value || 0), share: metricTotal ? Number((Number(row.value || 0) * 100 / metricTotal).toFixed(1)) : 0 };
     if (second) group.breakdown = { key: row.breakdown_key, label: row.breakdown_label || "Tidak diketahui" };
     return group;
   });
-  if (overflow && currentConfig.includeOthers !== false) groups.push({ key: "others", label: "Lainnya", value: overflow, share: matched ? Number((overflow * 100 / matched).toFixed(1)) : 0 });
+  if (overflow && currentConfig.includeOthers !== false) groups.push({ key: "others", label: "Lainnya", value: overflow, share: metricTotal ? Number((overflow * 100 / metricTotal).toFixed(1)) : 0 });
   const generationRow = (await client.query("SELECT data_as_of FROM analitik_generation WHERE id=$1", [generation])).rows[0];
   const dataAsOf = generationRow?.data_as_of || null;
-  return { meta: { schemaVersion: 1, dataAsOf, generatedAt: new Date().toISOString(), status: "current", source: "Current state UMKM aktif Jawa Barat", population: matched, matched, coverage: { matched, total: matched, unknown: groups.filter((group) => group.key === "unknown" || group.label === "Tidak diketahui" || group.label === "Tidak ada kode" || group.label === "Tidak terpetakan").reduce((sum, group) => sum + group.value, 0) }, warnings: [], maskingVersion: 1 }, data: { metric: { key: currentConfig.metric || "jumlah_umkm", label: "Jumlah UMKM", aggregation: "count_distinct" }, groups } };
+  return { meta: { schemaVersion: 1, dataAsOf, generatedAt: new Date().toISOString(), status: "current", source: "Current state UMKM aktif Jawa Barat", population: Number(coverage.total || 0), matched, coverage: { matched, total: Number(coverage.total || 0), missing: Number(coverage.missing || 0), needsVerification: Number(coverage.needs_verification || 0), unknown: metric.unit === "usaha" ? groups.filter((group) => group.key === "unknown" || group.label === "Tidak diketahui" || group.label === "Tidak ada kode" || group.label === "Tidak terpetakan").reduce((sum, group) => sum + group.value, 0) : 0 }, warnings: [], maskingVersion: 1 }, data: { metric: { key: metricKey, label: metric.label, aggregation: metric.aggregation, unit: metric.unit }, total: metricTotal, groups } };
 }
 
 async function profilePdf(client, profileId, generationId) {
@@ -110,7 +119,7 @@ export async function processExport(client, job, { store = createObjectStore(), 
   const generationId = request.generationId || await activeGenerationId(client);
   if (type === "aggregate_csv" || type === "aggregate_png" || type === "aggregate_pdf") {
     const result = request.result || await queryAggregate(client, request.config || request, generationId);
-    if (type === "aggregate_csv") artifact = Buffer.from(aggregateCsv({ ...result, title: request.title || "Analitik UMKM" }));
+    if (type === "aggregate_csv") artifact = Buffer.from(aggregateCsv({ groups: result.data.groups, metric: result.data.metric, meta: result.meta, title: request.title || "Analitik UMKM" }));
     else {
       const render = renderAggregateFn || ((await import("./export-renderer.js")).renderAggregate);
       const rendered = render({ title: request.title || "Analitik UMKM", groups: result.data.groups, meta: result.meta });

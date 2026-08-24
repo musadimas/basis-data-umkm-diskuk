@@ -1,53 +1,86 @@
+<!--
+  Peta sebaran UMKM Jawa Barat di landing page.
+  Memakai ulang komponen peta yang sama persis dengan dashboard
+  (DashboardMapChoropleth) plus endpoint data yang sama (/panel/infografis/map),
+  agar representasi sebaran konsisten di kedua tempat. Poligon bisa diklik untuk
+  drill-down wilayah (kab/kota → kecamatan → kelurahan) dengan breadcrumb
+  kembali, mengikuti pola yang sama dengan dashboard; saklar "Titik UMKM"
+  disembunyikan karena halaman publik tidak menampilkan titik. Data di-fetch di
+  sisi klien (server:false) supaya render server halaman publik tidak
+  terpengaruh ketentuan sesi endpoint /panel.
+-->
 <script setup lang="ts">
 import gsap from "gsap";
-import { MapPin, RefreshCcw, Search } from "@lucide/vue";
-
-const kabupatenKota = [
-  "Kab. Bandung",
-  "Kab. Bandung Barat",
-  "Kab. Bekasi",
-  "Kab. Bogor",
-  "Kab. Ciamis",
-  "Kab. Cianjur",
-  "Kab. Cirebon",
-  "Kab. Garut",
-  "Kab. Indramayu",
-  "Kab. Karawang",
-  "Kab. Kuningan",
-  "Kab. Majalengka",
-  "Kab. Pangandaran",
-  "Kab. Purwakarta",
-  "Kab. Subang",
-  "Kab. Sukabumi",
-  "Kab. Sumedang",
-  "Kab. Tasikmalaya",
-  "Kota Bandung",
-  "Kota Bekasi",
-  "Kota Bogor",
-  "Kota Cimahi",
-  "Kota Cirebon",
-  "Kota Depok",
-  "Kota Sukabumi",
-  "Kota Tasikmalaya",
-  "Kota Banjar",
-];
-
-const kategori = ["Makanan & Minuman", "Fashion & Tekstil", "Kerajinan & Seni", "Pertanian & Perkebunan", "Jasa & Perdagangan", "Teknologi & Digital"];
+import { MapPin } from "@lucide/vue";
+import type { InfografisRegion } from "~/types/infografis";
 
 const rootRef = useTemplateRef<HTMLElement>("root");
 const headerRef = useTemplateRef<HTMLElement>("header");
 const mapRef = useTemplateRef<HTMLElement>("map");
 let ctx: gsap.Context;
 
-const searchQuery = ref("");
-const selectedKabupaten = ref("");
-const selectedKategori = ref("");
+type LandingMapData = {
+  regions: InfografisRegion[]
+  regionLevel?: "kota" | "kecamatan" | "kelurahan"
+};
 
-function resetFilter() {
-  searchQuery.value = "";
-  selectedKabupaten.value = "";
-  selectedKategori.value = "";
+/** Wilayah yang sedang di-drill-down pada peta (id kosong = level provinsi). */
+const drillKota = ref("");
+const drillKecamatan = ref("");
+const drillKotaName = ref("");
+const drillKecamatanName = ref("");
+
+const mapQuery = computed(() => ({
+  kota: drillKota.value || undefined,
+  kecamatan: drillKecamatan.value || undefined,
+}));
+
+const { data: mapData, status } = await useFetch<{ data: LandingMapData }>(
+  "/panel/infografis/map",
+  { query: mapQuery, server: false },
+);
+
+const regions = computed<InfografisRegion[]>(() => mapData.value?.data?.regions ?? []);
+const level = computed<"kota" | "kecamatan" | "kelurahan">(() =>
+  mapData.value?.data?.regionLevel ?? "kota",
+);
+// Nuxt mempertahankan data lama saat refetch query drill-down, jadi peta tidak berkedip
+// ke state "Memuat" di antara level; fallback hanya muncul saat belum ada data sama sekali.
+const mapReady = computed(() => regions.value.length > 0);
+const hasError = computed(() => status.value === "error" && regions.value.length === 0);
+
+/** Drill-down satu level saat poligon wilayah diklik (berhenti di level kelurahan). */
+function selectRegion(region: InfografisRegion) {
+  if (level.value === "kota") {
+    drillKota.value = region.id;
+    drillKotaName.value = region.name;
+    drillKecamatan.value = "";
+    drillKecamatanName.value = "";
+  } else if (level.value === "kecamatan") {
+    drillKecamatan.value = region.id;
+    drillKecamatanName.value = region.name;
+  }
 }
+
+const canGoBack = computed(() => drillKota.value !== "" || drillKecamatan.value !== "");
+
+function goBack() {
+  if (drillKecamatan.value !== "") {
+    drillKecamatan.value = "";
+    drillKecamatanName.value = "";
+  } else {
+    drillKota.value = "";
+    drillKotaName.value = "";
+  }
+}
+
+/** Jejak breadcrumb wilayah terpilih: Jawa Barat › Kota › Kecamatan. */
+const selectionLabel = computed(() => {
+  const parts = ["Jawa Barat"];
+  if (drillKotaName.value) parts.push(drillKotaName.value);
+  if (drillKecamatanName.value) parts.push(drillKecamatanName.value);
+  return parts.join(" › ");
+});
 
 onMounted(() => {
   ctx = gsap.context(() => {
@@ -81,66 +114,50 @@ onUnmounted(() => ctx?.revert());
           </div>
         </div>
 
-        <!-- Map + search panel -->
+        <!-- Peta (sama dengan dashboard) -->
         <div ref="map" class="col-span-full">
-          <div class="relative -space-y-3 lg:space-y-0">
-            <!-- Map placeholder -->
-            <div class="relative aspect-square size-full overflow-clip rounded-t-xl bg-slate-100 lg:aspect-21/9 lg:rounded-xl" aria-label="Peta sebaran UMKM Jawa Barat — akan segera tersedia">
-              <div class="flex h-full flex-col items-center justify-center gap-3 text-center">
-                <MapPin class="size-4" aria-hidden="true" />
-                <p class="text-sm font-medium text-slate-400">Peta Sebaran UMKM</p>
-                <p class="text-xs text-slate-300">Peta interaktif akan ditampilkan di sini</p>
-              </div>
-              <div class="pointer-events-none absolute inset-0 opacity-[0.04]" style="background-image: radial-gradient(circle, currentColor 1px, transparent 1px); background-size: 24px 24px" aria-hidden="true" />
+          <div class="relative overflow-clip rounded-xl bg-slate-100 ring-1 ring-black/5">
+            <DashboardMapChoropleth
+              v-if="mapReady"
+              :regions="regions"
+              :level="level"
+              :show-regions="true"
+              :show-points="false"
+              :hide-points-switcher="true"
+              @select="selectRegion"
+            />
+
+            <!-- Breadcrumb wilayah: klik untuk kembali satu tingkat drill-down -->
+            <div
+              v-if="mapReady"
+              class="absolute left-3 top-3 z-[6] flex w-fit flex-col gap-1 rounded-xl border bg-white/95 px-3 py-2 text-xs shadow-md backdrop-blur-xs"
+              :class="canGoBack ? 'cursor-pointer hover:bg-slate-50' : ''"
+              :role="canGoBack ? 'button' : undefined"
+              :tabindex="canGoBack ? 0 : undefined"
+              :aria-label="canGoBack ? 'Kembali ke tingkat wilayah sebelumnya' : undefined"
+              @click="canGoBack && goBack()"
+              @keydown.enter="canGoBack && goBack()"
+            >
+              <span class="font-bold text-slate-800">Wilayah</span>
+              <span class="flex items-center gap-1 text-slate-600">
+                <span class="text-slate-400" aria-hidden="true">›</span>
+                <span class="font-medium">{{ selectionLabel }}</span>
+              </span>
             </div>
-
-            <!-- Search panel — on desktop overlaps bottom of map via translate -->
-            <div class="relative z-10 lg:pointer-events-none lg:absolute lg:inset-0">
-              <div class="lg:pointer-events-auto lg:absolute lg:inset-x-0 lg:bottom-0 lg:translate-y-1/2 lg:px-3">
-                <div class="overflow-clip rounded-xl bg-white shadow-lg ring-1 ring-black/5">
-                  <form class="grid lg:grid-cols-3" @submit.prevent>
-                    <!-- Search input group -->
-                    <div class="border-b px-5 py-4 lg:border-b-0 lg:border-r">
-                      <label for="map-search" class="block text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Cari</label>
-                      <UiInputGroup class="mt-0.5 pr-1 pl-2 gap-2 h-auto border-none shadow-none focus-within:ring-0">
-                        <UiInputGroupInput id="map-search" v-model="searchQuery" type="search" placeholder="Ketik lalu tekan enter" class="h-8! px-0 py-0 text-sm" />
-                        <UiInputGroupButton type="submit" variant="ghost" aria-label="Cari" class="hover:bg-transparent p-0!">
-                          <Search class="size-4" aria-hidden="true" />
-                        </UiInputGroupButton>
-                      </UiInputGroup>
-                    </div>
-
-                    <!-- Kabupaten/Kota -->
-                    <div class="border-b px-5 py-4 lg:border-b-0 lg:border-r">
-                      <label class="block text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Kabupaten/Kota</label>
-                      <UiSelect v-model="selectedKabupaten">
-                        <UiSelectTrigger class="mt-0.5 border-none px-0 py-0 text-sm shadow-none focus:ring-0 w-full h-8!">
-                          <UiSelectValue placeholder="Semua Kabupaten/Kota" />
-                        </UiSelectTrigger>
-                        <UiSelectContent>
-                          <UiSelectItem v-for="kab in kabupatenKota" :key="kab" :value="kab">{{ kab }}</UiSelectItem>
-                        </UiSelectContent>
-                      </UiSelect>
-                    </div>
-
-                    <!-- Kategori + reset -->
-                    <div class="flex items-end gap-3 px-5 py-4">
-                      <div class="min-w-0 flex-1">
-                        <label class="block text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Kategori</label>
-                        <UiSelect v-model="selectedKategori">
-                          <UiSelectTrigger class="mt-0.5 border-none px-0 py-0 text-sm shadow-none focus:ring-0 h-8!">
-                            <UiSelectValue placeholder="Semua Kategori" />
-                          </UiSelectTrigger>
-                          <UiSelectContent>
-                            <UiSelectItem v-for="kat in kategori" :key="kat" :value="kat">{{ kat }}</UiSelectItem>
-                          </UiSelectContent>
-                        </UiSelect>
-                      </div>
-                      <UiButton type="button" size="icon-sm" @click="resetFilter"><RefreshCcw /></UiButton>
-                    </div>
-                  </form>
-                </div>
-              </div>
+            <!-- State transisi / gagal muat -->
+            <div
+              v-if="!mapReady"
+              class="flex h-[480px] w-full flex-col items-center justify-center gap-3 text-center lg:h-[620px]"
+              aria-live="polite"
+            >
+              <MapPin class="size-5" aria-hidden="true" />
+              <p class="text-sm font-medium text-slate-500">
+                {{
+                  hasError
+                    ? "Peta sebaran UMKM belum dapat ditampilkan saat ini. Silakan coba lagi."
+                    : "Memuat peta sebaran UMKM…"
+                }}
+              </p>
             </div>
           </div>
         </div>

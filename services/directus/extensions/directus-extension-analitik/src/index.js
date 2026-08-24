@@ -18,7 +18,7 @@ module.exports = { id: "analitik", handler: (router, { database }) => {
   router.get("/metadata/options", (req,res,next)=>wrap(req,res,next,()=>getOptions(database,req.query||{})));
   router.get("/templates", (req,res,next)=>wrap(req,res,next,()=>({ schemaVersion:1, templates:listTemplates() })));
   router.get("/status", (req,res,next)=>wrap(req,res,next,()=>getStatus(database)));
-  router.post("/query", (req,res,next)=>wrap(req,res,next,()=>queryAnalytics(database,jsonBody(req),{ user: req.accountability?.user })));
+  router.post("/query", (req,res,next)=>wrap(req,res,next,()=>queryAnalytics(database,jsonBody(req),{ user: req.accountability?.user, permissionScope: req.accountability?.admin ? "admin" : req.accountability?.role })));
   router.post("/records", (req,res,next)=>wrap(req,res,next,()=>listRecords(database,jsonBody(req),{ user: req.accountability?.user })));
   router.get("/umkm/:id", (req,res,next)=>wrap(req,res,next,()=>getProfile(database,req.params?.id)));
   router.post("/exports", (req,res,next)=>wrap(req,res,next,()=>submitExport(database,jsonBody(req),req.accountability.user)));

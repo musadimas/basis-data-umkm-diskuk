@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import type { AnalyticsGroup } from "~/types/analytics"
-import { formatAnalyticsNumber, formatAnalyticsPercent } from "~/lib/analytics-format"
+import type { AnalyticsGroup, AnalyticsMetric } from "~/types/analytics"
+import { formatAnalyticsMetricValue, formatAnalyticsPercent } from "~/lib/analytics-format"
 
-const props = defineProps<{ groups: AnalyticsGroup[]; coverage?: number; unknownShare?: number }>()
+const props = defineProps<{ groups: AnalyticsGroup[]; metric?: AnalyticsMetric; coverage?: number; unknownShare?: number }>()
 const emit = defineEmits<{ evidence: [] }>()
+const financial = computed(() => props.metric?.unit === "IDR")
+const formatValue = (value: number | null | undefined) => formatAnalyticsMetricValue(value, props.metric?.unit)
 
 /**
  * Insight deterministik (product-spec §8): konsentrasi, penyimpangan terbesar
@@ -68,7 +70,7 @@ const insights = computed<Insight[]>(() => {
     result.push({
       id: "leader",
       headline: `Share tertinggi pada filter ini: ${leader.value.label}`,
-      detail: `${formatAnalyticsNumber(leader.value.value)} UMKM (${formatAnalyticsPercent(leader.value.share)} dari total terfilter).`,
+      detail: `${formatValue(leader.value.value)} (${formatAnalyticsPercent(leader.value.share)} dari total terfilter).`,
     })
   }
   if (concentration.value) {
@@ -90,14 +92,14 @@ const insights = computed<Insight[]>(() => {
     result.push({
       id: `outlier-${group.key}`,
       headline: `${group.label} adalah outlier nilai tertinggi`,
-      detail: `${formatAnalyticsNumber(group.value)} UMKM, jauh di atas rentang umum (IQR).`,
+      detail: `${formatValue(group.value)}, jauh di atas rentang umum (IQR).`,
     })
   }
   if (unmappedValue.value > 0) {
     result.push({
       id: "unmapped",
-      headline: `${formatAnalyticsNumber(unmappedValue.value)} record belum terpetakan`,
-      detail: "Kelompok “tidak diketahui” tetap dihitung agar total tetap konsisten.",
+      headline: `${formatValue(unmappedValue.value)} pada kelompok belum terpetakan`,
+      detail: "Kelompok “tidak diketahui” tetap masuk agregat agar total konsisten.",
     })
   }
   return result.slice(0, 4)
@@ -125,16 +127,16 @@ const insights = computed<Insight[]>(() => {
     </details>
 
     <p v-if="highCoverageWarning" class="mt-1 font-semibold text-amber-900">
-      Peringatan kualitas tinggi: hanya {{ formatAnalyticsPercent(coverage) }} record terpetakan<span v-if="unknownShare">, {{ formatAnalyticsPercent(unknownShare) }} masuk kelompok unknown</span>.
+      Peringatan kualitas tinggi: hanya {{ formatAnalyticsPercent(coverage) }} record {{ financial ? "memiliki nilai yang dapat diagregasi" : "terpetakan" }}<span v-if="unknownShare">, {{ formatAnalyticsPercent(unknownShare) }} masuk kelompok unknown</span>.
     </p>
     <p v-else-if="lowCoverage" class="mt-1 text-amber-900">
-      Peringatan cakupan: {{ formatAnalyticsPercent(coverage) }} record terpetakan<span v-if="unknownShare">, {{ formatAnalyticsPercent(unknownShare) }} masuk kelompok unknown</span>.
+      Peringatan cakupan: {{ formatAnalyticsPercent(coverage) }} record {{ financial ? "memiliki nilai yang dapat diagregasi" : "terpetakan" }}<span v-if="unknownShare">, {{ formatAnalyticsPercent(unknownShare) }} masuk kelompok unknown</span>.
     </p>
 
     <details class="mt-0.5">
       <summary class="cursor-pointer text-muted-foreground">Formula dan batasan</summary>
       <p class="mt-0.5 text-muted-foreground">
-        COUNT DISTINCT usaha.id; persentase memakai denominator total hasil filter; outlier memakai pagar IQR (Q3+1,5×IQR);
+        {{ financial ? "SUM nilai dilaporkan; NULL dan nilai perlu verifikasi dikeluarkan serta dilaporkan pada coverage" : "COUNT DISTINCT usaha.id" }}; persentase memakai denominator total metric hasil filter; outlier memakai pagar IQR (Q3+1,5×IQR);
         pembanding “rata Jawa Barat” adalah distribusi seragam antarkelompok pada filter ini. Bukan kesimpulan sebab-akibat.
       </p>
     </details>

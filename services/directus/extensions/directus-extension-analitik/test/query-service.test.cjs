@@ -196,3 +196,33 @@ test("runtime caches serve repeated requests without re-resolving source and res
   await queryAnalytics(database, request);
   assert.equal(generationLookups, 2); // reset forces a fresh resolution
 });
+
+test("financial rollup excludes nulls and reports coverage separately from the metric total", async () => {
+  const calls = [];
+  const database = {
+    async raw(sql) {
+      calls.push(sql);
+      if (sql.includes("FROM analitik_active_generation")) return { rows: [{
+        id: "generation-1", status: "active", data_as_of: "2026-08-24T00:00:00Z", reconciled_at: "2026-08-24T01:00:00Z",
+        row_count: 6, active_row_count: 6, archived_row_count: 0,
+      }] };
+      if (sql.includes("FROM analitik_field")) return { rows: [
+        { id: "revenue", semantic_id: "omzet_tahunan", lifecycle_status: "active", semantic_role: "metric" },
+        { id: "city", semantic_id: "kota_nama", lifecycle_status: "active", semantic_role: "dimension" },
+      ] };
+      if (sql.includes("FROM analitik_dim_aggregate")) return { rows: [
+        { dimension_value: "Kabupaten Bogor", label: "Kabupaten Bogor", value: "40000000000", matched: 2, missing: 1, needs_verification: 0 },
+        { dimension_value: "Kota Depok", label: "Kota Depok", value: "10000000000", matched: 1, missing: 1, needs_verification: 1 },
+      ] };
+      throw new Error(`Unexpected SQL: ${sql}`);
+    },
+  };
+  const result = await queryAnalytics(database, { schemaVersion: 1, metric: "omzet_tahunan", groupBy: "kota_nama", filters: [], limit: 20 });
+  assert.equal(result.data.total, 50000000000);
+  assert.equal(result.data.metric.unit, "IDR");
+  assert.equal(result.meta.matched, 3);
+  assert.deepEqual(result.meta.coverage, { matched: 3, total: 6, unknown: 0, missing: 2, needsVerification: 1 });
+  assert.deepEqual(result.data.groups.map(({ value, share }) => ({ value, share })), [{ value: 40000000000, share: 80 }, { value: 10000000000, share: 20 }]);
+  assert.equal(result.data.conservedTotal, true);
+  assert.equal(calls.some((sql) => sql.includes("omzet_value") && sql.includes("omzet_missing")), true);
+});

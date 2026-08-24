@@ -1,15 +1,17 @@
 <script setup lang="ts">
-import type { AnalyticsGroup } from "~/types/analytics"
-import { formatAnalyticsNumber, formatAnalyticsPercent } from "~/lib/analytics-format"
+import type { AnalyticsGroup, AnalyticsMetric } from "~/types/analytics"
+import { formatAnalyticsMetricValue, formatAnalyticsPercent } from "~/lib/analytics-format"
 
 const props = defineProps<{
   groups: AnalyticsGroup[]
+  metric?: AnalyticsMetric
   dimensionLabel?: string
   drillField?: string | null
   /** Key kelompok yang sedang menyeleksi canvas (cross-filter aktif). */
   selectedKey?: string | null
 }>()
 const emit = defineEmits<{ select: [group: AnalyticsGroup]; drill: [group: AnalyticsGroup] }>()
+const formatValue = (value: number | null | undefined) => formatAnalyticsMetricValue(value, props.metric?.unit, props.metric?.unit === "IDR")
 
 const search = ref("")
 const sort = ref<"value_desc" | "value_asc" | "label_asc">("value_desc")
@@ -68,7 +70,7 @@ watch([search, sort, () => props.groups], () => { visibleCount.value = RENDER_CH
       <div class="flex shrink-0 items-center gap-2 border-b pb-1 text-[10px] font-semibold uppercase text-muted-foreground">
         <span class="w-5 text-right">#</span>
         <span class="min-w-0 flex-1">Kelompok</span>
-        <span class="w-14 text-right">Jumlah</span>
+        <span class="w-14 text-right">Nilai</span>
         <span class="w-12 text-right">Share</span>
         <span class="w-12 text-right">Kum.</span>
         <span v-if="drillField" class="w-4" />
@@ -95,7 +97,7 @@ watch([search, sort, () => props.groups], () => { visibleCount.value = RENDER_CH
                 {{ row.group.label }}
                 <span v-if="selectedKey === row.group.key" class="ml-1 rounded-full bg-emerald-600 px-1.5 py-px text-[9px] font-bold uppercase text-white">terfilter</span>
               </span>
-              <span class="w-14 shrink-0 text-right font-semibold">{{ formatAnalyticsNumber(row.group.value) }}</span>
+              <span class="w-14 shrink-0 text-right font-semibold" :title="formatAnalyticsMetricValue(row.group.value, metric?.unit)">{{ formatValue(row.group.value) }}</span>
               <span class="w-12 shrink-0 text-right">{{ formatAnalyticsPercent(row.group.share) }}</span>
               <span class="w-12 shrink-0 text-right text-muted-foreground">{{ formatAnalyticsPercent(row.cumulative) }}</span>
             </button>

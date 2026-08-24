@@ -32,7 +32,8 @@ function csvCell(value) {
 }
 function csvFor(result) {
   const rows = result?.data?.groups || [];
-  return Buffer.from("\ufeff" + ["Kelompok", "Jumlah UMKM", "Bagian dari total terfilter"].map(csvCell).join(",") + "\r\n" + rows.map((row) => [row.label, row.value, `${row.share || 0}%`].map(csvCell).join(",") + "\r\n").join(""));
+  const metricLabel = result?.data?.metric?.label || "Jumlah UMKM";
+  return Buffer.from("\ufeff" + ["Kelompok", metricLabel, "Bagian dari total terfilter"].map(csvCell).join(",") + "\r\n" + rows.map((row) => [row.label, row.value, `${row.share || 0}%`].map(csvCell).join(",") + "\r\n").join(""));
 }
 function extension(type) { return type.endsWith("csv") ? "csv" : type.endsWith("png") ? "png" : "pdf"; }
 function contentType(type) { return type.endsWith("csv") ? "text/csv; charset=utf-8" : type.endsWith("png") ? "image/png" : "application/pdf"; }

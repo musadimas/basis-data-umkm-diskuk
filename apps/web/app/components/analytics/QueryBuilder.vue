@@ -157,7 +157,7 @@ function addFilter() {
           @change="patch($event, 'metric')"
         >
           <option value="jumlah_umkm">Jumlah UMKM</option>
-          <option v-for="field in metrics" :key="field.key" :value="field.key">{{ field.label }}</option>
+          <option v-for="field in metrics.filter((item) => item.key !== 'jumlah_umkm')" :key="field.key" :value="field.key">{{ field.label }}</option>
         </select>
       </label>
 

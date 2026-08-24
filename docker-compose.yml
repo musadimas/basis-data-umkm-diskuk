@@ -75,6 +75,18 @@ services:
       retries: 5
     networks: [diskuk_net]
 
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    logging: *default-logging
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks: [diskuk_net]
+
   minioclient:
     build:
       context: .
@@ -108,6 +120,8 @@ services:
     depends_on:
       pgbouncer:
         condition: service_healthy
+      redis:
+        condition: service_started
       minioclient:
         condition: service_completed_successfully
     environment:
@@ -137,6 +151,8 @@ services:
       ADMIN_PASSWORD: ${DIRECTUS_ADMIN_PASSWORD}
       PUBLIC_URL: ${DIRECTUS_PUBLIC_URL:-https://diskuk.tangkassiskamling.com}
       ANALYTICS_EXPORT_DIR: ${ANALYTICS_EXPORT_DIR:-/var/lib/directus/analytics-exports}
+      ANALYTICS_REDIS_URL: ${ANALYTICS_REDIS_URL:-redis://redis:6379/0}
+      ANALYTICS_REDIS_TTL_SECONDS: ${ANALYTICS_REDIS_TTL_SECONDS:-300}
     networks: [diskuk_net]
 
   web:

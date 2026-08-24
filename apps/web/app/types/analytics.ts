@@ -5,9 +5,10 @@ export interface AnalyticsField { id: string; key: string; label: string; descri
 export interface AnalyticsCatalog { schemaVersion: number; fields: AnalyticsField[]; warnings: string[] }
 export interface AnalyticsFilter { fieldId: string; operator: "eq" | "neq" | "in" | "contains" | "starts_with"; value: string | string[] }
 export interface AnalysisConfig { schemaVersion: 1; metric: string; groupBy: string; breakdown?: string | null; filters: AnalyticsFilter[]; visual: AnalyticsVisual; includeOthers?: boolean; shareOfFilteredTotal?: boolean; sort?: "nama" | "id"; page?: number; cursor?: string }
-export interface AnalyticsMeta { schemaVersion: number; dataAsOf: string | null; generatedAt: string; status: AnalyticsStatus; source: string; population: number; matched: number; coverage: { matched: number; total: number; unknown?: number }; warnings: string[]; maskingVersion?: number }
+export interface AnalyticsMeta { schemaVersion: number; dataAsOf: string | null; generatedAt: string; status: AnalyticsStatus; source: string; population: number; matched: number; coverage: { matched: number; total: number; unknown?: number; missing?: number; needsVerification?: number }; warnings: string[]; maskingVersion?: number }
 export interface AnalyticsGroup { key: string; label: string; value: number; share: number; breakdown?: { key: string; label: string } }
-export interface AnalyticsQueryResponse { meta: AnalyticsMeta; data: { metric: { key: string; label: string; aggregation: string }; groups: AnalyticsGroup[]; normalizedFilters?: unknown; conservedTotal?: boolean } }
+export interface AnalyticsMetric { key: string; label: string; aggregation: string; unit: "usaha" | "IDR" }
+export interface AnalyticsQueryResponse { meta: AnalyticsMeta; data: { metric: AnalyticsMetric; total: number; groups: AnalyticsGroup[]; normalizedFilters?: unknown; conservedTotal?: boolean } }
 export interface AnalyticsRecord { id: string; nama: string; skala: string; kota: string; kecamatan: string; kbli: string; kategori: string; status: string }
 export interface AnalyticsRecordsResponse { meta: AnalyticsMeta; data: { records: AnalyticsRecord[]; nextCursor: string | null } }
 export interface AnalyticsTemplate { id: string; version: number; label: string; description: string; config: Partial<AnalysisConfig>; workforce: { enabled: boolean }; financial: { enabled: boolean } }

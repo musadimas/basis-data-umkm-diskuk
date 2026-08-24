@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import type { AnalyticsGroup, AnalyticsVisual } from "~/types/analytics"
+import type { AnalyticsGroup, AnalyticsMetric, AnalyticsVisual } from "~/types/analytics"
 import { Orientation, StackedBar } from "@unovis/ts"
 import { VisAxis, VisStackedBar, VisTooltip, VisXYContainer } from "@unovis/vue"
-import { formatAnalyticsNumber, formatAnalyticsPercent } from "~/lib/analytics-format"
+import { formatAnalyticsMetricValue, formatAnalyticsPercent } from "~/lib/analytics-format"
 
 const props = defineProps<{
   groups: AnalyticsGroup[]
+  metric?: AnalyticsMetric
   visual: AnalyticsVisual
   tableOpen?: boolean
   /** Key kelompok yang sedang menyeleksi canvas (cross-filter aktif). */
@@ -19,6 +20,7 @@ const emit = defineEmits<{
   "update:tableOpen": [open: boolean]
   "update:visual": [visual: AnalyticsVisual]
 }>()
+const formatValue = (value: number | null | undefined, compact = false) => formatAnalyticsMetricValue(value, props.metric?.unit, compact)
 
 const CHART_LIMIT = 20
 /** ux-spec §7: donut hanya untuk part-to-whole dengan maksimal 6 kategori. */
@@ -305,10 +307,10 @@ const selectedRow = computed(() => chartRows.value.find((row) => row.group.key =
 const categoryTicks = computed(() => chartRows.value.map((row) => row.index))
 const categoryLabels = computed(() => new Map(chartRows.value.map((row) => [row.index, row.label])))
 const categoryTick = (tick: number | Date) => categoryLabels.value.get(Number(tick)) || ""
-const valueTick = (tick: number | Date) => formatAnalyticsNumber(Number(tick))
+const valueTick = (tick: number | Date) => formatValue(Number(tick), true)
 const tooltip = computed(() => ({
   [StackedBar.selectors.bar]: (row: ChartRow) =>
-    `<div class="rounded-md border bg-background px-2 py-1 text-xs shadow-sm"><strong>${row.label}</strong><br>${formatAnalyticsNumber(row.value)} · ${formatAnalyticsPercent(row.share)}</div>`,
+    `<div class="rounded-md border bg-background px-2 py-1 text-xs shadow-sm"><strong>${row.label}</strong><br>${formatValue(row.value)} · ${formatAnalyticsPercent(row.share)}</div>`,
 }))
 const barEvents = computed(() => ({
   [StackedBar.selectors.bar]: { click: (row: ChartRow) => emit("select", row.group) },
@@ -359,7 +361,7 @@ const barHeight = computed(() => Math.max(140, chartRows.value.length * BAR_SLOT
     </div>
 
     <p class="sr-only">
-      {{ totals.map((entry) => `${entry.group.label}: ${formatAnalyticsNumber(entry.value)} UMKM`).join(". ") }}
+      {{ totals.map((entry) => `${entry.group.label}: ${formatValue(entry.value)} ${metric?.label || "Jumlah UMKM"}`).join(". ") }}
     </p>
 
     <div class="min-h-0 flex-1 overflow-auto" data-lenis-prevent-wheel>
@@ -371,7 +373,7 @@ const barHeight = computed(() => Math.max(140, chartRows.value.length * BAR_SLOT
           <p class="mt-1 text-[10px] text-muted-foreground">Coba ganti “Kelompokkan menurut” ke Kabupaten/kota.</p>
         </div>
         <template v-else>
-          <svg viewBox="0 0 100 62" class="w-full" role="img" aria-label="Peta sebaran UMKM per wilayah">
+          <svg viewBox="0 0 100 62" class="w-full" role="img" :aria-label="`Peta ${metric?.label || 'Jumlah UMKM'} per wilayah`">
             <g
               v-for="polygon in choroplethPolygons"
               :key="polygon.id"
@@ -382,7 +384,7 @@ const barHeight = computed(() => Math.max(140, chartRows.value.length * BAR_SLOT
               class="cursor-pointer hover:[fill-opacity:1]"
               @click="onRegionClick(polygon)"
             >
-              <title>{{ `${polygon.name}: ${formatAnalyticsNumber(polygon.value)} UMKM (${formatAnalyticsPercent(polygon.share)})` }}</title>
+              <title>{{ `${polygon.name}: ${formatValue(polygon.value)} (${formatAnalyticsPercent(polygon.share)})` }}</title>
               <path :d="polygon.path" />
             </g>
           </svg>
@@ -404,7 +406,7 @@ const barHeight = computed(() => Math.max(140, chartRows.value.length * BAR_SLOT
           category="value"
           index="label"
           :colors="SERIES_COLORS"
-          :value-formatter="(value: number) => formatAnalyticsNumber(value)"
+          :value-formatter="(value: number) => formatValue(value, true)"
         />
         <VisXYContainer
           v-else
@@ -440,7 +442,7 @@ const barHeight = computed(() => Math.max(140, chartRows.value.length * BAR_SLOT
         </VisXYContainer>
       </div>
 
-      <AnalyticsDataTable v-else-if="tableOpen || visual === 'table'" :groups="tableGroups" />
+      <AnalyticsDataTable v-else-if="tableOpen || visual === 'table'" :groups="tableGroups" :metric="metric" />
 
       <p v-else class="py-8 text-center text-xs text-muted-foreground">Belum ada data untuk filter ini.</p>
     </div>

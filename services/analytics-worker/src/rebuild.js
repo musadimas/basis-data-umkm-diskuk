@@ -372,41 +372,7 @@ async function refreshLegacySnapshots(client, dataAsOf) {
 // Dimension rollup expressions – MUST stay aligned with DIMENSIONS in
 // directus-extension-analitik/src/query-compiler.js so the API fast path can
 // trust dimension_value/label semantics without re-deriving them.
-export const DIM_AGGREGATE_SQL = `
-  INSERT INTO analitik_dim_aggregate(generation_id,dimension,dimension_value,label,status,value)
-  SELECT $1, u.dimension, u.dimension_value, u.label, u.status, u.value FROM (
-    SELECT 'kota_id' AS dimension, COALESCE(a.kota_id::text,'unknown') AS dimension_value, COALESCE(a.kota_nama,'Tidak diketahui') AS label, a.status AS status, COUNT(*)::bigint AS value FROM analitik_usaha_current a WHERE a.generation_id=$1 GROUP BY 2,3,4
-    UNION ALL
-    SELECT 'kota_kode', COALESCE(a.kota_kode,'unknown'), COALESCE(a.kota_nama,'Tidak diketahui'), a.status, COUNT(*)::bigint FROM analitik_usaha_current a WHERE a.generation_id=$1 GROUP BY 2,3,4
-    UNION ALL
-    SELECT 'kota_nama', COALESCE(a.kota_nama,'Tidak diketahui'), COALESCE(a.kota_nama,'Tidak diketahui'), a.status, COUNT(*)::bigint FROM analitik_usaha_current a WHERE a.generation_id=$1 GROUP BY 2,3,4
-    UNION ALL
-    SELECT 'kecamatan_id', COALESCE(a.kecamatan_id::text,'unknown'), COALESCE(a.kecamatan_nama,'Tidak diketahui'), a.status, COUNT(*)::bigint FROM analitik_usaha_current a WHERE a.generation_id=$1 GROUP BY 2,3,4
-    UNION ALL
-    SELECT 'kecamatan_nama', COALESCE(a.kecamatan_nama,'Tidak diketahui'), COALESCE(a.kecamatan_nama,'Tidak diketahui'), a.status, COUNT(*)::bigint FROM analitik_usaha_current a WHERE a.generation_id=$1 GROUP BY 2,3,4
-    UNION ALL
-    SELECT 'kelurahan_id', COALESCE(a.kelurahan_id::text,'unknown'), COALESCE(a.kelurahan_nama,'Tidak diketahui'), a.status, COUNT(*)::bigint FROM analitik_usaha_current a WHERE a.generation_id=$1 GROUP BY 2,3,4
-    UNION ALL
-    SELECT 'kelurahan_nama', COALESCE(a.kelurahan_nama,'Tidak diketahui'), COALESCE(a.kelurahan_nama,'Tidak diketahui'), a.status, COUNT(*)::bigint FROM analitik_usaha_current a WHERE a.generation_id=$1 GROUP BY 2,3,4
-    UNION ALL
-    SELECT 'sektor_kbli', COALESCE(a.sektor_kbli,'unknown'), COALESCE(a.sektor_kbli,'Tidak diketahui'), a.status, COUNT(*)::bigint FROM analitik_usaha_current a WHERE a.generation_id=$1 GROUP BY 2,3,4
-    UNION ALL
-    SELECT 'kbli_kode', COALESCE(a.kode_kbli,'unknown'), COALESCE(a.kode_kbli,'Tidak diketahui'), a.status, COUNT(*)::bigint FROM analitik_usaha_current a WHERE a.generation_id=$1 GROUP BY 2,3,4
-    UNION ALL
-    SELECT 'skala_dilaporkan', COALESCE(a.skala,'unknown'), CASE a.skala WHEN 'micro' THEN 'Mikro' WHEN 'small' THEN 'Kecil' WHEN 'medium' THEN 'Menengah' ELSE 'Tidak diketahui' END, a.status, COUNT(*)::bigint FROM analitik_usaha_current a WHERE a.generation_id=$1 GROUP BY 2,3,4
-    UNION ALL
-    SELECT 'status_hukum', COALESCE(a.status_hukum,'unknown'), COALESCE(a.status_hukum,'Tidak diketahui'), a.status, COUNT(*)::bigint FROM analitik_usaha_current a WHERE a.generation_id=$1 GROUP BY 2,3,4
-    UNION ALL
-    SELECT 'status_usaha', COALESCE(a.status,'unknown'), CASE a.status WHEN 'active' THEN 'Aktif' WHEN 'archived' THEN 'Diarsipkan' ELSE 'Tidak diketahui' END, a.status, COUNT(*)::bigint FROM analitik_usaha_current a WHERE a.generation_id=$1 GROUP BY 2,3,4
-    UNION ALL
-    SELECT 'quality_geography', CASE WHEN a.kota_id IS NULL OR a.kecamatan_id IS NULL OR a.kelurahan_id IS NULL THEN 'unknown' ELSE 'mapped' END, CASE WHEN a.kota_id IS NULL OR a.kecamatan_id IS NULL OR a.kelurahan_id IS NULL THEN 'Tidak diketahui' ELSE 'Terpetakan' END, a.status, COUNT(*)::bigint FROM analitik_usaha_current a WHERE a.generation_id=$1 GROUP BY 2,3,4
-    UNION ALL
-    SELECT 'quality_kbli', CASE WHEN a.kode_kbli IS NULL THEN 'missing' WHEN a.sektor_kbli IS NULL THEN 'unmapped' ELSE 'mapped' END, CASE WHEN a.kode_kbli IS NULL THEN 'Tidak ada kode' WHEN a.sektor_kbli IS NULL THEN 'Tidak terpetakan' ELSE 'Terpetakan' END, a.status, COUNT(*)::bigint FROM analitik_usaha_current a WHERE a.generation_id=$1 GROUP BY 2,3,4
-  ) u
-  ON CONFLICT (generation_id,dimension,dimension_value,status)
-  DO UPDATE SET label=EXCLUDED.label, value=EXCLUDED.value`;
-
-const SCALE_ROLLUP_DIMENSIONS = Object.freeze([
+const ROLLUP_DIMENSIONS = Object.freeze([
   ["kota_id", "COALESCE(a.kota_id::text,'unknown')", "COALESCE(a.kota_nama,'Tidak diketahui')"],
   ["kota_kode", "COALESCE(a.kota_kode,'unknown')", "COALESCE(a.kota_nama,'Tidak diketahui')"],
   ["kota_nama", "COALESCE(a.kota_nama,'Tidak diketahui')", "COALESCE(a.kota_nama,'Tidak diketahui')"],
@@ -423,21 +389,85 @@ const SCALE_ROLLUP_DIMENSIONS = Object.freeze([
   ["quality_kbli", "CASE WHEN a.kode_kbli IS NULL THEN 'missing' WHEN a.sektor_kbli IS NULL THEN 'unmapped' ELSE 'mapped' END", "CASE WHEN a.kode_kbli IS NULL THEN 'Tidak ada kode' WHEN a.sektor_kbli IS NULL THEN 'Tidak terpetakan' ELSE 'Terpetakan' END"],
 ]);
 
-export const SCALE_DIM_AGGREGATE_SQL = `
-  INSERT INTO analitik_dim_aggregate(generation_id,dimension,dimension_value,label,status,value)
-  SELECT $1, u.dimension, u.dimension_value, u.label, u.status, u.value FROM (
-    ${SCALE_ROLLUP_DIMENSIONS.map(([dimension, value, label]) => `
-      SELECT 'scale:' || COALESCE(a.skala,'unknown') || ':${dimension}' AS dimension,
-        ${value} AS dimension_value, ${label} AS label, a.status AS status, COUNT(*)::bigint AS value
+const ROLLUP_VALUES_SQL = `COUNT(*)::bigint AS value,
+  COALESCE(SUM(a.omzet_tahunan) FILTER (WHERE a.omzet_quality='reported'),0) AS omzet_value,
+  COUNT(*) FILTER (WHERE a.omzet_quality='reported')::bigint AS omzet_matched,
+  COUNT(*) FILTER (WHERE a.omzet_quality='missing')::bigint AS omzet_missing,
+  COUNT(*) FILTER (WHERE a.omzet_quality='needs_verification')::bigint AS omzet_needs_verification,
+  COALESCE(SUM(a.total_aset) FILTER (WHERE a.aset_quality='reported'),0) AS aset_value,
+  COUNT(*) FILTER (WHERE a.aset_quality='reported')::bigint AS aset_matched,
+  COUNT(*) FILTER (WHERE a.aset_quality='missing')::bigint AS aset_missing,
+  COUNT(*) FILTER (WHERE a.aset_quality='needs_verification')::bigint AS aset_needs_verification`;
+const ROLLUP_COLUMNS = "generation_id,dimension,dimension_value,label,status,value,omzet_value,omzet_matched,omzet_missing,omzet_needs_verification,aset_value,aset_matched,aset_missing,aset_needs_verification";
+const ROLLUP_UPDATE_SQL = `label=EXCLUDED.label,value=EXCLUDED.value,
+  omzet_value=EXCLUDED.omzet_value,omzet_matched=EXCLUDED.omzet_matched,omzet_missing=EXCLUDED.omzet_missing,omzet_needs_verification=EXCLUDED.omzet_needs_verification,
+  aset_value=EXCLUDED.aset_value,aset_matched=EXCLUDED.aset_matched,aset_missing=EXCLUDED.aset_missing,aset_needs_verification=EXCLUDED.aset_needs_verification`;
+
+export const DIM_AGGREGATE_SQL = `
+  INSERT INTO analitik_dim_aggregate(${ROLLUP_COLUMNS})
+  SELECT $1, u.* FROM (
+    ${ROLLUP_DIMENSIONS.map(([dimension, value, label]) => `
+      SELECT '${dimension}' AS dimension, ${value} AS dimension_value, ${label} AS label,
+        a.status AS status, ${ROLLUP_VALUES_SQL}
       FROM analitik_usaha_current a WHERE a.generation_id=$1 GROUP BY 1,2,3,4
     `).join(" UNION ALL ")}
   ) u
   ON CONFLICT (generation_id,dimension,dimension_value,status)
-  DO UPDATE SET label=EXCLUDED.label, value=EXCLUDED.value`;
+  DO UPDATE SET ${ROLLUP_UPDATE_SQL}`;
+
+export const SCALE_DIM_AGGREGATE_SQL = `
+  INSERT INTO analitik_dim_aggregate(${ROLLUP_COLUMNS})
+  SELECT $1, u.* FROM (
+    ${ROLLUP_DIMENSIONS.map(([dimension, value, label]) => `
+      SELECT 'scale:' || COALESCE(a.skala,'unknown') || ':${dimension}' AS dimension,
+        ${value} AS dimension_value, ${label} AS label, a.status AS status, ${ROLLUP_VALUES_SQL}
+      FROM analitik_usaha_current a WHERE a.generation_id=$1 GROUP BY 1,2,3,4
+    `).join(" UNION ALL ")}
+  ) u
+  ON CONFLICT (generation_id,dimension,dimension_value,status)
+  DO UPDATE SET ${ROLLUP_UPDATE_SQL}`;
 
 async function populateDimAggregate(pool, generationId) {
   await pool.query(DIM_AGGREGATE_SQL, [generationId]);
   await pool.query(SCALE_DIM_AGGREGATE_SQL, [generationId]);
+}
+
+export async function reconcileActiveGeneration(pool, { logger } = {}) {
+  const lock = await pool.query("SELECT pg_try_advisory_lock(hashtext('diskuk.analytics.rebuild')) AS locked");
+  if (!lock.rows[0]?.locked) throw Object.assign(new Error("Analytics rebuild is already running"), { code: "REBUILD_LOCKED" });
+  try {
+    const generationId = (await pool.query(`SELECT active_generation_id FROM analitik_active_generation WHERE id=1`)).rows[0]?.active_generation_id;
+    if (!generationId) throw Object.assign(new Error("Active analytics generation is unavailable"), { code: "ACTIVE_GENERATION_UNAVAILABLE" });
+    const reconciliation = await withTransaction(pool, (client) => reconcileGeneration(client, generationId));
+    if (!reconciliation.passed) throw Object.assign(new Error("Active analytics generation failed reconciliation"), { code: "RECONCILIATION_FAILED", reconciliation });
+    logger?.info("active_generation_reconciled", { generationId });
+    return reconciliation;
+  } finally {
+    await pool.query("SELECT pg_advisory_unlock(hashtext('diskuk.analytics.rebuild'))").catch(() => {});
+  }
+}
+
+export async function activateFinancialMetrics(pool, { logger } = {}) {
+  const lock = await pool.query("SELECT pg_try_advisory_lock(hashtext('diskuk.analytics.rebuild')) AS locked");
+  if (!lock.rows[0]?.locked) throw Object.assign(new Error("Analytics rebuild is already running"), { code: "REBUILD_LOCKED" });
+  try {
+    const result = await withTransaction(pool, async (client) => {
+      const pointer = (await client.query(`SELECT active_generation_id FROM analitik_active_generation WHERE id=1 FOR UPDATE`)).rows[0];
+      if (!pointer?.active_generation_id) throw Object.assign(new Error("Active analytics generation is unavailable"), { code: "ACTIVE_GENERATION_UNAVAILABLE" });
+      const generation = (await client.query(`SELECT id,status,reconciliation_status FROM analitik_generation WHERE id=$1`, [pointer.active_generation_id])).rows[0];
+      if (generation?.status !== "active" || generation?.reconciliation_status !== "passed") throw Object.assign(new Error("Active analytics generation is not reconciled"), { code: "ACTIVE_GENERATION_UNRECONCILED" });
+      await client.query(DIM_AGGREGATE_SQL, [generation.id]);
+      await client.query(SCALE_DIM_AGGREGATE_SQL, [generation.id]);
+      const reconciliation = await reconcileGeneration(client, generation.id);
+      if (!reconciliation.passed) throw Object.assign(new Error("Financial rollup reconciliation failed"), { code: "RECONCILIATION_FAILED", reconciliation });
+      const activated = await client.query(`UPDATE analitik_field SET lifecycle_status='active',error_metadata='{}'::jsonb,updated_at=NOW() WHERE semantic_id IN ('omzet_tahunan','total_aset') AND semantic_role='metric' AND privacy_class='aggregate' RETURNING semantic_id`);
+      return { generationId: generation.id, activated: activated.rows.map((row) => row.semantic_id), financial: reconciliation.financial };
+    });
+    logger?.info("financial_metrics_activated", { generationId: result.generationId, activated: result.activated });
+    return result;
+  } finally {
+    await pool.query("SELECT pg_advisory_unlock(hashtext('diskuk.analytics.rebuild'))").catch(() => {});
+  }
 }
 
 export async function rebuildCurrentModel(pool, { logger, batchSize = 50_000 } = {}) {
@@ -545,6 +575,9 @@ export async function rebuildCurrentModel(pool, { logger, batchSize = 50_000 } =
       await client.query(`UPDATE analitik_active_generation SET active_generation_id=$1,previous_generation_id=$2,updated_at=NOW() WHERE id=1`, [generationId, old]);
       // Legacy compatibility snapshot – MUST succeed or promotion rolls back
       await refreshLegacySnapshots(client, dataAsOf);
+      // Financial fields leave quarantine only with the reconciled rollup and
+      // active-generation pointer in the same publication transaction.
+      await client.query(`UPDATE analitik_field SET lifecycle_status='active',error_metadata='{}'::jsonb,updated_at=NOW() WHERE semantic_id IN ('omzet_tahunan','total_aset') AND semantic_role='metric' AND privacy_class='aggregate'`);
       return { retired };
     });
     promoted = true;

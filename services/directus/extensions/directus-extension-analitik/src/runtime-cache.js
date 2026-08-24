@@ -1,5 +1,5 @@
-// Tiny in-process TTL memo for hot read-only lookups (single Directus
-// instance per plan – see ADR-0002 rejected Redis alternative). Cached values
+// Tiny in-process TTL memo for per-instance source/registry lookups. Aggregate
+// responses use the separate generation-aware Redis cache. Cached values
 // are treated as immutable by callers; TTLs bound generation-promotion lag far
 // inside the 60s CRUD-to-visible SLO (source 5s, registry 60s).
 const SOURCE_TTL_MS = 5_000;

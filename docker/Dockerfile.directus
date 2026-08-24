@@ -18,7 +18,7 @@ RUN cd /directus/extensions/directus-extension-tabular && pnpm run build \
 # The docs extension has its own lockfile and TypeScript build.
 RUN cd /directus/extensions/docs && pnpm install --frozen-lockfile && pnpm run build
 RUN cd /directus/extensions/directus-extension-analytics-watchdog && pnpm run build
-RUN cd /directus/extensions/directus-extension-analitik && pnpm run build
+RUN cd /directus/extensions/directus-extension-analitik && pnpm install --frozen-lockfile && pnpm run build
 
 FROM directus/directus:11.17.4
 USER root

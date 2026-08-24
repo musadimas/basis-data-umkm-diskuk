@@ -55,7 +55,10 @@ const tableOpen = ref(false)
 const breadcrumbs = state.breadcrumbs
 function update(patch: Partial<AnalysisConfig>) { state.updateDraft(patch) }
 function chooseTemplate(config: Partial<AnalysisConfig>) { state.updateDraft({ ...config, filters: config.filters || [] }) }
-function selectGroup(group: AnalyticsGroup) { state.addFilter({ fieldId: state.applied.value.groupBy, operator: "eq", value: group.key }) }
+function selectGroup(group: AnalyticsGroup) {
+  state.addFilter({ fieldId: state.applied.value.groupBy, operator: "eq", value: group.key })
+  state.apply()
+}
 const DRILL_PATH = new Map<string, string>([
   ["kota_nama", "kecamatan_nama"],
   ["kota_kode", "kecamatan_nama"],
@@ -76,6 +79,7 @@ onMounted(() => {
   } catch { /* Restoring scroll position is best-effort. */ }
 })
 const groups = computed(() => response.value?.data.groups || [])
+const metric = computed(() => response.value?.data.metric)
 const drillField = computed(() => DRILL_PATH.get(applied.groupBy) || null)
 const dimensionLabel = computed(() => fields.value.find((field) => field.key === applied.groupBy)?.label || "kelompok")
 const coverageTotal = computed(() => Number(meta.value?.coverage?.total || meta.value?.matched || 0))
@@ -112,7 +116,8 @@ const selectedGroupKey = computed(() => {
   if (!filter) return null
   return Array.isArray(filter.value) ? String(filter.value[0]) : String(filter.value)
 })
-function clearGroupSelection() { state.removeFilter(applied.groupBy) }
+function removeFilter(fieldId: string) { state.removeFilter(fieldId); state.apply() }
+function clearGroupSelection() { removeFilter(applied.groupBy) }
 </script>
 
 <template>
@@ -127,7 +132,7 @@ function clearGroupSelection() { state.removeFilter(applied.groupBy) }
       :saved-count="savedItems.length"
       :rail-open="railOpen"
       @template="chooseTemplate"
-      @remove-filter="state.removeFilter"
+      @remove-filter="removeFilter"
       @saved="showSaved = true"
       @save="showSave = true"
       @export="showExport = true"
@@ -161,13 +166,14 @@ function clearGroupSelection() { state.removeFilter(applied.groupBy) }
       <div class="flex min-h-0 flex-col gap-2 lg:overflow-hidden">
         <AnalyticsMetricSummary :response="response" :meta="meta" />
 
-        <AnalyticsInsightPanel :groups="groups" :coverage="coverage" :unknown-share="unknownShare" @evidence="tableOpen = true" />
+        <AnalyticsInsightPanel :groups="groups" :metric="metric" :coverage="coverage" :unknown-share="unknownShare" @evidence="tableOpen = true" />
 
         <div class="grid min-h-0 gap-2 lg:flex-1 lg:grid-cols-2 lg:grid-rows-[minmax(0,1fr)_minmax(0,1fr)] lg:overflow-hidden 2xl:grid-cols-3 2xl:grid-rows-1">
           <AnalyticsVisual
             v-if="response"
             v-model:table-open="tableOpen"
             :groups="groups"
+            :metric="metric"
             :visual="applied.visual"
             :selected-key="selectedGroupKey"
             :include-others="applied.includeOthers !== false"
@@ -177,6 +183,7 @@ function clearGroupSelection() { state.removeFilter(applied.groupBy) }
           />
           <AnalyticsGroupList
             :groups="groups"
+            :metric="metric"
             :dimension-label="dimensionLabel"
             :drill-field="drillField"
             :selected-key="selectedGroupKey"
@@ -186,7 +193,7 @@ function clearGroupSelection() { state.removeFilter(applied.groupBy) }
           <AnalyticsRecordTable
             class="lg:col-span-2 2xl:col-span-1"
             :records="records"
-            :matched="meta?.matched"
+            :matched="meta?.coverage?.total ?? meta?.matched"
             :page-index="cursorStack.length"
             :page-size="20"
             :has-next="Boolean(nextCursor)"

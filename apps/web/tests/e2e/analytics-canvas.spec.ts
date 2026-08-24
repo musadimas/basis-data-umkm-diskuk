@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { installMockDirectus, loginMock } from "../fixtures/mock-directus.mjs";
 test.describe("canvas analitik", () => {
-  test("default canvas applies a draft filter only after Terapkan", async ({
+  test("manual controls wait for Terapkan while canvas selection applies immediately", async ({
     page,
   }) => {
     await installMockDirectus(page, { authenticated: true });
@@ -26,9 +26,7 @@ test.describe("canvas analitik", () => {
     await expect.poll(() => queryRequests.length).toBeGreaterThan(initial);
     await page.getByRole("button", { name: /Kabupaten Bogor/ }).click();
     await expect(page.getByLabel("Filter aktif")).toContainText("Skala");
-    const beforeApply = queryRequests.length;
-    await page.getByRole("button", { name: "Terapkan" }).click();
-    await expect.poll(() => queryRequests.length).toBeGreaterThan(beforeApply);
+    await expect.poll(() => queryRequests.length).toBeGreaterThan(initial + 1);
     expect(new URL(page.url()).search).not.toMatch(/nik|phone|telepon|record/i);
   });
   test("visual selection lives on the canvas and applies immediately", async ({
@@ -43,6 +41,15 @@ test.describe("canvas analitik", () => {
       page.getByRole("heading", { name: "Visualisasi donat" }),
     ).toBeVisible();
     await expect.poll(() => new URL(page.url()).search).toContain("visual=donut");
+  });
+  test("financial metric is formatted as aggregate currency with explicit null coverage", async ({ page }) => {
+    await installMockDirectus(page, { authenticated: true });
+    await loginMock(page, "/dashboard/analitik");
+    await page.getByLabel("Metrik", { exact: true }).selectOption("omzet_tahunan");
+    await page.getByRole("button", { name: "Terapkan" }).click();
+    await expect(page.getByLabel("Ringkasan metrik")).toContainText("Rp");
+    await expect(page.getByLabel("Ringkasan metrik")).toContainText("NULL, tidak dianggap nol");
+    await expect(page.getByText("memiliki nilai yang dapat diagregasi")).toBeVisible();
   });
   test("keyboard and table alternative are present on mobile", async ({
     page,
