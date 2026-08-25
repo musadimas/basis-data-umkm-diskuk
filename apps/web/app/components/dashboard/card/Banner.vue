@@ -5,7 +5,7 @@ import { ChartColumnDecreasing } from "@lucide/vue";
 interface Props {
   title?: string;
   description?: string;
-  /** "infografis" = green banner, "data" = blue banner (Data Tabular) */
+  /** "infografis" = blue banner #1E88E5, "data" = brand-blue banner (Data Tabular) */
   variant?: "infografis" | "data";
   icon?: Component;
 }
@@ -21,7 +21,7 @@ const props = withDefaults(defineProps<Props>(), {
 const bannerClass = computed(() =>
   props.variant === "data"
     ? "bg-brand-blue text-white"
-    : "bg-brand-green text-white"
+    : "bg-[#1E88E5] text-white",
 );
 </script>
 
@@ -45,7 +45,9 @@ const bannerClass = computed(() =>
       <h1 class="text-xl font-bold tracking-tight text-inherit sm:text-2xl">
         {{ title }}
       </h1>
-      <UiCardDescription class="max-w-4xl text-xs font-normal leading-relaxed text-inherit">
+      <UiCardDescription
+        class="max-w-4xl text-xs font-normal leading-relaxed text-inherit"
+      >
         {{ description }}
       </UiCardDescription>
     </UiCardContent>

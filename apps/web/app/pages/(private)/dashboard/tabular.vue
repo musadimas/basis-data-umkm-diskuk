@@ -5,15 +5,27 @@
  * (snapshot publik `usaha_tabular` yang diterbitkan pasca-ingest SIDT).
  */
 <script setup lang="ts">
-import { Table, ChevronDown, MoreHorizontal, Filter, RotateCcw, Download, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "@lucide/vue";
+import {
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  Download,
+  Eye,
+  Filter,
+  LoaderCircle,
+  MoreHorizontal,
+  RotateCcw,
+  Table,
+} from "@lucide/vue";
 
 import type { ScaleStatItem, SkalaUsaha, TabularUmkmItem } from "~/types/dashboard";
 import type {
   TabularKelurahanItem,
   TabularKbliOption,
   TabularOptions,
-  TabularRowItem,
   TabularRowsResponse,
+  TabularSkalaApi,
 } from "~/types/tabular";
 
 definePageMeta({
@@ -27,29 +39,29 @@ useSeoMeta({
 });
 
 // ── Skala: nilai API (micro/small/medium) ⇄ nilai UI (mikro/kecil/menengah) ─
-const skalaToApi: Record<SkalaUsaha, "micro" | "small" | "medium"> = {
+const skalaToApi = {
   mikro: "micro",
   kecil: "small",
   menengah: "medium",
-};
-const apiToSkala: Record<string, SkalaUsaha> = {
+} as const satisfies Record<SkalaUsaha, "micro" | "small" | "medium">;
+const apiToSkala = {
   micro: "mikro",
   small: "kecil",
   medium: "menengah",
-};
+} as const satisfies Record<TabularSkalaApi, SkalaUsaha>;
 
 // ── Skala badge styling (per design tokens) ───────────────────────────────
-const skalaBadgeClasses: Record<SkalaUsaha, string> = {
+const skalaBadgeClasses = {
   mikro: "bg-[#c3e9d0] text-[#006430]",
   kecil: "bg-[#bbdefb] text-[#0d47a1]",
   menengah: "bg-[#ffeeb4] text-[#ff7500]",
-};
+} satisfies Record<SkalaUsaha, string>;
 
-const skalaLabels: Record<SkalaUsaha, string> = {
+const skalaLabels = {
   mikro: "Mikro",
   kecil: "Kecil",
   menengah: "Menengah",
-};
+} satisfies Record<SkalaUsaha, string>;
 
 const skalaOptions = [
   { value: "semua", label: "Semua" },
@@ -81,9 +93,12 @@ const filters = reactive<TabularFilters>(defaultFilters());
 const appliedFilters = reactive<TabularFilters>(defaultFilters());
 
 // ── Data opsi filter (dari Directus, dimuat sekali) ───────────────────────
-const { data: optionsData, error: optionsError } = await useFetch<{ data: TabularOptions }>(
-  "/panel/tabular/options",
-);
+const {
+  data: optionsData,
+  error: optionsError,
+  pending: optionsPending,
+  refresh: refreshOptions,
+} = useFetch<{ data: TabularOptions }>("/panel/tabular/options");
 
 const kabupatenOptions = computed(() => [
   { value: "semua", label: "Semua Kabupaten/Kota" },
@@ -116,6 +131,8 @@ const kbliOptions = computed(() => {
 
 // ── Kelurahan: dimuat per kecamatan & di-cache di klien ───────────────────
 const kelurahanCache = new Map<string, TabularKelurahanItem[]>();
+const kelurahanPending = ref(false);
+const kelurahanError = ref(false);
 const desaKelurahanOptions = ref<{ value: string; label: string }[]>([
   { value: "semua", label: "Semua Desa/Kelurahan" },
 ]);
@@ -129,6 +146,8 @@ const syncKelurahanOptions = (kecamatanId: string) => {
 };
 
 const loadKelurahan = async (kecamatanId: string) => {
+  kelurahanPending.value = true;
+  kelurahanError.value = false;
   try {
     const res = await $fetch<{ data: TabularKelurahanItem[] }>("/panel/tabular/kelurahan", {
       query: { kecamatan: kecamatanId },
@@ -136,7 +155,9 @@ const loadKelurahan = async (kecamatanId: string) => {
     kelurahanCache.set(kecamatanId, res.data ?? []);
   } catch {
     kelurahanCache.set(kecamatanId, []);
+    kelurahanError.value = true;
   } finally {
+    kelurahanPending.value = false;
     if (filters.kecamatan === kecamatanId) syncKelurahanOptions(kecamatanId);
   }
 };
@@ -145,13 +166,14 @@ watch(
   () => filters.kecamatan,
   (v) => {
     filters.desaKelurahan = "semua";
+    kelurahanError.value = false;
     if (v === "semua") {
       syncKelurahanOptions("semua");
       return;
     }
     if (!kelurahanCache.has(v)) {
       syncKelurahanOptions("semua");
-      loadKelurahan(v);
+      void loadKelurahan(v);
     } else {
       syncKelurahanOptions(v);
     }
@@ -176,39 +198,58 @@ watch(
   },
 );
 
-// ── Fetch baris (otomatis refetch saat filter diterapkan / ganti halaman) ──
-const pageSize = 10;
+// ── Fetch baris: cursor-based pagination (keyset) ────────────────────────
+const pageSize = ref("10");
 const page = ref(1);
+const currentCursor = ref<string | null>(null);
+const cursorStack = ref<string[]>([]);
+const nextCursor = computed(() => rowsData.value?.meta?.nextCursor ?? null);
+const hasNext = computed(() => Boolean(rowsData.value?.meta?.hasNext));
 
 const filterQuery = computed(() => ({
   kota: appliedFilters.kabupatenKota !== "semua" ? appliedFilters.kabupatenKota : undefined,
   kecamatan: appliedFilters.kecamatan !== "semua" ? appliedFilters.kecamatan : undefined,
   kelurahan: appliedFilters.desaKelurahan !== "semua" ? appliedFilters.desaKelurahan : undefined,
+  // SAFETY: opsi filter skala hanya "mikro"/"kecil"/"menengah" (lihat skalaOptions); nilai "semua" sudah disaring ternary ini.
   skala: appliedFilters.skala !== "semua" ? skalaToApi[appliedFilters.skala as SkalaUsaha] : undefined,
   kegiatan: appliedFilters.kegiatanUsaha !== "semua" ? appliedFilters.kegiatanUsaha : undefined,
   kbli: appliedFilters.kodeKbli !== "semua" ? appliedFilters.kodeKbli : undefined,
 }));
 
-const rowsQuery = computed(() => ({
-  ...filterQuery.value,
-  page: page.value,
-  page_size: pageSize,
-}));
+interface TabularRowsQuery {
+  kota?: string | undefined;
+  kecamatan?: string | undefined;
+  kelurahan?: string | undefined;
+  skala?: string | undefined;
+  kegiatan?: string | undefined;
+  kbli?: string | undefined;
+  page_size: number;
+  page?: number;
+  cursor?: string;
+}
 
-const { data: rowsData, pending: rowsPending, error: rowsError } = await useFetch<TabularRowsResponse>(
-  "/panel/tabular/",
-  { query: rowsQuery },
-);
+const rowsQuery = computed(() => {
+  const base: TabularRowsQuery = {
+    ...filterQuery.value,
+    page_size: Number(pageSize.value),
+  };
+  if (currentCursor.value) {
+    base.cursor = currentCursor.value;
+  } else {
+    base.page = page.value;
+  }
+  return base;
+});
 
-// ── Kartu skala: ikut filter aktif (1 request ringan per skala) ───────────
-const scaleCountQuery = (skala: "micro" | "small" | "medium") =>
-  computed(() => ({ ...filterQuery.value, skala, page: 1, page_size: 1 }));
+const {
+  data: rowsData,
+  pending: rowsPending,
+  error: rowsError,
+  refresh: refreshRows,
+} = await useFetch<TabularRowsResponse>("/panel/tabular/", { query: rowsQuery });
 
-const [countMikro, countKecil, countMenengah] = await Promise.all([
-  useFetch<TabularRowsResponse>("/panel/tabular/", { query: scaleCountQuery("micro") }),
-  useFetch<TabularRowsResponse>("/panel/tabular/", { query: scaleCountQuery("small") }),
-  useFetch<TabularRowsResponse>("/panel/tabular/", { query: scaleCountQuery("medium") }),
-]);
+// ── Kartu skala: ikut filter aktif (single request, scale breakdown dari meta) ───────────
+ // Hapus 3 extra request – mikro/kecil/menengah kini dari meta rowsData (single grouped COUNT)
 
 const pagedRows = computed<TabularUmkmItem[]>(() =>
   (rowsData.value?.data ?? []).map((r) => ({
@@ -219,7 +260,7 @@ const pagedRows = computed<TabularUmkmItem[]>(() =>
     kecamatan: r.kecamatan,
     desaKelurahan: r.kelurahan,
     produkUtama: r.produkUtama ?? "–",
-    kegiatanUsaha: r.kategoriKbli ?? "–",
+    kegiatanUsaha: r.kegiatanUtama ?? r.kategoriKbli ?? "–",
     kodeKbli: r.kodeKbli ?? "–",
   })),
 );
@@ -238,29 +279,59 @@ const scaleItems = computed<ScaleStatItem[]>(() => [
   {
     id: "mikro",
     title: "Usaha Mikro",
-    value: countMikro.data.value?.meta?.filterCount ?? 0,
+    value: rowsData.value?.meta?.mikro ?? 0,
     category: "mikro",
   },
   {
     id: "kecil",
     title: "Usaha Kecil",
-    value: countKecil.data.value?.meta?.filterCount ?? 0,
+    value: rowsData.value?.meta?.kecil ?? 0,
     category: "kecil",
   },
   {
     id: "menengah",
     title: "Usaha Menengah",
-    value: countMenengah.data.value?.meta?.filterCount ?? 0,
+    value: rowsData.value?.meta?.menengah ?? 0,
     category: "menengah",
   },
 ]);
-const pageCount = computed(() => Math.max(1, Math.ceil(totalData.value / pageSize)));
+const numericPageSize = computed(() => Number(pageSize.value));
+const pageCount = computed(() => Math.max(1, Math.ceil(totalData.value / numericPageSize.value)));
+const isLargeResult = computed(() => pageCount.value > 100);
+const firstVisibleRow = computed(() => totalData.value === 0 ? 0 : (page.value - 1) * numericPageSize.value + 1);
+const lastVisibleRow = computed(() => Math.min(
+  pagedRows.value.length === 0
+    ? 0
+    : firstVisibleRow.value + pagedRows.value.length - 1,
+  totalData.value,
+));
+const activeFilterCount = computed(() =>
+  Object.values(appliedFilters).filter((value) => value !== "semua").length,
+);
+const filtersAreDirty = computed(() => {
+  // SAFETY: filters adalah reactive<TabularFilters>, jadi Object.keys menghasilkan
+  // tepat keyof TabularFilters; assertion hanya memulihkan narrowing yang hilang
+  // oleh signature Object.keys(string[]).
+  const keys = Object.keys(filters) as (keyof TabularFilters)[];
+  return keys.some((key) => filters[key] !== appliedFilters[key]);
+});
 
+const resetPagination = () => {
+  page.value = 1;
+  currentCursor.value = null;
+  cursorStack.value = [];
+};
+
+watch(pageSize, resetPagination);
+
+// For large results, cursor is primary; numeric pages hidden
 const pages = computed<(number | "…")[]>(() => {
+  if (isLargeResult.value) return [];
   const total = pageCount.value;
   const current = page.value;
   if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
-  const visible = new Set<number>([1, total, current - 1, current, current + 1]);
+  const base = [1, total, current - 1, current, current + 1];
+  const visible = new Set<number>(base);
   const sorted = [...visible].filter((n) => n >= 1 && n <= total).sort((a, b) => a - b);
   const out: (number | "…")[] = [];
   sorted.forEach((n, i) => {
@@ -272,12 +343,44 @@ const pages = computed<(number | "…")[]>(() => {
 });
 
 const goToPage = (p: number) => {
+  // Compatibility path only for small results; for large results use cursor navigation
+  if (isLargeResult.value) return;
   page.value = Math.min(Math.max(1, p), pageCount.value);
+  currentCursor.value = null;
+  cursorStack.value = [];
+};
+
+const goNext = () => {
+  if (rowsPending.value || !hasNext.value) return;
+  if (!isLargeResult.value) {
+    goToPage(page.value + 1);
+    return;
+  }
+  if (!nextCursor.value) return;
+  cursorStack.value.push(currentCursor.value ?? "");
+  currentCursor.value = nextCursor.value;
+  page.value += 1;
+};
+
+const goPrevious = () => {
+  if (rowsPending.value || page.value === 1) return;
+  if (!isLargeResult.value) {
+    goToPage(page.value - 1);
+    return;
+  }
+  if (cursorStack.value.length === 0) return;
+  const prev = cursorStack.value.pop() ?? null;
+  currentCursor.value = prev || null;
+  page.value = Math.max(1, page.value - 1);
+};
+
+const goFirst = () => {
+  resetPagination();
 };
 
 // ── Filter actions ────────────────────────────────────────────────────────
 const applyFilters = () => {
-  page.value = 1;
+  resetPagination();
   Object.assign(appliedFilters, filters);
 };
 
@@ -286,49 +389,56 @@ const resetFilters = () => {
   applyFilters();
 };
 
-// ── CSV export: unduh seluruh hasil filter via paginasi server ⁻───────────
-const EXPORT_PAGE_SIZE = 1000;
-const EXPORT_MAX_ROWS = 50_000;
-
+// ── CSV export: async job (bounded 50k) ───────────────────────────────
+const exportError = ref<string | null>(null);
+const isExporting = ref(false);
 const exportCsv = async () => {
   const total = totalData.value;
-  if (total === 0 || rowsPending.value) return;
-  const limit = Math.min(total, EXPORT_MAX_ROWS);
-  const collected: TabularRowItem[] = [];
-  const pageCountToFetch = Math.ceil(limit / EXPORT_PAGE_SIZE);
-
-  for (let p = 1; p <= pageCountToFetch; p++) {
-    const res = await $fetch<TabularRowsResponse>("/panel/tabular/", {
-      query: { ...rowsQuery.value, page: p, page_size: EXPORT_PAGE_SIZE },
+  if (total === 0 || rowsPending.value || isExporting.value) return;
+  exportError.value = null;
+  isExporting.value = true;
+  try {
+    const payload = { ...filterQuery.value, max_rows: 50000 };
+    const submit = await $fetch<{ data: { jobId: string; status: string; downloadUrl?: string } }>("/panel/tabular/export", {
+      method: "POST",
+      body: payload,
     });
-    collected.push(...(res?.data ?? []));
-    if (collected.length >= limit) break;
+    const jobId = submit?.data?.jobId;
+    let downloadUrl = submit?.data?.downloadUrl;
+    // Poll if not yet completed
+    let status = submit?.data?.status;
+    let attempts = 0;
+    while (jobId && status !== "completed" && status !== "failed" && attempts < 30) {
+      await new Promise((r) => setTimeout(r, 800));
+      const st = await $fetch<{ data: { status: string; downloadUrl?: string } }>(`/panel/tabular/export/${jobId}`);
+      status = st?.data?.status;
+      downloadUrl = st?.data?.downloadUrl || downloadUrl;
+      if (status === "failed") throw new Error("Export failed");
+      if (status === "completed" && downloadUrl) break;
+      attempts += 1;
+    }
+    if (!downloadUrl) throw new Error("Export not ready");
+    const blob = await $fetch<Blob>(downloadUrl, { responseType: "blob" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "data-umkm-jawa-barat.csv";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (message.includes("504")) {
+      exportError.value = "Ekspor melebihi batas waktu. Coba filter yang lebih spesifik.";
+    } else if (message.includes("404") || message.includes("501") || message.includes("500")) {
+      exportError.value = "Ekspor belum tersedia. Hubungi administrator atau coba lagi nanti.";
+    } else {
+      exportError.value = "Gagal mengunduh CSV. Silakan coba lagi.";
+    }
+  } finally {
+    isExporting.value = false;
   }
-  if (collected.length === 0) return;
-
-  const header = ["No", "Nama Usaha", "Skala Usaha", "Kabupaten/Kota", "Kecamatan", "Desa/Kelurahan", "Produk Utama", "Kegiatan Usaha", "Kode KBLI"];
-  const lines = collected.map((r, i) =>
-    [
-      i + 1,
-      r.nama,
-      skalaLabels[apiToSkala[r.skala] ?? "mikro"],
-      r.kota,
-      r.kecamatan,
-      r.kelurahan,
-      r.produkUtama ?? "-",
-      r.kategoriKbli ?? "-",
-      r.kodeKbli ?? "-",
-    ]
-      .map((v) => `"${String(v).replaceAll('"', '""')}"`)
-      .join(",")
-  );
-  const blob = new Blob([[header.join(","), ...lines].join("\n")], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "data-umkm-jawa-barat.csv";
-  a.click();
-  URL.revokeObjectURL(url);
 };
 </script>
 
@@ -339,21 +449,25 @@ const exportCsv = async () => {
       variant="data"
       :icon="Table"
       title="Data Tabular UMKM"
-      description="Lorem ipsum dolor sit amet, consectetur adipiscing elit. Praesent dictum tortor eu dictum pulvinar. Fusce pulvinar enim ac dui luctus, ac tempus nisl vestibulum. Sed sit amet ante sit amet sapien dictum ultrices quis at augue. Nulla pharetra ex dictum, venenatis nunc a, tempor lectus."
+      description="Telusuri data usaha mikro, kecil, dan menengah di Jawa Barat berdasarkan wilayah, skala usaha, serta klasifikasi KBLI. Gunakan filter untuk mempersempit data, lalu buka profil usaha atau unduh hasilnya sebagai CSV."
     />
 
-    <p
+    <div
       v-if="optionsError"
-      class="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"
+      class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"
+      role="alert"
     >
-      Opsi filter (wilayah &amp; KBLI) belum dapat dimuat. Silakan muat ulang halaman.
-    </p>
-    <p
+      <span>Opsi filter wilayah dan KBLI belum dapat dimuat.</span>
+      <UiButton variant="outline" size="sm" @click="refreshOptions()">Coba lagi</UiButton>
+    </div>
+    <div
       v-if="rowsError"
-      class="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"
+      class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"
+      role="alert"
     >
-      Data tabular belum dapat dimuat. Silakan coba lagi.
-    </p>
+      <span>Data tabular belum dapat dimuat. Silakan coba lagi.</span>
+      <UiButton variant="outline" size="sm" @click="refreshRows()">Coba lagi</UiButton>
+    </div>
 
     <!-- Section 1: Jumlah Usaha Berdasarkan Skala Usaha -->
     <DashboardCardSection
@@ -371,14 +485,25 @@ const exportCsv = async () => {
       aria-label="Tabel Data UMKM"
     >
       <!-- Filter Panel -->
-      <div class="space-y-3 rounded-lg border border-border/80 p-4">
+      <div class="space-y-4 rounded-lg border border-border/80 p-4">
+        <div class="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <h2 class="text-base font-bold text-foreground">Filter Data UMKM</h2>
+            <p class="mt-1 text-xs text-muted-foreground">
+              Pilih satu atau beberapa kriteria, lalu terapkan filter.
+            </p>
+          </div>
+          <UiBadge v-if="activeFilterCount > 0" variant="secondary">
+            {{ activeFilterCount }} filter aktif
+          </UiBadge>
+        </div>
         <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
           <!-- Kabupaten/Kota -->
           <div class="space-y-1.5">
             <label for="filter-kabupaten" class="block text-sm leading-4 text-[#323232]">
               Pilih Kabupaten/Kota
             </label>
-            <UiSelect v-model="filters.kabupatenKota">
+            <UiSelect v-model="filters.kabupatenKota" :disabled="optionsPending || Boolean(optionsError)">
               <UiSelectTrigger
                 id="filter-kabupaten"
                 class="h-[54px] w-full rounded-lg border-[#9e9e9e] bg-[#fdfdfd] text-sm text-[#757575]"
@@ -398,7 +523,7 @@ const exportCsv = async () => {
             <label for="filter-kecamatan" class="block text-sm leading-4 text-[#323232]">
               Pilih Kecamatan
             </label>
-            <UiSelect v-model="filters.kecamatan">
+            <UiSelect v-model="filters.kecamatan" :disabled="optionsPending || Boolean(optionsError)">
               <UiSelectTrigger
                 id="filter-kecamatan"
                 class="h-[54px] w-full rounded-lg border-[#9e9e9e] bg-[#fdfdfd] text-sm text-[#757575]"
@@ -418,12 +543,15 @@ const exportCsv = async () => {
             <label for="filter-desa" class="block text-sm leading-4 text-[#323232]">
               Desa/Kelurahan
             </label>
-            <UiSelect v-model="filters.desaKelurahan">
+            <UiSelect
+              v-model="filters.desaKelurahan"
+              :disabled="filters.kecamatan === 'semua' || kelurahanPending || kelurahanError"
+            >
               <UiSelectTrigger
                 id="filter-desa"
                 class="h-[54px] w-full rounded-lg border-[#9e9e9e] bg-[#fdfdfd] text-sm text-[#757575]"
               >
-                <UiSelectValue placeholder="Semua Desa/Kelurahan" />
+                <UiSelectValue :placeholder="kelurahanPending ? 'Memuat…' : 'Semua Desa/Kelurahan'" />
               </UiSelectTrigger>
               <UiSelectContent>
                 <UiSelectItem v-for="opt in desaKelurahanOptions" :key="opt.value" :value="opt.value">
@@ -431,6 +559,9 @@ const exportCsv = async () => {
                 </UiSelectItem>
               </UiSelectContent>
             </UiSelect>
+            <p v-if="kelurahanError" class="text-xs text-destructive" role="alert">
+              Daftar desa/kelurahan gagal dimuat.
+            </p>
           </div>
         </div>
 
@@ -460,7 +591,7 @@ const exportCsv = async () => {
             <label for="filter-kegiatan" class="block text-sm leading-4 text-[#323232]">
               Kegiatan Usaha
             </label>
-            <UiSelect v-model="filters.kegiatanUsaha">
+            <UiSelect v-model="filters.kegiatanUsaha" :disabled="optionsPending || Boolean(optionsError)">
               <UiSelectTrigger
                 id="filter-kegiatan"
                 class="h-[54px] w-full rounded-lg border-[#9e9e9e] bg-[#fdfdfd] text-sm text-[#757575]"
@@ -480,7 +611,7 @@ const exportCsv = async () => {
             <label for="filter-kbli" class="block text-sm leading-4 text-[#323232]">
               Kode KBLI
             </label>
-            <UiSelect v-model="filters.kodeKbli">
+            <UiSelect v-model="filters.kodeKbli" :disabled="optionsPending || Boolean(optionsError)">
               <UiSelectTrigger
                 id="filter-kbli"
                 class="h-[54px] w-full rounded-lg border-[#9e9e9e] bg-[#fdfdfd] text-sm text-[#757575]"
@@ -497,11 +628,11 @@ const exportCsv = async () => {
         </div>
 
         <!-- Filter Actions -->
-        <div class="flex flex-wrap items-center justify-end gap-2">
+        <div class="flex flex-wrap items-center justify-end gap-2 border-t border-border/70 pt-3">
           <UiButton
             variant="outline"
             class="gap-1.5 rounded-lg border-brand-green text-sm font-bold text-brand-green-foreground hover:bg-brand-green/10"
-            :disabled="rowsPending"
+            :disabled="rowsPending || (!filtersAreDirty && activeFilterCount === 0)"
             @click="resetFilters"
           >
             <RotateCcw class="h-4 w-4" />
@@ -509,29 +640,34 @@ const exportCsv = async () => {
           </UiButton>
           <UiButton
             class="gap-1.5 rounded-lg bg-brand-green text-sm font-bold text-brand-green-foreground hover:bg-brand-green/90"
-            :disabled="rowsPending"
+            :disabled="rowsPending || !filtersAreDirty"
             @click="applyFilters"
           >
-            <Filter class="h-4 w-4" />
-            <span>Filter Data</span>
+            <LoaderCircle v-if="rowsPending" class="h-4 w-4 animate-spin" />
+            <Filter v-else class="h-4 w-4" />
+            <span>{{ rowsPending ? "Memuat…" : "Terapkan Filter" }}</span>
           </UiButton>
           <UiButton
-            variant="ghost"
-            size="icon"
-            class="rounded-lg bg-brand-green text-brand-green-foreground hover:bg-brand-green/90 hover:text-brand-green-foreground"
-            :disabled="rowsPending || totalData === 0"
+            variant="outline"
+            class="gap-1.5 rounded-lg border-brand-green text-sm font-bold text-brand-green-foreground hover:bg-brand-green/10"
+            :disabled="rowsPending || totalData === 0 || isExporting"
             aria-label="Unduh data UMKM (CSV)"
             title="Unduh seluruh hasil filter (CSV, maks. 50.000 baris)"
             @click="exportCsv"
           >
-            <Download class="h-4 w-4" />
+            <LoaderCircle v-if="isExporting" class="h-4 w-4 animate-spin" />
+            <Download v-else class="h-4 w-4" />
+            <span>{{ isExporting ? "Menyiapkan…" : "Unduh CSV" }}</span>
           </UiButton>
         </div>
+        <p v-if="exportError" class="text-right text-xs text-destructive" role="alert">
+          {{ exportError }}
+        </p>
       </div>
 
       <!-- Table -->
-      <div class="mt-4 overflow-x-auto rounded-lg border border-border/80">
-        <table class="w-full min-w-[1100px] border-collapse text-xs">
+      <div class="mt-4 overflow-x-auto rounded-lg border border-border/80" :aria-busy="rowsPending">
+        <table class="w-full min-w-[1260px] border-collapse text-xs">
           <thead>
             <tr class="bg-[#eee] text-[#212121]">
               <th scope="col" class="w-10 px-3 py-[7px] text-center font-bold">No.</th>
@@ -539,6 +675,7 @@ const exportCsv = async () => {
               <th scope="col" class="w-32 px-3 py-[7px] text-left font-bold">Skala Usaha</th>
               <th scope="col" class="w-44 px-3 py-[7px] text-left font-bold">Kabupaten/Kota</th>
               <th scope="col" class="w-40 px-3 py-[7px] text-left font-bold">Kecamatan</th>
+              <th scope="col" class="w-40 px-3 py-[7px] text-left font-bold">Desa/Kelurahan</th>
               <th scope="col" class="w-44 px-3 py-[7px] text-left font-bold">Produk Utama</th>
               <th scope="col" class="min-w-52 px-3 py-[7px] text-left font-bold">Kegiatan Usaha</th>
               <th scope="col" class="w-24 px-3 py-[7px] text-left font-bold">Kode KBLI</th>
@@ -550,8 +687,11 @@ const exportCsv = async () => {
               v-if="rowsPending && pagedRows.length === 0"
               class="bg-white dark:bg-card"
             >
-              <td colspan="9" class="px-3 py-10 text-center text-sm text-muted-foreground">
-                Memuat data…
+              <td colspan="10" class="px-3 py-10 text-center text-sm text-muted-foreground">
+                <span class="inline-flex items-center gap-2">
+                  <LoaderCircle class="h-4 w-4 animate-spin" />
+                  Memuat data…
+                </span>
               </td>
             </tr>
             <tr
@@ -560,7 +700,7 @@ const exportCsv = async () => {
               class="border-t border-[#9e9e9e]/40"
               :class="i % 2 === 1 ? 'bg-[#fafafa] dark:bg-muted/40' : 'bg-white dark:bg-card'"
             >
-              <td class="px-3 py-[7px] text-center leading-8 text-[#212121]">{{ (page - 1) * pageSize + i + 1 }}</td>
+              <td class="px-3 py-[7px] text-center leading-8 text-[#212121]">{{ firstVisibleRow + i }}</td>
               <td class="px-3 py-[7px] leading-8 text-[#212121]">{{ r.namaUsaha }}</td>
               <td class="px-3 py-[7px] leading-8">
                 <span
@@ -572,6 +712,7 @@ const exportCsv = async () => {
               </td>
               <td class="px-3 py-[7px] leading-8 text-[#212121]">{{ r.kabupatenKota }}</td>
               <td class="px-3 py-[7px] leading-8 text-[#212121]">{{ r.kecamatan }}</td>
+              <td class="px-3 py-[7px] leading-8 text-[#212121]">{{ r.desaKelurahan || "–" }}</td>
               <td class="px-3 py-[7px] leading-8 text-[#212121]">{{ r.produkUtama }}</td>
               <td class="px-3 py-[7px] leading-8 text-[#212121]">{{ r.kegiatanUsaha }}</td>
               <td class="px-3 py-[7px] leading-8 text-[#212121]">{{ r.kodeKbli }}</td>
@@ -588,8 +729,9 @@ const exportCsv = async () => {
                   </UiDropdownMenuTrigger>
                   <UiDropdownMenuContent align="end" class="w-44">
                     <UiDropdownMenuItem as-child>
-                      <NuxtLink to="/dashboard/spasial" class="cursor-pointer">
-                        Lihat di Peta Spasial
+                      <NuxtLink :to="`/dashboard/umkm/${r.id}`" class="cursor-pointer">
+                        <Eye class="mr-2 h-4 w-4" />
+                        Lihat Profil UMKM
                       </NuxtLink>
                     </UiDropdownMenuItem>
                   </UiDropdownMenuContent>
@@ -598,7 +740,7 @@ const exportCsv = async () => {
             </tr>
             <!-- Empty state -->
             <tr v-if="!rowsPending && pagedRows.length === 0" class="bg-white dark:bg-card">
-              <td colspan="9" class="px-3 py-10 text-center text-sm text-muted-foreground">
+              <td colspan="10" class="px-3 py-10 text-center text-sm text-muted-foreground">
                 Tidak ada data UMKM yang cocok dengan filter yang dipilih.
               </td>
             </tr>
@@ -608,68 +750,79 @@ const exportCsv = async () => {
 
       <!-- Pagination Bar -->
       <div class="mt-4 flex flex-wrap items-center gap-2 text-[10px] leading-4 text-[#777574]">
-        <span class="shrink-0">Menampilkan</span>
-        <div class="flex h-8 shrink-0 items-center gap-1 rounded-md border border-[#c3c3bf] bg-white pr-1 pl-3 text-[10px] font-medium text-[#353432]">
-          <span>{{ pageSize }}</span>
-          <ChevronDown class="h-4 w-4" />
-        </div>
+        <span class="shrink-0">Baris per halaman</span>
+        <UiSelect v-model="pageSize" :disabled="rowsPending">
+          <UiSelectTrigger class="h-8 w-[72px] text-xs" aria-label="Baris per halaman">
+            <UiSelectValue />
+          </UiSelectTrigger>
+          <UiSelectContent>
+            <UiSelectItem value="10">10</UiSelectItem>
+            <UiSelectItem value="25">25</UiSelectItem>
+            <UiSelectItem value="50">50</UiSelectItem>
+          </UiSelectContent>
+        </UiSelect>
         <span class="min-w-0 flex-1">
-          dari {{ rowsPending ? "…" : totalData }} Data Ditemukan
+          <template v-if="rowsPending">Memuat data…</template>
+          <template v-else>{{ firstVisibleRow }}–{{ lastVisibleRow }} dari {{ totalData.toLocaleString("id-ID") }} data</template>
         </span>
 
         <div class="flex items-center gap-1.5">
           <button
             type="button"
             class="flex h-6 w-6 items-center justify-center rounded bg-[#f4f3f1] text-[#353432] transition-colors hover:bg-slate-200 disabled:opacity-40 disabled:hover:bg-[#f4f3f1]"
-            :disabled="page === 1"
+            :disabled="rowsPending || page === 1"
             aria-label="Ke halaman pertama"
-            @click="goToPage(1)"
+            @click="goFirst"
           >
             <ChevronsLeft class="h-3.5 w-3.5" />
           </button>
           <button
             type="button"
             class="flex h-6 w-6 items-center justify-center rounded bg-[#f4f3f1] text-[#353432] transition-colors hover:bg-slate-200 disabled:opacity-40 disabled:hover:bg-[#f4f3f1]"
-            :disabled="page === 1"
+            :disabled="rowsPending || page === 1"
             aria-label="Halaman sebelumnya"
-            @click="goToPage(page - 1)"
+            @click="goPrevious"
           >
             <ChevronLeft class="h-3.5 w-3.5" />
           </button>
 
-          <button
-            v-for="(p, i) in pages"
-            :key="`${p}-${i}`"
-            type="button"
-            class="flex h-6 min-w-6 items-center justify-center rounded px-1 text-[10px] leading-4 transition-colors"
-            :class="
-              p === page
-                ? 'bg-[#008444] font-medium text-white'
-                : p === '…'
-                  ? 'cursor-default text-[#353432]'
-                  : 'bg-[#f4f3f1] text-[#353432] hover:bg-slate-200'
-            "
-            :disabled="p === '…'"
-            :aria-label="p === '…' ? 'Halaman lainnya' : `Halaman ${p}`"
-            :aria-current="p === page ? 'page' : undefined"
-            @click="p !== '…' && goToPage(p)"
-          >
-            {{ p }}
-          </button>
+          <template v-if="!isLargeResult">
+            <button
+              v-for="(p, i) in pages"
+              :key="`${p}-${i}`"
+              type="button"
+              class="flex h-6 min-w-6 items-center justify-center rounded px-1 text-[10px] leading-4 transition-colors"
+              :class="
+                p === page
+                  ? 'bg-[#008444] font-medium text-white'
+                  : p === '…'
+                    ? 'cursor-default text-[#353432]'
+                    : 'bg-[#f4f3f1] text-[#353432] hover:bg-slate-200'
+              "
+              :disabled="p === '…'"
+              :aria-label="p === '…' ? 'Halaman lainnya' : `Halaman ${p}`"
+              :aria-current="p === page ? 'page' : undefined"
+              @click="p !== '…' && goToPage(p)"
+            >
+              {{ p }}
+            </button>
+          </template>
+          <span v-else class="px-2 text-[10px] text-[#353432]">Halaman {{ page }}</span>
 
           <button
             type="button"
             class="flex h-6 w-6 items-center justify-center rounded bg-[#f4f3f1] text-[#353432] transition-colors hover:bg-slate-200 disabled:opacity-40 disabled:hover:bg-[#f4f3f1]"
-            :disabled="page === pageCount"
+            :disabled="rowsPending || !hasNext"
             aria-label="Halaman berikutnya"
-            @click="goToPage(page + 1)"
+            @click="goNext"
           >
             <ChevronRight class="h-3.5 w-3.5" />
           </button>
           <button
+            v-if="!isLargeResult"
             type="button"
             class="flex h-6 w-6 items-center justify-center rounded bg-[#f4f3f1] text-[#353432] transition-colors hover:bg-slate-200 disabled:opacity-40 disabled:hover:bg-[#f4f3f1]"
-            :disabled="page === pageCount"
+            :disabled="rowsPending || page === pageCount"
             aria-label="Ke halaman terakhir"
             @click="goToPage(pageCount)"
           >

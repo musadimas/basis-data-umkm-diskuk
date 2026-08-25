@@ -134,6 +134,10 @@
 }
 
 @layer utilities {
+  .dashboard-surface {
+    background-image: linear-gradient(180deg, #fffde6 0%, #bbdeff 100%);
+  }
+
   .no-scrollbar {
     scrollbar-width: none;
   }

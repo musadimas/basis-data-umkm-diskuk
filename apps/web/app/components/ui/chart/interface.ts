@@ -1,8 +1,8 @@
 import type { Spacing } from "@unovis/ts";
 
-type KeyOf<T extends Record<string, unknown>> = Extract<keyof T, string>;
+type KeyOf<T extends object> = Extract<keyof T, string>;
 
-export interface BaseChartProps<T extends Record<string, unknown>> {
+export interface BaseChartProps<T extends object> {
   /**
    * The source data, in which each entry is a dictionary.
    */
@@ -31,11 +31,19 @@ export interface BaseChartProps<T extends Record<string, unknown>> {
   /**
    * Function to format X label
    */
-  xFormatter?: (tick: number | Date, i: number, ticks: number[] | Date[]) => string;
+  xFormatter?: (
+    tick: number | Date,
+    i: number,
+    ticks: number[] | Date[],
+  ) => string;
   /**
    * Function to format Y label
    */
-  yFormatter?: (tick: number | Date, i: number, ticks: number[] | Date[]) => string;
+  yFormatter?: (
+    tick: number | Date,
+    i: number,
+    ticks: number[] | Date[],
+  ) => string;
   /**
    * Controls the visibility of the X axis.
    * @default true

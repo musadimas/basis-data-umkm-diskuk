@@ -1,107 +1,320 @@
 <script setup lang="ts">
-import { useAnalyticsCatalog } from "~/composables/useAnalyticsCatalog"
-import { useAnalysisState } from "~/composables/useAnalysisState"
-import { useAnalyticsQuery } from "~/composables/useAnalyticsQuery"
-import type { AnalysisConfig, AnalyticsGroup, SavedAnalysis, AnalyticsExportType, AnalyticsQueryResponse } from "~/types/analytics"
-import { useSavedAnalyses } from "~/composables/useSavedAnalyses"
-import { useAnalyticsExports } from "~/composables/useAnalyticsExports"
-definePageMeta({ layout: "dashboard" })
-useSeoMeta({ title: "Analitik UMKM" })
-const catalogApi=useAnalyticsCatalog()
-await catalogApi.load()
-const savedApi=useSavedAnalyses(); await savedApi.load(); const exportApi=useAnalyticsExports()
-const route=useRoute()
-const state=useAnalysisState()
-function clone<T>(value: T): T { return JSON.parse(JSON.stringify(value)) as T }
-const query=useAnalyticsQuery(state.applied)
-const response=ref<AnalyticsQueryResponse|null>(query.response.value)
-const pending=ref(query.pending.value)
-const error=shallowRef(query.error.value)
-const draft=reactive(clone(state.draft.value))
-const applied=reactive(clone(state.applied.value))
-const warning=ref(state.warning.value)
-watch(query.response,(value)=>{response.value=value;if(value) void query.fetchRecords()})
-watch(query.pending,(value)=>{pending.value=value})
-watch(query.error,(value)=>{error.value=value})
-watch(state.draft,(value)=>Object.assign(draft,clone(value)))
-watch(state.applied,(value)=>Object.assign(applied,clone(value)))
-watch(state.warning,(value)=>{warning.value=value})
-const meta=computed(()=>response.value?.meta)
-const fields=computed(()=>catalogApi.catalog.value?.fields||[])
-const records=computed(()=>query.records.value?.data.records||[])
-const savedItems=computed(()=>savedApi.items.value); const catalogTemplates=computed(()=>catalogApi.templates.value); const savedPending=ref(savedApi.pending.value); const exportStatus=shallowRef(exportApi.status.value); const exportPending=ref(exportApi.pending.value); watch(savedApi.pending,value=>{savedPending.value=value}); watch(exportApi.status,value=>{exportStatus.value=value}); watch(exportApi.pending,value=>{exportPending.value=value}); const showSave=ref(false); const showExport=ref(false)
-function update(patch:Partial<AnalysisConfig>){state.updateDraft(patch)}
-function chooseTemplate(config:Partial<AnalysisConfig>){state.updateDraft({...config,filters:config.filters||[]})}
-function selectGroup(group:AnalyticsGroup){state.addFilter({fieldId:state.applied.value.groupBy,operator:"eq",value:group.key})}
-function drillGroup(group:AnalyticsGroup){const next:{[key:string]:string|undefined}={kota_nama:"kecamatan_nama",kota_kode:"kecamatan_nama",kecamatan_nama:"kelurahan_nama",sektor_kbli:"kbli_kode"};const field=next[state.applied.value.groupBy];if(!field)return;state.addFilter({fieldId:state.applied.value.groupBy,operator:"eq",value:group.key});state.drillDown(field,group.label)}
-function openRecord(record: { id: string }){state.saveReturnContext(records.value,record.id)}
-onMounted(()=>{try{const saved=JSON.parse(sessionStorage.getItem("analytics:return")||"null");if(saved?.path===route.fullPath&&Number.isFinite(saved.scrollY))requestAnimationFrame(()=>window.scrollTo(0,saved.scrollY))}catch { /* Restoring scroll position is best-effort. */ }})
-const currentResponse=()=>response.value
-const currentMeta=()=>meta.value
-const drillField=computed(()=>({kota_nama:"kecamatan_nama",kota_kode:"kecamatan_nama",kecamatan_nama:"kelurahan_nama",sektor_kbli:"kbli_kode"} as Record<string,string>)[applied.groupBy]||null)
-async function saveAnalysis(name:string){if(name.trim()){await savedApi.save(name.trim(),state.applied.value);showSave.value=false}}
-function openSaved(item:SavedAnalysis){state.updateDraft(item.config);state.apply()}
-async function removeSaved(id:string){await savedApi.remove(id)}
-async function renameSaved(payload:{id:string;name:string}){await savedApi.rename(payload.id,payload.name)}
-async function startExport(type:AnalyticsExportType){await exportApi.submit(type,state.applied.value)}
+import { useAnalyticsCatalog } from "~/composables/useAnalyticsCatalog";
+import { useAnalysisState } from "~/composables/useAnalysisState";
+import { useAnalyticsQuery } from "~/composables/useAnalyticsQuery";
+import { canonicalRecordsKey } from "~/lib/analytics-query";
+import type {
+  AnalysisConfig,
+  AnalyticsGroup,
+  SavedAnalysis,
+  AnalyticsExportType,
+  AnalyticsQueryResponse,
+} from "~/types/analytics";
+import { useSavedAnalyses } from "~/composables/useSavedAnalyses";
+import { useAnalyticsExports } from "~/composables/useAnalyticsExports";
+definePageMeta({ layout: "dashboard" });
+useSeoMeta({ title: "Analitik UMKM" });
+const catalogApi = useAnalyticsCatalog();
+await catalogApi.load();
+const savedApi = useSavedAnalyses();
+await savedApi.load();
+const exportApi = useAnalyticsExports();
+const route = useRoute();
+const state = useAnalysisState();
+function clone<T>(value: T): T {
+  // SAFETY: seluruh nilai domain di sini JSON-safe; round-trip JSON.parse(JSON.stringify) mempertahankan strukturnya.
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+const query = useAnalyticsQuery(state.applied);
+// Respons query bersifat read-only untuk halaman; computed langsung menghindari
+// mirror ref + watch boilerplate dan tetap reaktif terhadap cache TanStack.
+const response = computed<AnalyticsQueryResponse | null>(
+  () => query.response.value,
+);
+const pending = computed(() => query.pending.value);
+const recordsPending = computed(() => query.recordsPending.value);
+const error = computed(() => query.error.value);
+const draft = reactive(clone(state.draft.value));
+const applied = reactive(clone(state.applied.value));
+const warning = ref(state.warning.value);
+const recordsCursor = ref<string | null>(null);
+const cursorStack = ref<string[]>([]);
+watch(
+  () => canonicalRecordsKey(state.applied.value),
+  () => {
+    // Table pagination resets when the applied analysis changes (canonical key),
+    // not on background revalidations of the same analysis.
+    recordsCursor.value = null;
+    cursorStack.value = [];
+  },
+);
+watch(state.draft, (value) => Object.assign(draft, clone(value)));
+watch(state.applied, (value) => Object.assign(applied, clone(value)));
+watch(state.warning, (value) => {
+  warning.value = value;
+});
+const meta = computed(() => response.value?.meta);
+const fields = computed(() => catalogApi.catalog.value?.fields || []);
+const records = computed(() => query.records.value?.data.records || []);
+const nextCursor = computed(() => query.records.value?.data.nextCursor || null);
+const savedItems = computed(() => savedApi.items.value);
+const catalogTemplates = computed(() => catalogApi.templates.value);
+const savedPending = computed(() => savedApi.pending.value);
+const exportStatus = computed(() => exportApi.status.value);
+const exportPending = computed(() => exportApi.pending.value);
+const showSave = ref(false);
+const showExport = ref(false);
+const showSaved = ref(false);
+const railOpen = ref(true);
+const tableOpen = ref(false);
+const breadcrumbs = state.breadcrumbs;
+function update(patch: Partial<AnalysisConfig>) {
+  state.updateDraft(patch);
+}
+function chooseTemplate(config: Partial<AnalysisConfig>) {
+  state.updateDraft({ ...config, filters: config.filters || [] });
+}
+function selectGroup(group: AnalyticsGroup) {
+  state.addFilter({
+    fieldId: state.applied.value.groupBy,
+    operator: "eq",
+    value: group.key,
+  });
+  state.apply();
+}
+const DRILL_PATH = new Map<string, string>([
+  ["kota_nama", "kecamatan_nama"],
+  ["kota_kode", "kecamatan_nama"],
+  ["kecamatan_nama", "kelurahan_nama"],
+  ["sektor_kbli", "kbli_kode"],
+]);
+function drillGroup(group: AnalyticsGroup) {
+  const field = DRILL_PATH.get(state.applied.value.groupBy);
+  if (!field) return;
+  state.addFilter({
+    fieldId: state.applied.value.groupBy,
+    operator: "eq",
+    value: group.key,
+  });
+  state.drillDown(field, group.label);
+}
+function openRecord(record: { id: string }) {
+  state.saveReturnContext(records.value, record.id);
+}
+onMounted(() => {
+  try {
+    const saved = JSON.parse(
+      sessionStorage.getItem("analytics:return") || "null",
+    );
+    if (saved?.path === route.fullPath && Number.isFinite(saved.scrollY))
+      requestAnimationFrame(() => window.scrollTo(0, saved.scrollY));
+  } catch {
+    /* Restoring scroll position is best-effort. */
+  }
+});
+const groups = computed(() => response.value?.data.groups || []);
+const metric = computed(() => response.value?.data.metric);
+const drillField = computed(() => DRILL_PATH.get(applied.groupBy) || null);
+const dimensionLabel = computed(
+  () =>
+    fields.value.find((field) => field.key === applied.groupBy)?.label ||
+    "kelompok",
+);
+const coverageTotal = computed(() =>
+  Number(meta.value?.coverage?.total || meta.value?.matched || 0),
+);
+const coverage = computed(() =>
+  coverageTotal.value
+    ? (Number(meta.value?.coverage?.matched ?? meta.value?.matched ?? 0) *
+        100) /
+      coverageTotal.value
+    : 100,
+);
+const unknownShare = computed(() =>
+  coverageTotal.value
+    ? (Number(meta.value?.coverage?.unknown || 0) * 100) / coverageTotal.value
+    : 0,
+);
+const dirty = computed(() => JSON.stringify(draft) !== JSON.stringify(applied));
+function nextRecordPage() {
+  const cursor = nextCursor.value;
+  if (!cursor) return;
+  cursorStack.value = [...cursorStack.value, recordsCursor.value || ""];
+  recordsCursor.value = cursor;
+  void query.fetchRecords(cursor);
+}
+function prevRecordPage() {
+  const stack = [...cursorStack.value];
+  const previous = stack.pop();
+  if (previous === undefined) return;
+  cursorStack.value = stack;
+  recordsCursor.value = previous || null;
+  void query.fetchRecords(previous || null);
+}
+async function saveAnalysis(name: string) {
+  if (name.trim()) {
+    await savedApi.save(name.trim(), state.applied.value);
+    showSave.value = false;
+  }
+}
+function openSaved(item: SavedAnalysis) {
+  state.updateDraft(item.config);
+  state.apply();
+  showSaved.value = false;
+}
+async function removeSaved(id: string) {
+  await savedApi.remove(id);
+}
+async function renameSaved(payload: { id: string; name: string }) {
+  await savedApi.rename(payload.id, payload.name);
+}
+async function startExport(type: AnalyticsExportType) {
+  await exportApi.submit(type, state.applied.value);
+}
+/** Empty state “Reset filter”: kembalikan konfigurasi default dan langsung jalankan. */
+function resetFromEmptyState() {
+  state.reset();
+  state.apply();
+}
+
+// ── Cross-filter selected state (ux-spec §8) ────────────────────────────────
+/** Nilai filter eq pada dimensi aktif = kelompok yang sedang menyeleksi canvas. */
+const selectedGroupKey = computed(() => {
+  const filter = applied.filters.find(
+    (item) => item.fieldId === applied.groupBy && item.operator !== "neq",
+  );
+  if (!filter) return null;
+  return Array.isArray(filter.value)
+    ? String(filter.value[0])
+    : String(filter.value);
+});
+function removeFilter(fieldId: string) {
+  state.removeFilter(fieldId);
+  state.apply();
+}
+function clearGroupSelection() {
+  removeFilter(applied.groupBy);
+}
 </script>
+
 <template>
-  <div class="analytics-page flex min-h-0 flex-col gap-3 lg:flex-1 lg:overflow-hidden">
-    <div class="flex shrink-0 flex-wrap items-center gap-2">
-      <AnalyticsHeader class="analytics-header min-w-0 flex-1" :meta="currentMeta()" />
-      <button type="button" class="h-9 rounded-md border px-3 text-sm font-semibold" @click="showSave=true">Simpan analisis</button>
-      <button type="button" class="h-9 rounded-md border px-3 text-sm font-semibold" @click="showExport=true">Ekspor</button>
-    </div>
+  <div class="flex min-h-0 flex-col gap-2 lg:flex-1 lg:overflow-hidden">
+    <AnalyticsToolbar
+      :meta="meta"
+      :config="draft"
+      :fields="fields"
+      :templates="catalogTemplates"
+      :filters="draft.filters"
+      :breadcrumbs="breadcrumbs"
+      :saved-count="savedItems.length"
+      :rail-open="railOpen"
+      @template="chooseTemplate"
+      @remove-filter="removeFilter"
+      @saved="showSaved = true"
+      @save="showSave = true"
+      @export="showExport = true"
+      @toggle-rail="railOpen = !railOpen"
+    />
 
-    <AnalyticsState class="shrink-0" :pending="pending" :error="error" :warning="warning" :has-data="Boolean(currentResponse())" :status="currentMeta()?.status" />
+    <AnalyticsState
+      class="shrink-0"
+      :pending="pending"
+      :error="error"
+      :warning="warning"
+      :has-data="Boolean(response)"
+      :status="meta?.status"
+      @reset="resetFromEmptyState"
+    />
 
-    <div class="grid shrink-0 gap-3 lg:grid-cols-[minmax(0,1fr)_16rem]">
-      <AnalyticsQueryBuilder :fields="fields" :model-value="draft" @update="update" @reset="state.reset" @apply="state.apply" />
-      <div class="grid min-h-0 content-start gap-3">
-        <div class="rounded-lg border bg-card p-3"><AnalyticsTemplatePicker :templates="catalogTemplates" :model-value="draft" @select="chooseTemplate" /></div>
-        <AnalyticsSavedAnalysisMenu class="analytics-saved min-h-0 overflow-auto" :items="savedItems" @open="openSaved" @remove="removeSaved" @rename="renameSaved" />
+    <div
+      class="grid min-h-0 gap-2 lg:flex-1 lg:overflow-hidden"
+      :class="
+        railOpen
+          ? 'lg:grid-cols-[14rem_minmax(0,1fr)] lg:grid-rows-1'
+          : 'lg:grid-cols-[minmax(0,1fr)] lg:grid-rows-1'
+      "
+    >
+      <AnalyticsQueryBuilder
+        v-show="railOpen"
+        :fields="fields"
+        :model-value="draft"
+        :dirty="dirty"
+        @update="update"
+        @reset="state.reset"
+        @apply="state.apply"
+      />
+
+      <div class="flex min-h-0 flex-col gap-2 lg:overflow-hidden">
+        <AnalyticsMetricSummary :response="response" :meta="meta" />
+
+        <AnalyticsInsightPanel
+          :groups="groups"
+          :metric="metric"
+          :coverage="coverage"
+          :unknown-share="unknownShare"
+          @evidence="tableOpen = true"
+        />
+
+        <div
+          class="grid min-h-0 gap-2 lg:flex-1 lg:grid-cols-2 lg:grid-rows-[minmax(0,1fr)_minmax(0,1fr)] lg:overflow-hidden 2xl:grid-cols-3 2xl:grid-rows-1"
+        >
+          <AnalyticsVisual
+            v-if="response"
+            v-model:table-open="tableOpen"
+            :groups="groups"
+            :metric="metric"
+            :visual="applied.visual"
+            :selected-key="selectedGroupKey"
+            :include-others="applied.includeOthers !== false"
+            @update:visual="state.setVisual"
+            @select="selectGroup"
+            @clear-select="clearGroupSelection"
+          />
+          <AnalyticsGroupList
+            :groups="groups"
+            :metric="metric"
+            :dimension-label="dimensionLabel"
+            :drill-field="drillField"
+            :selected-key="selectedGroupKey"
+            @select="selectGroup"
+            @drill="drillGroup"
+          />
+          <AnalyticsRecordTable
+            class="lg:col-span-2 2xl:col-span-1"
+            :records="records"
+            :matched="meta?.coverage?.total ?? meta?.matched"
+            :page-index="cursorStack.length"
+            :page-size="20"
+            :has-next="Boolean(nextCursor)"
+            :has-prev="cursorStack.length > 0"
+            :pending="recordsPending"
+            @open="openRecord"
+            @next="nextRecordPage"
+            @prev="prevRecordPage"
+          />
+        </div>
       </div>
     </div>
 
-    <div class="grid shrink-0 gap-3 lg:grid-cols-2">
-      <AnalyticsMetricSummary class="analytics-metrics" :response="currentResponse()" :meta="currentMeta()" />
-      <AnalyticsInsightPanel class="analytics-insight" :response="currentResponse()" />
-    </div>
-
-    <div class="grid min-h-0 flex-1 gap-3 lg:overflow-hidden lg:grid-cols-[minmax(0,1.1fr)_minmax(24rem,.9fr)] lg:grid-rows-1">
-      <AnalyticsVisual v-if="currentResponse()" class="analytics-result min-h-0" :groups="currentResponse()?.data.groups || []" :visual="applied.visual" :drill-field="drillField" @select="selectGroup" @drill="drillGroup" />
-      <AnalyticsRecordTable class="analytics-result min-h-0" :records="records" @open="openRecord" />
-    </div>
-
-    <AnalyticsSaveAnalysisDialog :model-value="showSave" :config="applied" :busy="savedPending" @close="showSave=false" @save="saveAnalysis" />
-    <AnalyticsExportDialog :model-value="showExport" :config="applied" :status="exportStatus" :busy="exportPending" @close="showExport=false" @submit="startExport" />
+    <AnalyticsSavedAnalysisMenu
+      v-model="showSaved"
+      :items="savedItems"
+      @open="openSaved"
+      @remove="removeSaved"
+      @rename="renameSaved"
+    />
+    <AnalyticsSaveAnalysisDialog
+      v-model="showSave"
+      :config="applied"
+      :busy="savedPending"
+      @save="saveAnalysis"
+    />
+    <AnalyticsExportDialog
+      v-model="showExport"
+      :config="applied"
+      :status="exportStatus"
+      :busy="exportPending"
+      @submit="startExport"
+    />
   </div>
 </template>
-
-<style scoped>
-@media (min-width: 1024px) {
-  .analytics-page :deep(.analytics-header) { padding-bottom: .5rem; }
-  .analytics-page :deep(.analytics-header > div:first-child > p:first-child) { display: none; }
-  .analytics-page :deep(.analytics-header h1) { font-size: 1.25rem; line-height: 1.5rem; }
-  .analytics-page :deep(.analytics-header p) { font-size: .75rem; line-height: 1rem; }
-  .analytics-page :deep(.analytics-header div:last-child p) { margin-top: .25rem; }
-  .analytics-page :deep(.analytics-saved) { max-height: 5rem; padding: .75rem; }
-  .analytics-page :deep(.analytics-saved h2) { font-size: .875rem; }
-  .analytics-page :deep(.analytics-saved p),
-  .analytics-page :deep(.analytics-saved ul) { margin-top: .25rem; }
-  .analytics-page :deep(.analytics-metrics) { gap: .5rem; }
-  .analytics-page :deep(.analytics-metrics article) { padding: .625rem .75rem; }
-  .analytics-page :deep(.analytics-metrics article p:nth-child(2)) { margin-top: 0; font-size: 1.25rem; line-height: 1.5rem; }
-  .analytics-page :deep(.analytics-insight) { padding: .75rem; }
-  .analytics-page :deep(.analytics-insight p) { margin-top: .25rem; font-size: .75rem; line-height: 1rem; }
-  .analytics-page :deep(.analytics-insight a) { margin-top: .375rem; font-size: .75rem; }
-  .analytics-page :deep(.analytics-result) { padding: .75rem; }
-  .analytics-page :deep(.analytics-result > div:first-child),
-  .analytics-page :deep(.analytics-result > h2:first-child) { margin-bottom: .5rem; }
-  .analytics-page :deep(.analytics-result [role="list"]) { gap: .5rem; }
-  .analytics-page :deep(.analytics-result [role="listitem"] > div:last-child) { height: .5rem; }
-  .analytics-page :deep(.analytics-result th),
-  .analytics-page :deep(.analytics-result td) { padding: .375rem; }
-  .analytics-page :deep(.analytics-result p:last-child) { padding-block: 1rem; }
-}
-</style>

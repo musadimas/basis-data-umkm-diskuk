@@ -18,6 +18,7 @@ COPY apps/web/ ./
 # local development. It has no "packages" field, which makes pnpm treat /app as
 # a broken workspace root and abort `pnpm run` with "packages field missing or
 # empty". Drop it before running the build.
+ENV NODE_OPTIONS=--max-old-space-size=1024
 RUN rm -f pnpm-workspace.yaml && pnpm run build
 
 FROM node:22-alpine

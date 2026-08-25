@@ -4,7 +4,7 @@ import type { NavLink } from "@/types/landing";
 
 const navLinks: NavLink[] = [
   { label: "Tentang Program", to: "/tentang-program" },
-  { label: "Dashboard", to: "/dashboard" },
+  { label: "Dashboard", to: "/public-dashboard" },
   { label: "Katalog", to: "/katalog" },
   { label: "Konsultasi", to: "/konsultasi" },
   { label: "Download", to: "/download" },

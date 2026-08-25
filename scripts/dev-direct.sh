@@ -29,6 +29,9 @@ die() { printf '\033[1;31m[dev:direct]\033[0m %s\n' "$*" >&2; exit 1; }
 command -v autossh >/dev/null 2>&1 ||
   die "autossh is required; install it first (macOS: brew install autossh)"
 
+log "building Directus analytics extension"
+pnpm --dir "$DIRECTUS_DIR/extensions/directus-extension-analitik" build
+
 cleanup() {
   log "shutting down..."
   [[ -n "${WEB_PID:-}" ]] && kill "$WEB_PID" 2>/dev/null || true

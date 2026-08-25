@@ -1,29 +1,54 @@
+export interface oasInfo {
+  title?: string;
+  version?: string;
+  description?: string;
+  "x-logo"?: {
+    url: string;
+    altText?: string;
+  };
+}
+
+export interface oasTag {
+  name: string;
+  description?: string;
+}
+
+export interface oasOperation {
+  tags?: string[];
+}
+
+export interface oasPathItem {
+  [method: string]: oasOperation;
+}
+
+export interface oasSecurityScheme {
+  type: string;
+  in?: string;
+  name?: string;
+}
+
+export interface oasComponents {
+  securitySchemes?: { [scheme: string]: oasSecurityScheme };
+}
+
 export interface oasConfig {
   docsPath: string;
-  info: any;
-  tags: Array<any>;
+  info: oasInfo;
+  tags: Array<oasTag>;
   publishedTags: Array<string>;
   excludePrefixes: Array<string>;
   useAuthentication: boolean;
   paths: {
-    [key: string]: any;
+    [path: string]: oasPathItem;
   };
-  components: {
-    [key: string]: any;
-  };
+  components: oasComponents;
 }
 
 export interface oas {
-  info: any;
-  tags: Array<any>;
+  info: oasInfo;
+  tags: Array<oasTag>;
   paths: {
-    [key: string]: {
-      [key: string]: {
-        tags: Array<string>;
-      };
-    };
+    [path: string]: oasPathItem;
   };
-  components: {
-    [key: string]: any;
-  };
+  components: oasComponents;
 }

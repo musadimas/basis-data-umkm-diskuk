@@ -1,19 +1,30 @@
 import { test, expect } from "@playwright/test";
 import { installMockDirectus, loginMock } from "../fixtures/mock-directus.mjs";
 
-test("infografis renders NIB and marketing cards below the sector chart", async ({ page }) => {
+test("infografis renders the combined scale summary with NIB and marketing breakdowns", async ({
+  page,
+}) => {
   await installMockDirectus(page, { authenticated: true });
   await loginMock(page, "/dashboard");
 
   await expect(
-    page.getByRole("heading", { name: "Jumlah UMKM Berdasarkan Kategori Lapangan Usaha" }),
+    page.getByRole("heading", {
+      name: "Rincian UMKM Berdasarkan Kategori KBLI",
+    }),
   ).toBeVisible();
-  await expect(page.getByText("Kepemilikan NIB")).toBeVisible();
-  await expect(page.getByText("Memiliki NIB", { exact: true })).toBeVisible();
+  await expect(page.getByText("Skala yang dilaporkan")).toBeVisible();
+  const summary = page.getByLabel(
+    "Rincian skala usaha, kepemilikan NIB, dan metode pemasaran",
+  );
+  await expect(summary).toBeVisible();
+  await expect(summary.getByText("Kepemilikan NIB")).toBeVisible();
   await expect(
-    page.getByRole("heading", { name: /^Metode Pemasaran/ }),
+    summary.getByText("Memiliki NIB", { exact: true }),
   ).toBeVisible();
-  await expect(page.getByTitle("Non-digital", { exact: true })).toBeVisible();
+  await expect(summary.getByText(/^Metode Pemasaran/)).toBeVisible();
+  await expect(
+    summary.getByTitle("Non-digital", { exact: true }),
+  ).toBeVisible();
 });
 
 test("infografis applies the reusable compact filter FAB", async ({ page }) => {
@@ -24,14 +35,22 @@ test("infografis applies the reusable compact filter FAB", async ({ page }) => {
   const filterButton = page.getByRole("button", { name: "Buka filter data" });
   const mapCanvas = page.locator(".maplibregl-canvas");
   await expect(mapCanvas).toBeVisible();
-  await mapCanvas.evaluate((element) => element.scrollIntoView({ block: "end" }));
+  await mapCanvas.evaluate((element) =>
+    element.scrollIntoView({ block: "end" }),
+  );
   await expect(filterButton).toBeVisible();
   const buttonBox = await filterButton.boundingBox();
-  const topElementLabel = await page.evaluate(({ x, y }) =>
-    document.elementFromPoint(x, y)?.closest("button")?.getAttribute("aria-label"), {
-    x: (buttonBox?.x ?? 0) + (buttonBox?.width ?? 0) / 2,
-    y: (buttonBox?.y ?? 0) + (buttonBox?.height ?? 0) / 2,
-  });
+  const topElementLabel = await page.evaluate(
+    ({ x, y }) =>
+      document
+        .elementFromPoint(x, y)
+        ?.closest("button")
+        ?.getAttribute("aria-label"),
+    {
+      x: (buttonBox?.x ?? 0) + (buttonBox?.width ?? 0) / 2,
+      y: (buttonBox?.y ?? 0) + (buttonBox?.height ?? 0) / 2,
+    },
+  );
   expect(topElementLabel).toBe("Buka filter data");
 
   await filterButton.click();
@@ -48,7 +67,10 @@ test("infografis applies the reusable compact filter FAB", async ({ page }) => {
 
   const filteredRequest = page.waitForRequest((request) => {
     const url = new URL(request.url());
-    return url.pathname === "/panel/infografis/" && url.searchParams.get("skala") === "micro";
+    return (
+      url.pathname === "/panel/infografis/" &&
+      url.searchParams.get("skala") === "micro"
+    );
   });
   await page.getByRole("button", { name: "Terapkan Filter" }).click();
   await filteredRequest;
@@ -57,7 +79,9 @@ test("infografis applies the reusable compact filter FAB", async ({ page }) => {
   await expect(filterButton).toContainText("1");
 });
 
-test("infografis keeps the filter FAB interactive after a full reload", async ({ page }) => {
+test("infografis keeps the filter FAB interactive after a full reload", async ({
+  page,
+}) => {
   await installMockDirectus(page, { authenticated: true });
   await loginMock(page, "/dashboard");
   await page.reload();

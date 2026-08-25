@@ -12,7 +12,7 @@ if (![adminEmail, adminPassword, email, password].every((value) => value && !val
 }
 
 async function request(path, options = {}) {
-  const response = await fetch(`${base}${path}`, { ...options, headers: { accept: "application/json", ...(options.headers || {}) } });
+  const response = await fetch(`${base}${path}`, { ...options, headers: { accept: "application/json", ...options.headers } });
   const body = await response.json().catch(() => null);
   if (!response.ok) {
     const error = new Error(`Directus request failed (${response.status})`);

@@ -1,4 +1,3 @@
-const APPLICATION_ROLE_ID = "7d6d493c-1a6d-4c59-9e74-40d42a7862eb";
 const POLICY_ID = "9325db4b-9518-41db-b122-8c667f2ce510";
 
 export const up = async (knex) => {
@@ -141,10 +140,23 @@ export const up = async (knex) => {
         RETURN COALESCE(NEW, OLD);
       END; $$;
     `);
-    for (const table of ["usaha", "pelaku_usaha", "alamat", "provinsi", "kota", "kecamatan", "kelurahan", "klasifikasi_usaha", "statistik_tenaga_kerja"]) {
+    for (const table of [
+      "usaha",
+      "pelaku_usaha",
+      "alamat",
+      "provinsi",
+      "kota",
+      "kecamatan",
+      "kelurahan",
+      "klasifikasi_usaha",
+      "statistik_tenaga_kerja",
+    ]) {
       const trigger = `trg_analitik_capture_${table}`;
       await trx.raw(`DROP TRIGGER IF EXISTS ?? ON ??`, [trigger, table]);
-      await trx.raw(`CREATE TRIGGER ?? AFTER INSERT OR UPDATE OR DELETE ON ?? FOR EACH ROW EXECUTE FUNCTION analitik_capture_source_change()`, [trigger, table]);
+      await trx.raw(
+        `CREATE TRIGGER ?? AFTER INSERT OR UPDATE OR DELETE ON ?? FOR EACH ROW EXECUTE FUNCTION analitik_capture_source_change()`,
+        [trigger, table],
+      );
     }
     await trx.raw(`
       INSERT INTO directus_collections(collection, icon, note, display_template, hidden, singleton, archive_app_filter, sort)
@@ -156,7 +168,8 @@ export const up = async (knex) => {
         ('analitik_generation','layers','Analytics read-model generations',NULL,TRUE,FALSE,TRUE,104)
       ON CONFLICT (collection) DO NOTHING;
     `);
-    await trx.raw(`
+    await trx.raw(
+      `
       INSERT INTO directus_permissions(collection, action, permissions, validation, presets, fields, policy)
       VALUES
         ('analitik_view','read','{"owner":{"_eq":"$CURRENT_USER"}}'::jsonb,'{}'::jsonb,'{}'::jsonb,'id,owner,name,schema_version,config,date_created,date_updated',? ),
@@ -166,25 +179,63 @@ export const up = async (knex) => {
         ('usaha','read','{}'::jsonb,'{}'::jsonb,'{}'::jsonb,'id,sumber_id,nama,kegiatan_utama,produk_utama,status_hukum,skala,alamat,latitude,longitude,status',? ),
         ('usaha','update','{}'::jsonb,'{"status":{"_in":["active","archived"]}}'::jsonb,'{}'::jsonb,'status',? )
       ON CONFLICT DO NOTHING;
-    `, [POLICY_ID,POLICY_ID,POLICY_ID,POLICY_ID,POLICY_ID,POLICY_ID]);
+    `,
+      [POLICY_ID, POLICY_ID, POLICY_ID, POLICY_ID, POLICY_ID, POLICY_ID],
+    );
   });
 };
 
 export const down = async (knex) => {
   await knex.transaction(async (trx) => {
-    const result = await trx.raw(`SELECT (SELECT COUNT(*) FROM analitik_job)+(SELECT COUNT(*) FROM analitik_view)+(SELECT COUNT(*) FROM analitik_generation)+(SELECT COUNT(*) FROM analitik_usaha_current) AS count`);
+    const result = await trx.raw(
+      `SELECT (SELECT COUNT(*) FROM analitik_job)+(SELECT COUNT(*) FROM analitik_view)+(SELECT COUNT(*) FROM analitik_generation)+(SELECT COUNT(*) FROM analitik_usaha_current) AS count`,
+    );
     const count = Number(result.rows?.[0]?.count ?? result[0]?.count ?? 0);
-    if (count > 0) throw new Error("Refusing analytics foundation rollback while analytics data exists");
-    for (const table of ["usaha", "pelaku_usaha", "alamat", "provinsi", "kota", "kecamatan", "kelurahan", "klasifikasi_usaha", "statistik_tenaga_kerja"]) {
-      await trx.raw(`DROP TRIGGER IF EXISTS ?? ON ??`, [`trg_analitik_capture_${table}`, table]);
+    if (count > 0)
+      throw new Error(
+        "Refusing analytics foundation rollback while analytics data exists",
+      );
+    for (const table of [
+      "usaha",
+      "pelaku_usaha",
+      "alamat",
+      "provinsi",
+      "kota",
+      "kecamatan",
+      "kelurahan",
+      "klasifikasi_usaha",
+      "statistik_tenaga_kerja",
+    ]) {
+      await trx.raw(`DROP TRIGGER IF EXISTS ?? ON ??`, [
+        `trg_analitik_capture_${table}`,
+        table,
+      ]);
     }
     await trx.raw(`DROP FUNCTION IF EXISTS analitik_capture_source_change()`);
-    await trx.raw(`DROP FUNCTION IF EXISTS analitik_enqueue_job(TEXT,TEXT,UUID)`);
-    await trx.raw(`DROP FUNCTION IF EXISTS analitik_require_reconciled_generation()`);
+    await trx.raw(
+      `DROP FUNCTION IF EXISTS analitik_enqueue_job(TEXT,TEXT,UUID)`,
+    );
+    await trx.raw(
+      `DROP FUNCTION IF EXISTS analitik_require_reconciled_generation()`,
+    );
     await trx.raw(`DROP FUNCTION IF EXISTS analitik_validate_json_config()`);
-    await trx.raw(`DELETE FROM directus_permissions WHERE policy = ? AND collection IN ('analitik_view','usaha')`, [POLICY_ID]);
-    await trx.raw(`DELETE FROM directus_collections WHERE collection IN ('analitik_field','analitik_view','analitik_job','analitik_health','analitik_generation')`);
-    for (const table of ["analitik_usaha_current", "analitik_active_generation", "analitik_generation", "analitik_health", "analitik_job", "analitik_view", "analitik_field", "analitik_kbli_sector"]) {
+    await trx.raw(
+      `DELETE FROM directus_permissions WHERE policy = ? AND collection IN ('analitik_view','usaha')`,
+      [POLICY_ID],
+    );
+    await trx.raw(
+      `DELETE FROM directus_collections WHERE collection IN ('analitik_field','analitik_view','analitik_job','analitik_health','analitik_generation')`,
+    );
+    for (const table of [
+      "analitik_usaha_current",
+      "analitik_active_generation",
+      "analitik_generation",
+      "analitik_health",
+      "analitik_job",
+      "analitik_view",
+      "analitik_field",
+      "analitik_kbli_sector",
+    ]) {
       await trx.raw(`DROP TABLE IF EXISTS ??`, [table]);
     }
   });

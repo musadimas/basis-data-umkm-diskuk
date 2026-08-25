@@ -1,5 +1,11 @@
 import { randomUUID } from "node:crypto";
-import { getRequestHeader, getRequestURL, readRawBody, setResponseHeader, type H3Event } from "h3";
+import {
+  getRequestHeader,
+  getRequestURL,
+  readRawBody,
+  setResponseHeader,
+  type H3Event,
+} from "h3";
 import {
   clearPolicyCookies,
   isLoginPath,
@@ -11,12 +17,36 @@ import {
   setPolicyCookies,
 } from "./session-policy";
 
-const HOP_BY_HOP = new Set(["connection", "proxy-connection", "keep-alive", "proxy-authenticate", "proxy-authorization", "te", "trailer", "transfer-encoding", "upgrade", "host", "content-length"]);
-const FORWARDABLE = new Set(["accept", "accept-language", "content-type", "cookie", "origin", "user-agent", "x-forwarded-for", "x-forwarded-proto", "x-request-id"]);
+const HOP_BY_HOP = new Set([
+  "connection",
+  "proxy-connection",
+  "keep-alive",
+  "proxy-authenticate",
+  "proxy-authorization",
+  "te",
+  "trailer",
+  "transfer-encoding",
+  "upgrade",
+  "host",
+  "content-length",
+]);
+const FORWARDABLE = new Set([
+  "accept",
+  "accept-language",
+  "content-type",
+  "cookie",
+  "origin",
+  "user-agent",
+  "x-forwarded-for",
+  "x-forwarded-proto",
+  "x-request-id",
+]);
 
 export function requestOrigin(event: H3Event) {
   const url = getRequestURL(event);
-  const forwardedProto = getRequestHeader(event, "x-forwarded-proto")?.split(",")[0]?.trim();
+  const forwardedProto = getRequestHeader(event, "x-forwarded-proto")
+    ?.split(",")[0]
+    ?.trim();
   return `${forwardedProto || url.protocol.replace(":", "")}://${url.host}`;
 }
 
@@ -24,7 +54,9 @@ export function sameOriginMutation(event: H3Event) {
   const method = event.node.req.method?.toUpperCase() || "GET";
   if (!["POST", "PUT", "PATCH", "DELETE"].includes(method)) return true;
   const origin = getRequestHeader(event, "origin");
-  return Boolean(origin && origin !== "null" && origin === requestOrigin(event));
+  return Boolean(
+    origin && origin !== "null" && origin === requestOrigin(event),
+  );
 }
 
 export function forwardHeaders(event: H3Event, correlationId: string) {
@@ -42,7 +74,11 @@ export function forwardHeaders(event: H3Event, correlationId: string) {
 function appendSetCookie(event: H3Event, value: string) {
   const res = event.node.res;
   const current = res.getHeader("set-cookie");
-  const list = Array.isArray(current) ? current.map(String) : current ? [String(current)] : [];
+  const list = Array.isArray(current)
+    ? current.map(String)
+    : current
+      ? [String(current)]
+      : [];
   list.push(value);
   res.setHeader("set-cookie", list);
 }
@@ -51,12 +87,38 @@ function clearCookiesWithoutH3(event: H3Event) {
   clearPolicyCookies(event);
 }
 
-function setJsonError(event: H3Event, statusCode: number, code: string, requestId: string) {
-  const body = JSON.stringify({ errors: [{ message: "Permintaan tidak dapat diproses.", extensions: { code, requestId } }] });
+function setJsonError(
+  event: H3Event,
+  statusCode: number,
+  code: string,
+  requestId: string,
+) {
+  const body = JSON.stringify({
+    errors: [
+      {
+        message: "Permintaan tidak dapat diproses.",
+        extensions: { code, requestId },
+      },
+    ],
+  });
   event.node.res.statusCode = statusCode;
   setResponseHeader(event, "content-type", "application/json; charset=utf-8");
   setResponseHeader(event, "cache-control", "private, no-store");
   event.node.res.end(body);
+}
+
+function isStringBody(value: string | null | undefined): value is string {
+  return typeof value === "string";
+}
+
+function getSetCookies(headers: Headers): string[] {
+  // SAFETY: older runtimes lack Headers.prototype.getSetCookie; probe the accessor before calling it.
+  const getSetCookie = (headers as Headers & { getSetCookie?: () => string[] })
+    .getSetCookie;
+  if (getSetCookie) return getSetCookie.call(headers);
+  return (headers.get("set-cookie") || "")
+    .split(/,(?=[^;,=]+=[^;,]+)/g)
+    .filter(Boolean);
 }
 
 export async function proxyToDirectus(event: H3Event) {
@@ -77,7 +139,9 @@ export async function proxyToDirectus(event: H3Event) {
   const passthrough = Boolean(process.env.NUXT_DIRECTUS_PROXY_TARGET);
   const base = passthrough
     ? process.env.NUXT_DIRECTUS_PROXY_TARGET!.replace(/\/$/, "")
-    : (process.env.NUXT_DIRECTUS_INTERNAL_URL || "http://directus:8055").replace(/\/$/, "");
+    : (
+        process.env.NUXT_DIRECTUS_INTERNAL_URL || "http://directus:8055"
+      ).replace(/\/$/, "");
 
   const login = isLoginPath(pathname);
   const logout = isLogoutPath(pathname);
@@ -91,27 +155,48 @@ export async function proxyToDirectus(event: H3Event) {
     }
   }
 
-  const target = passthrough ? `${base}${pathname}${url.search}` : `${base}${pathname.slice("/panel".length) || "/"}${url.search}`;
-  const body = ["GET", "HEAD"].includes(event.node.req.method?.toUpperCase() || "GET") ? undefined : await readRawBody(event);
+  const target = passthrough
+    ? `${base}${pathname}${url.search}`
+    : `${base}${pathname.slice("/panel".length) || "/"}${url.search}`;
+  const body = ["GET", "HEAD"].includes(
+    event.node.req.method?.toUpperCase() || "GET",
+  )
+    ? undefined
+    : await readRawBody(event);
   const headers = forwardHeaders(event, requestId);
-  if (passthrough && ["POST", "PUT", "PATCH", "DELETE"].includes(event.node.req.method?.toUpperCase() || "")) {
+  if (
+    passthrough &&
+    ["POST", "PUT", "PATCH", "DELETE"].includes(
+      event.node.req.method?.toUpperCase() || "",
+    )
+  ) {
     // The target rejects mutations whose Origin does not match its own origin; forward its origin
     // instead of the local dev origin.
     headers.set("origin", new URL(base).origin);
   }
   if (body !== undefined && body !== null) {
-    const length = typeof body === "string" ? Buffer.byteLength(body) : Buffer.byteLength(Buffer.from(body));
+    const length = isStringBody(body)
+      ? Buffer.byteLength(body)
+      : Buffer.byteLength(Buffer.from(body));
     headers.set("content-length", String(length));
   }
 
   let response: Response;
+  // SAFETY: undici's fetch accepts a standard AbortSignal; combining the
+  // timeout with the client-disconnect signal via AbortSignal.any is the
+  // documented composition API. The raw body originates from readRawBody (a
+  // validated string proxy payload), which is a valid BodyInit.
   try {
+    const clientGone = new AbortController();
+    event.node.req.on("close", () => clientGone.abort());
     response = await fetch(target, {
       method: event.node.req.method,
       headers,
-      body: body === undefined || body === null ? undefined : (body as BodyInit),
+      // SAFETY: readRawBody returned a validated string proxy payload, which is a valid BodyInit.
+      body:
+        body === undefined || body === null ? undefined : (body as BodyInit),
       redirect: "manual",
-      signal: AbortSignal.timeout(15_000),
+      signal: AbortSignal.any([AbortSignal.timeout(15_000), clientGone.signal]),
     });
   } catch {
     setJsonError(event, 502, "UPSTREAM_UNAVAILABLE", requestId);
@@ -121,13 +206,19 @@ export async function proxyToDirectus(event: H3Event) {
   const res = event.node.res;
   res.statusCode = response.status;
   response.headers.forEach((value, key) => {
-    if (["set-cookie", "content-length", "connection", "transfer-encoding", "cache-control"].includes(key.toLowerCase())) return;
+    if (
+      [
+        "set-cookie",
+        "content-length",
+        "connection",
+        "transfer-encoding",
+        "cache-control",
+      ].includes(key.toLowerCase())
+    )
+      return;
     res.setHeader(key, value);
   });
-  const headersWithSetCookie = response.headers as Headers & { getSetCookie?: () => string[] };
-  const setCookies = typeof headersWithSetCookie.getSetCookie === "function"
-    ? headersWithSetCookie.getSetCookie()
-    : ((response.headers.get("set-cookie") || "").split(/,(?=[^;,=]+=[^;,]+)/g).filter(Boolean));
+  const setCookies = getSetCookies(response.headers);
   for (const cookie of setCookies) if (cookie) appendSetCookie(event, cookie);
 
   if (!passthrough) {

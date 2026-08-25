@@ -31,17 +31,25 @@ const payload = computed(() => {
   return Object.entries(props.payload).map(([key, value]) => {
     // const key = `${props.nameKey || item.name || item.dataKey || "value"}`
     const itemConfig = props.config[key]
-    const indicatorColor = props.config[key]?.color ?? (typeof props.payload.fill === "string" ? props.payload.fill : undefined)
+    const indicatorColor = props.config[key]?.color ?? (isString(props.payload.fill) ? props.payload.fill : undefined)
 
     return { key, value, itemConfig, indicatorColor }
   }).filter(i => i.itemConfig)
 })
 
 const nestLabel = computed(() => Object.keys(props.payload).length === 1 && props.indicator !== "dot")
+function isString(value: ChartValue): value is string {
+  return typeof value === "string"
+}
+
+function isNumber(value: ChartValue): value is number {
+  return typeof value === "number"
+}
+
 function formatValue(value: ChartValue) {
   if (value === null || value === undefined)
     return ""
-  return typeof value === "number" ? value.toLocaleString() : String(value)
+  return isNumber(value) ? value.toLocaleString() : String(value)
 }
 
 const tooltipLabel = computed(() => {

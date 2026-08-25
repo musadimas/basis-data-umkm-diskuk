@@ -1,74 +1,81 @@
 export interface InfografisKbliItem {
-  code: string
-  name: string
-  description: string | null
-  total: number
-  mikro: number
-  kecil: number
-  menengah: number
+  code: string;
+  name: string;
+  description: string | null;
+  total: number;
+  mikro: number;
+  kecil: number;
+  menengah: number;
 }
 
 export interface InfografisSectorItem {
-  code: string
-  name: string
-  total: number
-  mikro: number
-  kecil: number
-  menengah: number
-  percentage: number
+  code: string;
+  name: string;
+  total: number;
+  mikro: number;
+  kecil: number;
+  menengah: number;
+  percentage: number;
 }
 
 export interface InfografisNibData {
-  total: number
-  withNib: number
-  withoutNib: number
-  withPercentage: number
-  withoutPercentage: number
+  total: number;
+  withNib: number;
+  withoutNib: number;
+  withPercentage: number;
+  withoutPercentage: number;
 }
 
 export interface InfografisMarketingMethod {
-  key: string
-  label: string
-  value: number
-  percentage: number
+  key: string;
+  label: string;
+  value: number;
+  percentage: number;
 }
 
 export interface InfografisRegion {
-  id: string
-  name: string
-  value: number
-  code?: string
+  id: string;
+  name: string;
+  value: number;
+  code?: string;
   geometry?: {
-    type: "Polygon" | "MultiPolygon"
-    coordinates: unknown[]
-  }
+    type: "Polygon" | "MultiPolygon";
+    coordinates: unknown[];
+  };
 }
 
 export interface InfografisData {
   scales: {
-    total: number
-    mikro: number
-    kecil: number
-    menengah: number
-  }
-  regions: InfografisRegion[]
-  geometryReady?: boolean
+    total: number;
+    mikro: number;
+    kecil: number;
+    menengah: number;
+  };
+  /** Cakupan klasifikasi KBLI: jumlah usaha terpetakan sektor vs tidak. */
+  sectorCoverage?: {
+    mapped: number;
+    unclassified: number;
+  };
+  regions: InfografisRegion[];
+  regionLevel?: "kota" | "kecamatan" | "kelurahan";
+  geometryReady?: boolean;
+  geometryMissing?: number;
   geometrySource?: {
-    name: string
-    edition: string
-    url: string
-    regions: number
-  }
-  sectors: InfografisSectorItem[]
-  topKbli: InfografisKbliItem[]
-  kbli: InfografisKbliItem[]
-  nib?: InfografisNibData
-  marketingMethods?: InfografisMarketingMethod[]
+    name: string;
+    edition: string;
+    url: string;
+    regions: number;
+  };
+  sectors: InfografisSectorItem[];
+  topKbli: InfografisKbliItem[];
+  kbli: InfografisKbliItem[];
+  nib?: InfografisNibData;
+  marketingMethods?: InfografisMarketingMethod[];
   workforce?: {
-    male: number
-    female: number
-    total: number
-    malePercentage: number
-    femalePercentage: number
-  }
+    male: number;
+    female: number;
+    total: number;
+    malePercentage: number;
+    femalePercentage: number;
+  };
 }
