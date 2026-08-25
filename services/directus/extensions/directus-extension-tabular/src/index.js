@@ -8,6 +8,7 @@
  * Routes:
  *   GET  /tabular/               → { data: rows, meta: { filterCount, mikro, kecil, menengah, page, pageSize, nextCursor } }
  *   GET  /tabular/spasial        → { data: points, meta: { filterCount, mikro, kecil, menengah, limit } }
+ *   GET  /tabular/spasial/tileset→ { data: { url, updatedAt, pointCount } | null } (arsip PMTiles)
  *   GET  /tabular/options        → { data: { kota, kecamatan, kategori, kbli } }
  *   GET  /tabular/kelurahan?kecamatan=<id> → { data: kelurahan }
  *   GET  /tabular/status         → waktu dan total snapshot aktif
@@ -555,6 +556,24 @@ module.exports = {
       } catch (error) {
         if (error.code === "QUERY_TIMEOUT" || error.statusCode === 504) return next(error);
         logger.error(error, "Unable to export tabular");
+        next(error);
+      }
+    });
+
+    // Metadata arsip PMTiles titik UMKM; dibangun oleh scripts/build-spatial-tiles.sh
+    // dan disimpan pada payload snapshot. `data: null` berarti tileset belum
+    // tersedia sehingga frontend memakai fallback GeoJSON /spasial.
+    router.get("/spasial/tileset", async (req, res, next) => {
+      if (!routeGuard(req, next)) return; privateHeaders(res);
+      try {
+        const result = await database.raw(`
+          SELECT payload -> 'spatialTiles' AS tiles
+          FROM infografis_snapshot
+          WHERE id = 1
+        `);
+        res.json({ data: rows(result)[0]?.tiles ?? null });
+      } catch (error) {
+        logger.error(error, "Unable to read spatial tileset metadata");
         next(error);
       }
     });

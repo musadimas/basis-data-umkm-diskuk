@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { CircleHelp } from "@lucide/vue";
 import type { InfografisRegion } from "~/types/infografis";
-import type { SpasialUmkmItem } from "~/types/dashboard";
+import type { SkalaUsaha, SpasialUmkmItem } from "~/types/dashboard";
 
 const props = withDefaults(
   defineProps<{
@@ -24,10 +24,30 @@ const props = withDefaults(
     canGoBack?: boolean;
     /** Titik UMKM untuk layer sebaran titik (clustered). */
     points?: SpasialUmkmItem[];
+    /** Sumber titik peta: GeoJSON runtime (bawaan) atau tileset PMTiles. */
+    pointsMode?: "tiles" | "geojson";
+    /** URL arsip PMTiles untuk moda tile. */
+    tilesetUrl?: string;
+    /** Filter skala usaha untuk moda tile. */
+    skalaFilter?: "semua" | SkalaUsaha;
+    /** Jumlah titik tileset untuk teks legenda (moda tile). */
+    tilePointCount?: number;
     /** Saklar tampil/sembunyi poligon wilayah (v-model:show-regions). */
     showRegions?: boolean;
     /** Saklar tampil/sembunyi titik UMKM (v-model:show-points). */
     showPoints?: boolean;
+    /** Kelas tinggi kontainer peta; halaman full screen dapat mengganti nilai bawaan. */
+    heightClass?: string;
+    /** Sembunyikan catatan wilayah tanpa geometri di bawah peta. */
+    hideGeometryNotice?: boolean;
+    /** Kelas wrapper konten (breadcrumb + peta). */
+    wrapperClass?: string;
+    /** Kelas posisi breadcrumb (kiri-atas secara bawaan). */
+    breadcrumbClass?: string;
+    /** Kelas posisi kontrol saklar layer pada peta. */
+    controlsClass?: string;
+    /** Kelas posisi kontrol zoom pada peta. */
+    zoomClass?: string;
   }>(),
   {
     tooltip: "",
@@ -38,8 +58,18 @@ const props = withDefaults(
     geometrySource: undefined,
     canGoBack: false,
     points: () => [],
+    pointsMode: "geojson",
+    tilesetUrl: "",
+    skalaFilter: "semua",
+    tilePointCount: 0,
     showRegions: true,
     showPoints: false,
+    heightClass: "h-[480px] lg:h-[620px]",
+    hideGeometryNotice: false,
+    wrapperClass: "space-y-2",
+    breadcrumbClass: "left-3 top-3",
+    controlsClass: "right-3 top-3",
+    zoomClass: "bottom-12 right-3",
   },
 );
 const emit = defineEmits<{
@@ -57,11 +87,11 @@ onNuxtReady(() => {
 });
 </script>
 <template>
-  <div class="space-y-2">
+  <div :class="wrapperClass">
     <!-- Breadcrumb: judul section (atas) › wilayah terpilih (bawah). Klik untuk kembali satu level. -->
     <div
-      class="absolute left-3 top-3 z-[6] flex w-fit flex-col gap-1 rounded-xl border bg-white/95 px-3 py-2 text-xs shadow-md backdrop-blur-xs"
-      :class="canGoBack ? 'cursor-pointer hover:bg-slate-50' : ''"
+      class="absolute z-[6] flex w-fit flex-col gap-1 rounded-xl border bg-white/95 px-3 py-2 text-xs shadow-md backdrop-blur-xs"
+      :class="[breadcrumbClass, canGoBack ? 'cursor-pointer hover:bg-slate-50' : '']"
       :role="canGoBack ? 'button' : undefined"
       :tabindex="canGoBack ? 0 : undefined"
       :aria-label="canGoBack ? 'Kembali ke level sebelumnya' : undefined"
@@ -100,15 +130,23 @@ onNuxtReady(() => {
       :regions="mapped"
       :level="regionLevel"
       :points="points"
+      :points-mode="pointsMode"
+      :tileset-url="tilesetUrl"
+      :skala-filter="skalaFilter"
+      :tile-point-count="tilePointCount"
       :show-regions="showRegions"
       :show-points="showPoints"
+      :height-class="heightClass"
+      :controls-class="controlsClass"
+      :zoom-class="zoomClass"
       @update:show-regions="emit('update:showRegions', $event)"
       @update:show-points="emit('update:showPoints', $event)"
       @select="emit('select', $event)"
     />
     <div
       v-else-if="!clientReady"
-      class="h-[480px] animate-pulse rounded-lg bg-muted lg:h-[620px]"
+      class="animate-pulse rounded-lg bg-muted"
+      :class="heightClass"
       aria-label="Memuat peta Jawa Barat"
     />
     <p
@@ -119,7 +157,7 @@ onNuxtReady(() => {
       tetap tersedia melalui filter.
     </p>
     <p
-      v-if="geometryMissing > 0"
+      v-if="!hideGeometryNotice && geometryMissing > 0"
       class="mx-3 mb-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs"
     >
       {{ geometryMissing }} wilayah pada hasil ini belum memiliki geometri yang

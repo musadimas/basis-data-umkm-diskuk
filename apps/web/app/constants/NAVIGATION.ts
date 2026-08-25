@@ -1,5 +1,6 @@
 import {
   ChartColumnDecreasing,
+  Map,
   Table,
 } from "@lucide/vue";
 
@@ -22,6 +23,12 @@ export const NAVIGATION_LINKS = {
       label: "Data Tabular UMKM",
       to: "/dashboard/tabular",
       icon: Table,
+    },
+    {
+      id: "spasial",
+      label: "Peta Spasial UMKM",
+      to: "/dashboard/spasial",
+      icon: Map,
     },
   ],
 };

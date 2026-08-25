@@ -7,12 +7,24 @@ test("infografis renders the combined scale summary with NIB and marketing break
   await installMockDirectus(page, { authenticated: true });
   await loginMock(page, "/dashboard");
 
-  // Seksi "Data UMKM" menggantikan akordeon KBLI: judul seksi + tabel baris lengkap.
+  // Seksi "Data UMKM": tab default "Berdasarkan Kategori" (tabel kategori KBLI).
   const dataUmkmSection = page.locator("#data-umkm");
   await expect(
     dataUmkmSection.getByRole("heading", { name: /^Data UMKM/ }),
   ).toBeVisible();
-  await expect(page.getByText("1–10 dari 12 data")).toBeVisible();
+  await expect(
+    dataUmkmSection.getByRole("tab", { name: "Berdasarkan Kategori" }),
+  ).toHaveAttribute("aria-selected", "true");
+  await expect(
+    page.getByRole("cell", { name: /Perdagangan Besar dan Eceran/ }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("cell", { name: /Industri Pengolahan/ }),
+  ).toBeVisible();
+
+  // Tab "Data UMKM": tabel baris lengkap (25 baris default, semua 12 baris muat satu halaman).
+  await dataUmkmSection.getByRole("tab", { name: "Data UMKM" }).click();
+  await expect(page.getByText("1–12 dari 12 data")).toBeVisible();
   await expect(
     page.getByRole("cell", { name: "Usaha 01", exact: true }),
   ).toBeVisible();

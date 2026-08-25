@@ -220,6 +220,9 @@ services:
       - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
       - ./services/caddy/data:/data
       - ./services/caddy/config:/config
+    environment:
+      # Dipakai Caddyfile (rewrite /tiles/*) untuk menamai bucket arsip PMTiles.
+      ANALYTICS_EXPORT_BUCKET: ${ANALYTICS_EXPORT_BUCKET}
     depends_on:
       - web
     networks: [diskuk_net]

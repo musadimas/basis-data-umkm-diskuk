@@ -7,6 +7,9 @@ test("tabular renders rows and supports forward and backward pagination", async 
 
   await expect(page.getByRole("heading", { name: "Data Tabular UMKM" })).toBeVisible();
   await expect(page.getByRole("cell", { name: "Usaha 01", exact: true })).toBeVisible();
+  // Default 25 baris/halaman; turunkan ke 10 agar paginasi bisa diuji.
+  await page.getByRole("combobox", { name: "Baris per halaman" }).click();
+  await page.getByRole("option", { name: "10", exact: true }).click();
   await expect(page.getByText("1–10 dari 12 data")).toBeVisible();
 
   const secondPageRequest = page.waitForRequest((request) => {
@@ -38,10 +41,9 @@ test("tabular applies filters and links each row to its UMKM profile", async ({ 
     const url = new URL(request.url());
     return url.pathname === "/panel/tabular/" && url.searchParams.get("skala") === "micro";
   });
-  await page.getByRole("button", { name: "Terapkan Filter" }).click();
+  await page.getByRole("button", { name: "Terapkan" }).click();
   await filteredRequest;
 
-  await expect(page.getByText("1 filter aktif")).toBeVisible();
   await expect(page.getByText("1–8 dari 8 data")).toBeVisible();
 
   await page.getByRole("button", { name: "Aksi untuk Usaha 01" }).click();

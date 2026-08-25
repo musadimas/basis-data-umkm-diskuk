@@ -93,7 +93,7 @@ const {
 } = useFetch<{ data: TabularOptions }>("/panel/tabular/options");
 
 const kabupatenOptions = computed(() => [
-  { value: "semua", label: "Semua Kabupaten/Kota" },
+  { value: "semua", label: "Kabupaten/Kota" },
   ...(optionsData.value?.data?.kota ?? []).map((k) => ({ value: String(k.id), label: k.nama })),
 ]);
 
@@ -102,13 +102,13 @@ const kecamatanOptions = computed(() => {
   const kotaId = Number(filters.kabupatenKota);
   const scoped = Number.isInteger(kotaId) && kotaId > 0 ? list.filter((k) => k.kotaId === kotaId) : list;
   return [
-    { value: "semua", label: "Semua Kecamatan" },
+    { value: "semua", label: "Kecamatan" },
     ...scoped.map((k) => ({ value: String(k.id), label: k.nama })),
   ];
 });
 
 const kegiatanOptions = computed(() => [
-  { value: "semua", label: "Semua" },
+  { value: "semua", label: "Kegiatan Usaha" },
   ...(optionsData.value?.data?.kategori ?? []).map((k) => ({ value: k, label: k })),
 ]);
 
@@ -116,7 +116,7 @@ const kbliOptions = computed(() => {
   const list: TabularKbliOption[] = optionsData.value?.data?.kbli ?? [];
   const scoped = filters.kegiatanUsaha === "semua" ? list : list.filter((k) => k.kategori === filters.kegiatanUsaha);
   return [
-    { value: "semua", label: "Semua" },
+    { value: "semua", label: "Kode KBLI" },
     ...scoped.map((k) => ({ value: k.kode, label: k.kode })),
   ];
 });
@@ -191,7 +191,9 @@ watch(
 );
 
 // ── Fetch baris: cursor-based pagination (keyset) ────────────────────────
-const pageSize = ref("10");
+// Default 20 baris agar tinggi tabel sepadan dengan tab "Berdasarkan Kategori"
+// (21 sektor), sehingga perpindahan tab tidak menciutkan panel.
+const pageSize = ref("20");
 const page = ref(1);
 const currentCursor = ref<string | null>(null);
 const cursorStack = ref<string[]>([]);
@@ -238,7 +240,7 @@ const {
   pending: rowsPending,
   error: rowsError,
   refresh: refreshRows,
-} = await useFetch<TabularRowsResponse>("/panel/tabular/", { query: rowsQuery });
+} = useFetch<TabularRowsResponse>("/panel/tabular/", { query: rowsQuery, lazy: true });
 
 const pagedRows = computed<TabularUmkmItem[]>(() =>
   (rowsData.value?.data ?? []).map((r) => ({
@@ -476,186 +478,131 @@ const exportCsv = async () => {
       <UiButton variant="outline" size="sm" @click="refreshRows()">Coba lagi</UiButton>
     </div>
 
-    <!-- Filter Panel -->
-    <div class="space-y-4 rounded-lg border border-border/80 p-4">
-      <div class="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <h3 class="text-base font-bold text-foreground">Filter Data UMKM</h3>
-          <p class="mt-1 text-xs text-muted-foreground">
-            Pilih satu atau beberapa kriteria, lalu terapkan filter.
-          </p>
-        </div>
-        <UiBadge v-if="activeFilterCount > 0" variant="secondary">
-          {{ activeFilterCount }} filter aktif
-        </UiBadge>
-      </div>
-      <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
-        <!-- Kabupaten/Kota -->
-        <div class="space-y-1.5">
-          <label for="filter-kabupaten" class="block text-sm leading-4 text-[#323232]">
-            Pilih Kabupaten/Kota
-          </label>
-          <UiSelect v-model="filters.kabupatenKota" :disabled="optionsPending || Boolean(optionsError)">
-            <UiSelectTrigger
-              id="filter-kabupaten"
-              class="h-[54px] w-full rounded-lg border-[#9e9e9e] bg-[#fdfdfd] text-sm text-[#757575]"
-            >
-              <UiSelectValue placeholder="Semua Kabupaten/Kota" />
-            </UiSelectTrigger>
-            <UiSelectContent>
-              <UiSelectItem v-for="opt in kabupatenOptions" :key="opt.value" :value="opt.value">
-                {{ opt.label }}
-              </UiSelectItem>
-            </UiSelectContent>
-          </UiSelect>
-        </div>
-
-        <!-- Kecamatan -->
-        <div class="space-y-1.5">
-          <label for="filter-kecamatan" class="block text-sm leading-4 text-[#323232]">
-            Pilih Kecamatan
-          </label>
-          <UiSelect v-model="filters.kecamatan" :disabled="optionsPending || Boolean(optionsError)">
-            <UiSelectTrigger
-              id="filter-kecamatan"
-              class="h-[54px] w-full rounded-lg border-[#9e9e9e] bg-[#fdfdfd] text-sm text-[#757575]"
-            >
-              <UiSelectValue placeholder="Semua Kecamatan" />
-            </UiSelectTrigger>
-            <UiSelectContent>
-              <UiSelectItem v-for="opt in kecamatanOptions" :key="opt.value" :value="opt.value">
-                {{ opt.label }}
-              </UiSelectItem>
-            </UiSelectContent>
-          </UiSelect>
-        </div>
-
-        <!-- Desa/Kelurahan -->
-        <div class="space-y-1.5">
-          <label for="filter-desa" class="block text-sm leading-4 text-[#323232]">
-            Desa/Kelurahan
-          </label>
-          <UiSelect
-            v-model="filters.desaKelurahan"
-            :disabled="filters.kecamatan === 'semua' || kelurahanPending || kelurahanError"
-          >
-            <UiSelectTrigger
-              id="filter-desa"
-              class="h-[54px] w-full rounded-lg border-[#9e9e9e] bg-[#fdfdfd] text-sm text-[#757575]"
-            >
-              <UiSelectValue :placeholder="kelurahanPending ? 'Memuat…' : 'Semua Desa/Kelurahan'" />
-            </UiSelectTrigger>
-            <UiSelectContent>
-              <UiSelectItem v-for="opt in desaKelurahanOptions" :key="opt.value" :value="opt.value">
-                {{ opt.label }}
-              </UiSelectItem>
-            </UiSelectContent>
-          </UiSelect>
-          <p v-if="kelurahanError" class="text-xs text-destructive" role="alert">
-            Daftar desa/kelurahan gagal dimuat.
-          </p>
-        </div>
+    <!-- Filter strip: langsung di atas tabel, tanpa panel/card -->
+    <div class="mb-2 flex flex-wrap items-center gap-2">
+      <div class="min-w-36 flex-1 basis-36">
+        <UiSelect v-model="filters.kabupatenKota" :disabled="optionsPending || Boolean(optionsError)">
+          <UiSelectTrigger aria-label="Kabupaten/Kota" size="sm" class="w-full">
+            <UiSelectValue placeholder="Semua Kabupaten/Kota" />
+          </UiSelectTrigger>
+          <UiSelectContent>
+            <UiSelectItem v-for="opt in kabupatenOptions" :key="opt.value" :value="opt.value">
+              {{ opt.label }}
+            </UiSelectItem>
+          </UiSelectContent>
+        </UiSelect>
       </div>
 
-      <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
-        <!-- Skala Usaha -->
-        <div class="space-y-1.5">
-          <label for="filter-skala" class="block text-sm leading-4 text-[#323232]">
-            Skala Usaha
-          </label>
-          <UiSelect v-model="filters.skala">
-            <UiSelectTrigger
-              id="filter-skala"
-              class="h-[54px] w-full rounded-lg border-[#9e9e9e] bg-[#fdfdfd] text-sm text-[#757575]"
-            >
-              <UiSelectValue placeholder="Semua" />
-            </UiSelectTrigger>
-            <UiSelectContent>
-              <UiSelectItem v-for="opt in skalaOptions" :key="opt.value" :value="opt.value">
-                {{ opt.label }}
-              </UiSelectItem>
-            </UiSelectContent>
-          </UiSelect>
-        </div>
-
-        <!-- Kegiatan Usaha -->
-        <div class="space-y-1.5">
-          <label for="filter-kegiatan" class="block text-sm leading-4 text-[#323232]">
-            Kegiatan Usaha
-          </label>
-          <UiSelect v-model="filters.kegiatanUsaha" :disabled="optionsPending || Boolean(optionsError)">
-            <UiSelectTrigger
-              id="filter-kegiatan"
-              class="h-[54px] w-full rounded-lg border-[#9e9e9e] bg-[#fdfdfd] text-sm text-[#757575]"
-            >
-              <UiSelectValue placeholder="Semua" />
-            </UiSelectTrigger>
-            <UiSelectContent>
-              <UiSelectItem v-for="opt in kegiatanOptions" :key="opt.value" :value="opt.value">
-                {{ opt.label }}
-              </UiSelectItem>
-            </UiSelectContent>
-          </UiSelect>
-        </div>
-
-        <!-- Kode KBLI -->
-        <div class="space-y-1.5">
-          <label for="filter-kbli" class="block text-sm leading-4 text-[#323232]">
-            Kode KBLI
-          </label>
-          <UiSelect v-model="filters.kodeKbli" :disabled="optionsPending || Boolean(optionsError)">
-            <UiSelectTrigger
-              id="filter-kbli"
-              class="h-[54px] w-full rounded-lg border-[#9e9e9e] bg-[#fdfdfd] text-sm text-[#757575]"
-            >
-              <UiSelectValue placeholder="Semua" />
-            </UiSelectTrigger>
-            <UiSelectContent>
-              <UiSelectItem v-for="opt in kbliOptions" :key="opt.value" :value="opt.value">
-                {{ opt.label }}
-              </UiSelectItem>
-            </UiSelectContent>
-          </UiSelect>
-        </div>
+      <div class="min-w-36 flex-1 basis-36">
+        <UiSelect v-model="filters.kecamatan" :disabled="optionsPending || Boolean(optionsError)">
+          <UiSelectTrigger aria-label="Kecamatan" size="sm" class="w-full">
+            <UiSelectValue placeholder="Semua Kecamatan" />
+          </UiSelectTrigger>
+          <UiSelectContent>
+            <UiSelectItem v-for="opt in kecamatanOptions" :key="opt.value" :value="opt.value">
+              {{ opt.label }}
+            </UiSelectItem>
+          </UiSelectContent>
+        </UiSelect>
       </div>
 
-      <!-- Filter Actions -->
-      <div class="flex flex-wrap items-center justify-end gap-2 border-t border-border/70 pt-3">
+      <div class="min-w-36 flex-1 basis-36">
+        <UiSelect
+          v-model="filters.desaKelurahan"
+          :disabled="filters.kecamatan === 'semua' || kelurahanPending || kelurahanError"
+        >
+          <UiSelectTrigger aria-label="Desa/Kelurahan" size="sm" class="w-full">
+            <UiSelectValue :placeholder="kelurahanPending ? 'Memuat…' : 'Semua Desa/Kelurahan'" />
+          </UiSelectTrigger>
+          <UiSelectContent>
+            <UiSelectItem v-for="opt in desaKelurahanOptions" :key="opt.value" :value="opt.value">
+              {{ opt.label }}
+            </UiSelectItem>
+          </UiSelectContent>
+        </UiSelect>
+      </div>
+
+      <div class="min-w-32 flex-1 basis-32">
+        <UiSelect v-model="filters.skala">
+          <UiSelectTrigger aria-label="Skala Usaha" size="sm" class="w-full">
+            <UiSelectValue placeholder="Semua" />
+          </UiSelectTrigger>
+          <UiSelectContent>
+            <UiSelectItem v-for="opt in skalaOptions" :key="opt.value" :value="opt.value">
+              {{ opt.label }}
+            </UiSelectItem>
+          </UiSelectContent>
+        </UiSelect>
+      </div>
+
+      <div class="min-w-36 flex-1 basis-36">
+        <UiSelect v-model="filters.kegiatanUsaha" :disabled="optionsPending || Boolean(optionsError)">
+          <UiSelectTrigger aria-label="Kegiatan Usaha" size="sm" class="w-full">
+            <UiSelectValue placeholder="Semua" />
+          </UiSelectTrigger>
+          <UiSelectContent>
+            <UiSelectItem v-for="opt in kegiatanOptions" :key="opt.value" :value="opt.value">
+              {{ opt.label }}
+            </UiSelectItem>
+          </UiSelectContent>
+        </UiSelect>
+      </div>
+
+      <div class="min-w-28 flex-1 basis-28">
+        <UiSelect v-model="filters.kodeKbli" :disabled="optionsPending || Boolean(optionsError)">
+          <UiSelectTrigger aria-label="Kode KBLI" size="sm" class="w-full">
+            <UiSelectValue placeholder="Semua" />
+          </UiSelectTrigger>
+          <UiSelectContent>
+            <UiSelectItem v-for="opt in kbliOptions" :key="opt.value" :value="opt.value">
+              {{ opt.label }}
+            </UiSelectItem>
+          </UiSelectContent>
+        </UiSelect>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-1.5">
         <UiButton
           variant="outline"
-          class="gap-1.5 rounded-lg border-brand-green text-sm font-bold text-brand-green-foreground hover:bg-brand-green/10"
+          size="sm"
+          class="gap-1 rounded-md border-brand-green text-xs font-semibold text-brand-green-foreground hover:bg-brand-green/10"
           :disabled="rowsPending || (!filtersAreDirty && activeFilterCount === 0)"
           @click="resetFilters"
         >
-          <RotateCcw class="h-4 w-4" />
-          <span>Reset Filter</span>
+          <RotateCcw class="h-3.5 w-3.5" />
+          <span>Reset</span>
         </UiButton>
         <UiButton
-          class="gap-1.5 rounded-lg bg-brand-green text-sm font-bold text-brand-green-foreground hover:bg-brand-green/90"
+          size="sm"
+          class="gap-1 rounded-md bg-brand-green text-xs font-semibold text-brand-green-foreground hover:bg-brand-green/90"
           :disabled="rowsPending || !filtersAreDirty"
           @click="applyFilters"
         >
-          <LoaderCircle v-if="rowsPending" class="h-4 w-4 animate-spin" />
-          <Filter v-else class="h-4 w-4" />
-          <span>{{ rowsPending ? "Memuat…" : "Terapkan Filter" }}</span>
+          <LoaderCircle v-if="rowsPending" class="h-3.5 w-3.5 animate-spin" />
+          <Filter v-else class="h-3.5 w-3.5" />
+          <span>{{ rowsPending ? "Memuat…" : "Terapkan" }}</span>
         </UiButton>
         <UiButton
           variant="outline"
-          class="gap-1.5 rounded-lg border-brand-green text-sm font-bold text-brand-green-foreground hover:bg-brand-green/10"
+          size="sm"
+          class="gap-1 rounded-md border-brand-green text-xs font-semibold text-brand-green-foreground hover:bg-brand-green/10"
           :disabled="rowsPending || totalData === 0 || isExporting"
           aria-label="Unduh data UMKM (CSV)"
           title="Unduh seluruh hasil filter (CSV, maks. 50.000 baris)"
           @click="exportCsv"
         >
-          <LoaderCircle v-if="isExporting" class="h-4 w-4 animate-spin" />
-          <Download v-else class="h-4 w-4" />
-          <span>{{ isExporting ? "Menyiapkan…" : "Unduh CSV" }}</span>
+          <LoaderCircle v-if="isExporting" class="h-3.5 w-3.5 animate-spin" />
+          <Download v-else class="h-3.5 w-3.5" />
+          <span>{{ isExporting ? "Menyiapkan…" : "CSV" }}</span>
         </UiButton>
       </div>
-      <p v-if="exportError" class="text-right text-xs text-destructive" role="alert">
-        {{ exportError }}
-      </p>
     </div>
+    <p v-if="kelurahanError" class="mb-2 text-xs text-destructive" role="alert">
+      Daftar desa/kelurahan gagal dimuat.
+    </p>
+    <p v-if="exportError" class="mb-2 text-right text-xs text-destructive" role="alert">
+      {{ exportError }}
+    </p>
 
     <!-- Table -->
     <div class="overflow-x-auto rounded-lg border border-border/80" :aria-busy="rowsPending">
@@ -675,17 +622,51 @@ const exportCsv = async () => {
           </tr>
         </thead>
         <tbody>
-          <tr
-            v-if="rowsPending && pagedRows.length === 0"
-            class="bg-white dark:bg-card"
-          >
-            <td colspan="10" class="px-3 py-10 text-center text-sm text-muted-foreground">
-              <span class="inline-flex items-center gap-2">
-                <LoaderCircle class="h-4 w-4 animate-spin" />
-                Memuat data…
-              </span>
-            </td>
-          </tr>
+          <!-- Skeleton saat memuat (mis. baru membuka tab): jumlah baris mengikuti page size agar tinggi tidak menciut -->
+          <template v-if="rowsPending && pagedRows.length === 0">
+            <tr
+              v-for="row in numericPageSize"
+              :key="`skeleton-${row}`"
+              class="border-t border-[#9e9e9e]/40 bg-white dark:bg-card"
+              aria-hidden="true"
+            >
+              <td class="px-3 py-[7px] text-center">
+                <UiSkeleton class="mx-auto h-4 w-6" />
+              </td>
+              <td class="px-3 py-[7px]">
+                <UiSkeleton class="h-4 w-full max-w-44" />
+              </td>
+              <td class="px-3 py-[7px]">
+                <UiSkeleton class="h-8 w-28 rounded-lg" />
+              </td>
+              <td class="px-3 py-[7px]">
+                <UiSkeleton class="h-4 w-full max-w-44" />
+              </td>
+              <td class="px-3 py-[7px]">
+                <UiSkeleton class="h-4 w-full max-w-40" />
+              </td>
+              <td class="px-3 py-[7px]">
+                <UiSkeleton class="h-4 w-full max-w-40" />
+              </td>
+              <td class="px-3 py-[7px]">
+                <UiSkeleton class="h-4 w-full max-w-44" />
+              </td>
+              <td class="px-3 py-[7px]">
+                <UiSkeleton class="h-4 w-full max-w-56" />
+              </td>
+              <td class="px-3 py-[7px]">
+                <UiSkeleton class="h-4 w-full max-w-20" />
+              </td>
+              <td class="px-3 py-[7px] text-center">
+                <UiSkeleton class="mx-auto h-4 w-6" />
+              </td>
+            </tr>
+            <tr class="bg-white dark:bg-card" aria-hidden="true">
+              <td colspan="10" class="px-3 py-[7px]">
+                <span class="sr-only">Memuat data…</span>
+              </td>
+            </tr>
+          </template>
           <tr
             v-for="(r, i) in pagedRows"
             :key="r.id"

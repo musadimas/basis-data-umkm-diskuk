@@ -6,7 +6,8 @@
   - Counter jumlah UMKM pada tiap poligon wilayah.
   - Sebaran titik UMKM (opsional, diaktifkan lewat saklar) dengan clustering:
     titik diagregasi menjadi klaster berhitung, lalu mengembang saat peta
-    di-zoom atau klaster diklik.
+    di-zoom atau klaster diklik. Dua moda sumber tersedia: GeoJSON runtime
+    (bawaan, jumlah terbatas) atau tileset PMTiles pre-clustered (semua titik).
 -->
 <script setup lang="ts">
 import { Minus, Plus } from "@lucide/vue";
@@ -35,15 +36,36 @@ const props = withDefaults(
     showRegions?: boolean;
     /** Saklar tampil/sembunyi titik UMKM (v-model:show-points). */
     showPoints?: boolean;
+    /** Sumber titik: GeoJSON runtime (bawaan) atau tileset PMTiles pre-clustered. */
+    pointsMode?: "tiles" | "geojson";
+    /** URL arsip PMTiles (dipakai saat pointsMode "tiles"), mis. "/tiles/current.pmtiles". */
+    tilesetUrl?: string;
+    /** Filter skala usaha untuk moda tile; klaster tetap agregat campuran skala. */
+    skalaFilter?: "semua" | SkalaUsaha;
+    /** Jumlah titik pada tileset untuk teks legenda (moda tile). */
+    tilePointCount?: number;
     /** Sembunyikan saklar "Titik UMKM" (mis. landing page publik yang tak menampilkan titik). */
     hidePointsSwitcher?: boolean;
+    /** Kelas tinggi kontainer peta; halaman full screen dapat mengganti nilai bawaan. */
+    heightClass?: string;
+    /** Kelas posisi kontrol saklar layer (kanan-atas secara bawaan). */
+    controlsClass?: string;
+    /** Kelas posisi kontrol zoom (kanan-bawah di atas atribusi secara bawaan). */
+    zoomClass?: string;
   }>(),
   {
     level: "kota",
     points: () => [],
     showRegions: true,
     showPoints: false,
+    pointsMode: "geojson",
+    tilesetUrl: "",
+    skalaFilter: "semua",
+    tilePointCount: 0,
     hidePointsSwitcher: false,
+    heightClass: "h-[480px] lg:h-[620px]",
+    controlsClass: "right-3 top-3",
+    zoomClass: "bottom-12 right-3",
   },
 );
 const emit = defineEmits<{
@@ -106,8 +128,20 @@ const skalaLabels = {
   kecil: "Usaha Kecil",
   menengah: "Usaha Menengah",
 } satisfies Record<SkalaUsaha, string>;
+const TILE_POINTS_SOURCE = "umkm-points-tiles";
+const TILE_LAYER_NAME = "umkm";
+// tippecanoe memberi fitur klaster atribut `point_count` berisi jumlah anggota.
+const TILE_CLUSTER_COUNT_PROP = "point_count";
+
 const pointsVisible = computed(
-  () => props.showPoints && props.points.length > 0,
+  () =>
+    props.showPoints &&
+    (props.pointsMode === "tiles"
+      ? Boolean(props.tilesetUrl)
+      : props.points.length > 0),
+);
+const displayedPointCount = computed(() =>
+  props.pointsMode === "tiles" ? props.tilePointCount : props.points.length,
 );
 
 function skalaColorExpression(): string | ExpressionSpecification {
@@ -145,13 +179,29 @@ function pointsFeatureCollection(): GeoJSON.FeatureCollection<GeoJSON.Point> {
   };
 }
 
+/** Filter titik individual pada tileset; skala hanya menyaring titik tunggal,
+ *  klaster tetap tampil karena agregat campuran skala tak bisa di-recluster
+ *  di klien. */
+function tilePointFilter(): ExpressionSpecification {
+  const individual: ExpressionSpecification = ["!", ["has", TILE_CLUSTER_COUNT_PROP]];
+  if (props.skalaFilter === "semua") return individual;
+  return ["all", individual, ["==", ["get", "skala"], props.skalaFilter]];
+}
+
 /** Tampilkan/sembunyikan seluruh layer titik tanpa membangun ulang source. */
 function applyPointsVisibility() {
   if (!map) return;
   const visibility = pointsVisible.value ? "visible" : "none";
-  for (const layer of ["umkm-clusters", "umkm-cluster-count", "umkm-point"]) {
-    if (map.getLayer(layer))
-      map.setLayoutProperty(layer, "visibility", visibility);
+  const layers = [
+    "umkm-clusters",
+    "umkm-cluster-count",
+    "umkm-point",
+    "umkm-tile-clusters",
+    "umkm-tile-cluster-count",
+    "umkm-tile-point",
+  ];
+  for (const layer of layers) {
+    if (map.getLayer(layer)) map.setLayoutProperty(layer, "visibility", visibility);
   }
 }
 
@@ -275,9 +325,12 @@ function setRegionHover(id: string | number | null) {
 
 function onRegionClick(event: MapLayerMouseEvent) {
   // Jangan drill-down bila yang diklik adalah titik/klaster UMKM di atas poligon.
-  const hitPoints = event.target.queryRenderedFeatures(event.point, {
-    layers: ["umkm-clusters", "umkm-point"],
-  });
+  // Hanya pakai layer yang benar-benar terdaftar: moda tile tak punya layer GeoJSON, demikian sebaliknya.
+  const pointLayers = ["umkm-clusters", "umkm-point", "umkm-tile-clusters", "umkm-tile-point"]
+    .filter((layer) => event.target.getLayer(layer));
+  const hitPoints = pointLayers.length > 0
+    ? event.target.queryRenderedFeatures(event.point, { layers: pointLayers })
+    : [];
   if (hitPoints.length > 0) return;
   const feature = event.features?.[0];
   const id = String(feature?.properties?.id ?? "");
@@ -318,6 +371,20 @@ async function onClusterClick(event: MapLayerMouseEvent) {
   event.target.easeTo({
     center,
     zoom: Math.min(zoom + 0.2, event.target.getMaxZoom()),
+    duration: 600,
+  });
+}
+
+/** Klik klaster tile → zoom mendekat; sumber vektor tak punya API expansion
+ *  zoom seperti klaster GeoJSON runtime. */
+function onTileClusterClick(event: MapLayerMouseEvent) {
+  const feature = event.features?.[0];
+  if (!feature) return;
+  // SAFETY: layer cluster tile hanya berisi feature Point dari arsip PMTiles.
+  const center = (feature.geometry as GeoJSON.Point).coordinates as [number, number];
+  event.target.easeTo({
+    center,
+    zoom: Math.min(event.target.getZoom() + 2, event.target.getMaxZoom()),
     duration: 600,
   });
 }
@@ -513,6 +580,68 @@ onMounted(() => {
       });
     }
 
+    // ── Titik UMKM dari tileset PMTiles (klaster dibangun saat build) ─────
+    // Moda dipilih lewat prop saat mount; halaman meremount komponen (:key)
+    // saat moda berganti sehingga source tidak perlu dibongkar-pasang.
+    if (props.pointsMode === "tiles" && props.tilesetUrl) {
+      map?.addSource(TILE_POINTS_SOURCE, {
+        type: "vector",
+        url: `pmtiles://${props.tilesetUrl}`,
+        minzoom: 3,
+        maxzoom: 14,
+      });
+      map?.addLayer({
+        id: "umkm-tile-clusters",
+        type: "circle",
+        source: TILE_POINTS_SOURCE,
+        "source-layer": TILE_LAYER_NAME,
+        filter: ["has", TILE_CLUSTER_COUNT_PROP],
+        layout: { visibility: "none" },
+        paint: {
+          "circle-color": "#1E88E5",
+          "circle-radius": ["step", ["get", TILE_CLUSTER_COUNT_PROP], 14, 10, 18, 50, 24],
+          "circle-stroke-width": 2,
+          "circle-stroke-color": "#ffffff",
+          "circle-radius-transition": { duration: 200, delay: 0 },
+        },
+      });
+      map?.addLayer({
+        id: "umkm-tile-cluster-count",
+        type: "symbol",
+        source: TILE_POINTS_SOURCE,
+        "source-layer": TILE_LAYER_NAME,
+        filter: ["has", TILE_CLUSTER_COUNT_PROP],
+        layout: {
+          visibility: "none",
+          "text-field": ["to-string", ["get", TILE_CLUSTER_COUNT_PROP]],
+          "text-font": ["Noto Sans Bold"],
+          "text-size": 12,
+        },
+        paint: { "text-color": "#ffffff" },
+      });
+      map?.addLayer({
+        id: "umkm-tile-point",
+        type: "circle",
+        source: TILE_POINTS_SOURCE,
+        "source-layer": TILE_LAYER_NAME,
+        filter: tilePointFilter(),
+        layout: { visibility: "none" },
+        paint: {
+          "circle-color": skalaColorExpression(),
+          "circle-radius": 6,
+          "circle-stroke-width": 2,
+          "circle-stroke-color": "#ffffff",
+          "circle-radius-transition": { duration: 150, delay: 0 },
+        },
+      });
+      map?.on("click", "umkm-tile-clusters", onTileClusterClick);
+      map?.on("click", "umkm-tile-point", onPointClick);
+      for (const layer of ["umkm-tile-clusters", "umkm-tile-point"]) {
+        map?.on("mouseenter", layer, () => { if (map) map.getCanvas().style.cursor = "pointer"; });
+        map?.on("mouseleave", layer, () => { if (map) map.getCanvas().style.cursor = ""; });
+      }
+    }
+
     updateSource();
   });
   resizeObserver = new ResizeObserver(() => map?.resize());
@@ -527,6 +656,15 @@ watch(
     if (map?.isStyleLoaded()) applyLayersVisibility();
   },
 );
+// Filter skala pada tileset: hanya memengaruhi layer titik individual.
+watch(
+  () => props.skalaFilter,
+  () => {
+    if (map?.isStyleLoaded() && map.getLayer("umkm-tile-point")) {
+      map.setFilter("umkm-tile-point", tilePointFilter());
+    }
+  },
+);
 
 onBeforeUnmount(() => {
   resizeObserver?.disconnect();
@@ -539,16 +677,17 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="relative overflow-hidden bg-slate-50">
+  <div class="relative h-full overflow-hidden bg-slate-50">
     <div
       ref="container"
-      class="h-[480px] w-full lg:h-[620px]"
+      class="w-full"
+      :class="heightClass"
       :aria-label="`Peta sebaran UMKM per ${levelLabel} Jawa Barat`"
       data-lenis-prevent-wheel
     />
 
     <!-- Saklar tampil/sembunyi layer -->
-    <div class="absolute right-3 top-3 z-[5] flex flex-col items-stretch gap-2">
+    <div class="absolute z-[5] flex flex-col items-stretch gap-2" :class="controlsClass">
       <button
         type="button"
         role="switch"
@@ -591,7 +730,7 @@ onBeforeUnmount(() => {
     </div>
 
     <!-- Kontrol zoom kustom -->
-    <div class="absolute bottom-12 right-3 z-[5] flex flex-col gap-2">
+    <div class="absolute z-[5] flex flex-col gap-2" :class="zoomClass">
       <button
         type="button"
         class="flex h-9 w-9 items-center justify-center rounded-full border bg-white/95 text-slate-700 shadow-md backdrop-blur-xs transition-colors hover:bg-slate-100"
@@ -650,7 +789,7 @@ onBeforeUnmount(() => {
           </div>
         </div>
         <p class="mt-2 text-[10px] text-slate-500">
-          {{ formatAnalyticsNumber(points.length) }} titik ditampilkan
+          {{ formatAnalyticsNumber(displayedPointCount) }} titik ditampilkan
         </p>
       </template>
     </div>

@@ -19,6 +19,28 @@ export interface GenderDistributionData {
   totalWorkers?: number
 }
 
+export interface KbliCategoryItem {
+  /** Huruf kategori KBLI (A–U). */
+  code: string
+  title: string
+  totalUmkm: number
+  /** Bagian dari total UMKM terfilter, dalam persen (0–100). */
+  percentage?: number
+  mikro?: number
+  kecil?: number
+  menengah?: number
+}
+
+/** Kode KBLI spesifik di bawah sebuah sektor, untuk drill-down. */
+export interface KbliCodeItem {
+  code: string
+  title: string | null
+  totalUmkm: number
+  mikro?: number
+  kecil?: number
+  menengah?: number
+}
+
 export type SkalaUsaha = "mikro" | "kecil" | "menengah"
 
 export interface TabularUmkmItem {

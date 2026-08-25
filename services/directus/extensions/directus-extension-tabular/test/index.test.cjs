@@ -256,6 +256,27 @@ test("tabular: spasial ignores invalid filters and clamps limit", async () => {
   assert.deepEqual(pointCall.params, [5000]);
 });
 
+test("tabular: returns spatial tileset metadata from snapshot", async () => {
+  const router = captureRouter();
+  const tiles = { url: "/tiles/current.pmtiles", updatedAt: "2026-08-25T00:00:00Z", pointCount: 1234 };
+  const raw = async (sql) => rows(sql.includes("payload -> 'spatialTiles'") ? [{ tiles }] : []);
+  extension.handler(router, { database: { raw }, logger: { error: () => assert.fail("no errors expected") } });
+
+  const res = await run(router.routes, "/spasial/tileset", {});
+
+  assert.deepEqual(res.body.data, tiles);
+});
+
+test("tabular: returns null tileset until the first tile build", async () => {
+  const router = captureRouter();
+  const raw = async (sql) => rows(sql.includes("payload -> 'spatialTiles'") ? [{ tiles: null }] : []);
+  extension.handler(router, { database: { raw }, logger: { error: () => assert.fail("no errors expected") } });
+
+  const res = await run(router.routes, "/spasial/tileset", {});
+
+  assert.equal(res.body.data, null);
+});
+
 test("tabular: returns materialized filter options with one snapshot query", async () => {
   const router = captureRouter();
   const rawCalls = [];
@@ -422,6 +443,7 @@ test("tabular: rejects anonymous and wrong-role requests before any query", asyn
     "/status",
     "/",
     "/spasial",
+    "/spasial/tileset",
     "/options",
     "/kelurahan",
     "/publish",

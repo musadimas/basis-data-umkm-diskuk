@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import type {
   GenderDistributionData,
+  KbliCategoryItem,
+  KbliCodeItem,
   ScaleStatItem,
   SkalaUsaha,
   SpasialUmkmItem,
@@ -15,6 +17,7 @@ import type {
 } from "~/types/tabular";
 import { DASHBOARD_SECTIONS } from "~/constants/DASHBOARD";
 import { defaultAnalysis, serializeAnalysisUrl } from "~/lib/analytics-query";
+import { sectorForKbli } from "~/lib/kbli-sectors";
 definePageMeta({
   layout: "dashboard",
 });
@@ -412,6 +415,52 @@ const genderData = computed<GenderDistributionData | undefined>(() => {
 
 const nibData = computed(() => infografis.value?.nib);
 const marketingMethods = computed(() => infografis.value?.marketingMethods);
+
+// ── Tab "Berdasarkan Kategori": rincian UMKM per kategori KBLI ─────────────
+const view = ref<"kategori" | "data">("kategori");
+
+const kbliItems = computed<KbliCategoryItem[]>(() =>
+  (infografis.value?.sectors ?? []).map((item) => ({
+    code: item.code,
+    title: item.name,
+    totalUmkm: item.total,
+    percentage: item.percentage,
+    mikro: item.mikro,
+    kecil: item.kecil,
+    menengah: item.menengah,
+  })),
+);
+
+function openKbliSector(item: KbliCategoryItem) {
+  openAnalytics("sektor_kbli", item.code);
+}
+
+/** Drill-down dari kode KBLI spesifik ke halaman analitik. */
+function openKbliCode(code: KbliCodeItem) {
+  openAnalytics("kbli_kode", code.code);
+}
+
+/**
+ * Kode KBLI dikelompokkan per huruf sektor untuk drill-down.
+ * API sudah mengirim seluruh kode (bukan hanya lima teratas) pada field `kbli`.
+ */
+const kbliCodesBySector = computed<Record<string, KbliCodeItem[]>>(() => {
+  const grouped: Record<string, KbliCodeItem[]> = {};
+  for (const item of infografis.value?.kbli ?? []) {
+    const sector = sectorForKbli(item.code);
+    if (!sector) continue;
+    (grouped[sector] ??= []).push({
+      code: item.code,
+      title: item.description ?? item.name,
+      totalUmkm: item.total,
+      mikro: item.mikro,
+      kecil: item.kecil,
+      menengah: item.menengah,
+    });
+  }
+  // API sudah mengurutkan berdasarkan total desc; pertahankan urutan itu.
+  return grouped;
+});
 </script>
 
 <template>
@@ -470,10 +519,98 @@ const marketingMethods = computed(() => infografis.value?.marketingMethods);
       />
     </DashboardCardSection>
 
-    <!-- Section 3: Data UMKM (tabular lengkap: filter, paginasi, ekspor CSV) -->
+    <!-- Section 3: Data UMKM (tab kategori KBLI ↔ tabel baris lengkap) -->
     <div id="data-umkm" class="scroll-mt-20">
       <DashboardCardSection v-bind="DASHBOARD_SECTIONS.umkmData">
-        <DashboardTabularData :sync-filters="appliedFilters" />
+        <div class="space-y-3">
+          <div
+            role="tablist"
+            aria-label="Mode tampilan data UMKM"
+            class="grid grid-cols-2 gap-1 rounded-lg border border-border/80 bg-muted/50 p-1"
+          >
+            <button
+              id="tab-umkm-kategori"
+              type="button"
+              role="tab"
+              aria-controls="panel-umkm-kategori"
+              :aria-selected="view === 'kategori'"
+              class="rounded-md px-3 py-1.5 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green sm:text-sm"
+              :class="view === 'kategori'
+                ? 'bg-white text-foreground shadow-xs dark:bg-card'
+                : 'text-muted-foreground hover:text-foreground'"
+              @click="view = 'kategori'"
+            >
+              Berdasarkan Kategori
+            </button>
+            <button
+              id="tab-umkm-data"
+              type="button"
+              role="tab"
+              aria-controls="panel-umkm-data"
+              :aria-selected="view === 'data'"
+              class="rounded-md px-3 py-1.5 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green sm:text-sm"
+              :class="view === 'data'
+                ? 'bg-white text-foreground shadow-xs dark:bg-card'
+                : 'text-muted-foreground hover:text-foreground'"
+              @click="view = 'data'"
+            >
+              Data UMKM
+            </button>
+          </div>
+
+          <div
+            v-if="view === 'kategori'"
+            id="panel-umkm-kategori"
+            role="tabpanel"
+            aria-labelledby="tab-umkm-kategori"
+          >
+            <!-- Skeleton saat data kategori belum tersedia; ukuran meniru tabel kategori -->
+            <div
+              v-if="!infografis"
+              class="overflow-hidden rounded-xl border border-border/80 bg-white p-3 dark:bg-card"
+              aria-hidden="true"
+            >
+              <template v-if="pending">
+                <div class="flex items-center justify-between gap-3 pb-3">
+                  <UiSkeleton class="h-8 w-64 rounded-md" />
+                  <div class="hidden gap-4 sm:flex">
+                    <UiSkeleton v-for="i in 3" :key="i" class="h-4 w-14" />
+                  </div>
+                </div>
+                <div class="space-y-2.5">
+                  <div
+                    v-for="i in 6"
+                    :key="i"
+                    class="flex items-center gap-3 rounded-lg border border-border/40 px-3 py-2.5"
+                  >
+                    <UiSkeleton class="h-7 w-7 rounded-md" />
+                    <UiSkeleton class="h-4 w-full max-w-72" />
+                    <UiSkeleton class="ml-auto h-4 w-16" />
+                  </div>
+                </div>
+              </template>
+              <p v-else class="py-6 text-center text-sm text-muted-foreground">
+                Data kategori belum dapat dimuat.
+              </p>
+            </div>
+            <DashboardAccordionListKBLI
+              v-else
+              :items="kbliItems"
+              :codes-by-sector="kbliCodesBySector"
+              @view:data="openKbliSector"
+              @drill:kode="openKbliCode"
+            />
+          </div>
+
+          <div
+            v-else
+            id="panel-umkm-data"
+            role="tabpanel"
+            aria-labelledby="tab-umkm-data"
+          >
+            <DashboardTabularData :sync-filters="appliedFilters" />
+          </div>
+        </div>
       </DashboardCardSection>
     </div>
 

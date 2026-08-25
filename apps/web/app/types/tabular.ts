@@ -112,6 +112,13 @@ export interface TabularKelurahanItem {
   nama: string
 }
 
+/** Metadata arsip PMTiles titik UMKM dari /panel/tabular/spasial/tileset. */
+export interface TabularSpatialTileset {
+  url: string
+  updatedAt: string
+  pointCount: number
+}
+
 export interface TabularApiResponse<
   T,
 > {

@@ -1,6 +1,6 @@
 export async function installMockDirectus(
   page,
-  { authenticated = false, renderMap = false } = {},
+  { authenticated = false, renderMap = false, spatialTileset = null } = {},
 ) {
   let loggedIn = authenticated;
   await page.route("**/panel/**", async (route) => {
@@ -66,6 +66,29 @@ export async function installMockDirectus(
           },
         }),
       });
+      return;
+    }
+    if (path === "/panel/tabular/spasial/tileset") {
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: spatialTileset }) });
+      return;
+    }
+    if (path === "/panel/tabular/spasial") {
+      const skala = url.searchParams.get("skala");
+      const allPoints = Array.from({ length: 4 }, (_, index) => ({
+        id: `22222222-2222-4222-8222-${String(index + 1).padStart(12, "0")}`,
+        nama: `Titik ${index + 1}`,
+        skala: index < 3 ? "micro" : "small",
+        produkUtama: "Keripik Singkong",
+        kegiatanUtama: "Produksi makanan ringan",
+        kodeKbli: "10794",
+        kategoriKbli: "INDUSTRI PENGOLAHAN",
+        kota: "Kabupaten Bogor",
+        kecamatan: "Cibinong",
+        latitude: -6.55 + index * 0.05,
+        longitude: 106.8 + index * 0.05,
+      }));
+      const points = skala ? allPoints.filter((item) => item.skala === skala) : allPoints;
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: points, meta: { filterCount: skala ? points.length : 12, mikro: points.filter((item) => item.skala === "micro").length, kecil: points.filter((item) => item.skala === "small").length, menengah: 0 } }) });
       return;
     }
     if (path === "/panel/tabular/kelurahan") {

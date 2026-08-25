@@ -11,6 +11,11 @@ export const DASHBOARD_SECTIONS = {
     tooltip:
       "Sebaran data spasial konsentrasi UMKM di 27 Kabupaten/Kota Jawa Barat. Klik wilayah untuk memperbesar, aktifkan Titik UMKM untuk melihat lokasi usaha.",
   },
+  spatialMap: {
+    title: "Peta Spasial UMKM",
+    tooltip:
+      "Eksplorasi lokasi usaha di Jawa Barat: koropleth jumlah UMKM per wilayah dengan drill-down kabupaten/kota → kecamatan → desa/kelurahan, ditambah layer titik usaha berkoordinat yang mengembang saat zoom. Atur batas titik sesuai kebutuhan.",
+  },
   nib: {
     title: "Kepemilikan NIB",
     description:
@@ -59,8 +64,8 @@ export const DASHBOARD_SECTIONS = {
   umkmData: {
     title: "Data UMKM",
     description:
-      "Baris data UMKM sesuai filter infografis aktif. Persempit dengan filter tambahan, buka profil usaha per baris, atau unduh hasilnya sebagai CSV (maks. 50.000 baris).",
+      "Tab Berdasarkan Kategori menampilkan rincian UMKM per kategori KBLI beserta komposisi skala usaha. Tab Data UMKM menampilkan baris data sesuai filter infografis aktif, dengan filter tambahan, profil usaha, dan unduhan CSV (maks. 50.000 baris).",
     tooltip:
-      "Data baris usaha dari snapshot usaha_tabular dengan filter & paginasi server-side",
+      "Rincian agregat per sektor KBLI, atau baris data usaha dari snapshot usaha_tabular dengan filter & paginasi server-side",
   },
 } as const;

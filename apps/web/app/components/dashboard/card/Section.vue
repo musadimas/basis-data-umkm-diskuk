@@ -7,6 +7,7 @@ interface Props {
   tooltip?: string;
   cardClass?: string;
   headerClass?: string;
+  contentClass?: string;
 }
 
 withDefaults(defineProps<Props>(), {
@@ -14,6 +15,7 @@ withDefaults(defineProps<Props>(), {
   tooltip: "",
   cardClass: "",
   headerClass: "",
+  contentClass: "",
 });
 </script>
 
@@ -60,7 +62,7 @@ withDefaults(defineProps<Props>(), {
     </UiCardHeader>
 
     <!-- Content Slot -->
-    <UiCardContent class="px-0">
+    <UiCardContent class="px-0" :class="contentClass">
       <slot />
     </UiCardContent>
   </UiCard>
