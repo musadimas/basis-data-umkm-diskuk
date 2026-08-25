@@ -1,14 +1,13 @@
 <script setup lang="ts">
 import type {
   GenderDistributionData,
-  KbliCategoryItem,
-  KbliCodeItem,
   ScaleStatItem,
   SkalaUsaha,
   SpasialUmkmItem,
 } from "~/types/dashboard";
 import type { InfografisData } from "~/types/infografis";
 import type {
+  TabularFilters,
   TabularKbliOption,
   TabularKelurahanItem,
   TabularOptions,
@@ -16,7 +15,6 @@ import type {
 } from "~/types/tabular";
 import { DASHBOARD_SECTIONS } from "~/constants/DASHBOARD";
 import { defaultAnalysis, serializeAnalysisUrl } from "~/lib/analytics-query"
-import { sectorForKbli } from "~/lib/kbli-sectors";
 definePageMeta({
   layout: "dashboard",
 });
@@ -32,16 +30,7 @@ const runtimeConfig = useRuntimeConfig();
 function openAnalytics(fieldId: string, value: string) { const config = { ...defaultAnalysis, groupBy: fieldId, filters: [{ fieldId, operator: "eq" as const, value }] }; router.push(`/dashboard/analitik?${serializeAnalysisUrl(config)}`) }
 const workforceEnabled = computed(() => runtimeConfig.public.enableWorkforce === true);
 
-interface InfografisFilters {
-  kabupatenKota: string;
-  kecamatan: string;
-  desaKelurahan: string;
-  skala: string;
-  kegiatanUsaha: string;
-  kodeKbli: string;
-}
-
-const defaultFilters = (): InfografisFilters => ({
+const defaultFilters = (): TabularFilters => ({
   kabupatenKota: "semua",
   kecamatan: "semua",
   desaKelurahan: "semua",
@@ -307,7 +296,7 @@ const scaleItems = computed<ScaleStatItem[]>(() => {
       value: scales.total,
       category: "total",
       buttonText: "Lihat Data",
-      buttonHref: "/dashboard/tabular",
+      buttonHref: "#data-umkm",
     },
     {
       id: "mikro",
@@ -345,49 +334,6 @@ const genderData = computed<GenderDistributionData | undefined>(() => {
 
 const nibData = computed(() => infografis.value?.nib);
 const marketingMethods = computed(() => infografis.value?.marketingMethods);
-
-const kbliItems = computed<KbliCategoryItem[]>(() =>
-  (infografis.value?.sectors ?? []).map((item) => ({
-    code: item.code,
-    title: item.name,
-    totalUmkm: item.total,
-    percentage: item.percentage,
-    mikro: item.mikro,
-    kecil: item.kecil,
-    menengah: item.menengah,
-  })),
-);
-
-function openKbliSector(item: KbliCategoryItem) {
-  openAnalytics("sektor_kbli", item.code);
-}
-
-/** Drill-down dari kode KBLI spesifik ke halaman analitik. */
-function openKbliCode(code: KbliCodeItem) {
-  openAnalytics("kbli_kode", code.code);
-}
-
-/**
- * Kode KBLI dikelompokkan per huruf sektor untuk drill-down.
- * API sudah mengirim seluruh kode (bukan hanya lima teratas) pada field `kbli`.
- */
-const kbliCodesBySector = computed<Record<string, KbliCodeItem[]>>(() => {
-  const grouped: Record<string, KbliCodeItem[]> = {};
-  for (const item of infografis.value?.kbli ?? []) {
-    const sector = sectorForKbli(item.code);
-    if (!sector) continue;
-    (grouped[sector] ??= []).push({
-      code: item.code,
-      title: item.description ?? item.name,
-      totalUmkm: item.total,
-      mikro: item.mikro,
-      kecil: item.kecil,
-      menengah: item.menengah,
-    });
-  }
-  // API sudah mengurutkan berdasarkan total desc; pertahankan urutan itu.
-  return grouped;
-});
 </script>
 
 <template>
@@ -446,15 +392,12 @@ const kbliCodesBySector = computed<Record<string, KbliCodeItem[]>>(() => {
       />
     </DashboardCardSection>
 
-    <!-- Section 3: Rincian UMKM Berdasarkan Kategori KBLI -->
-    <DashboardCardSection v-bind="DASHBOARD_SECTIONS.kbliAccordion">
-      <DashboardAccordionListKBLI
-        :items="kbliItems"
-        :codes-by-sector="kbliCodesBySector"
-        @view:data="openKbliSector"
-        @drill:kode="openKbliCode"
-      />
-    </DashboardCardSection>
+    <!-- Section 3: Data UMKM (tabular lengkap: filter, paginasi, ekspor CSV) -->
+    <div id="data-umkm" class="scroll-mt-20">
+      <DashboardCardSection v-bind="DASHBOARD_SECTIONS.umkmData">
+        <DashboardTabularData :sync-filters="appliedFilters" />
+      </DashboardCardSection>
+    </div>
 
     <!-- Section 4: Gender Distribution -->
     <DashboardCardSection

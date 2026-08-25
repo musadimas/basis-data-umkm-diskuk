@@ -5,9 +5,13 @@ test("infografis renders the combined scale summary with NIB and marketing break
   await installMockDirectus(page, { authenticated: true });
   await loginMock(page, "/dashboard");
 
+  // Seksi "Data UMKM" menggantikan akordeon KBLI: judul seksi + tabel baris lengkap.
+  const dataUmkmSection = page.locator("#data-umkm");
   await expect(
-    page.getByRole("heading", { name: "Rincian UMKM Berdasarkan Kategori KBLI" }),
+    dataUmkmSection.getByRole("heading", { name: /^Data UMKM/ }),
   ).toBeVisible();
+  await expect(page.getByText("1–10 dari 12 data")).toBeVisible();
+  await expect(page.getByRole("cell", { name: "Usaha 01", exact: true })).toBeVisible();
   await expect(page.getByText("Skala yang dilaporkan")).toBeVisible();
   const summary = page.getByLabel("Rincian skala usaha, kepemilikan NIB, dan metode pemasaran");
   await expect(summary).toBeVisible();
@@ -38,20 +42,20 @@ test("infografis applies the reusable compact filter FAB", async ({ page }) => {
   await filterButton.click();
   const dialog = page.getByRole("dialog");
   await expect(dialog).toBeVisible();
-  await expect(page.getByRole("combobox")).toHaveCount(6);
+  await expect(dialog.getByRole("combobox")).toHaveCount(6);
   const box = await dialog.boundingBox();
   expect(box?.x).toBeGreaterThanOrEqual(0);
   expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(390);
   expect(box?.height).toBeLessThanOrEqual(812);
 
-  await page.getByRole("combobox", { name: "Skala Usaha" }).click();
+  await dialog.getByRole("combobox", { name: "Skala Usaha" }).click();
   await page.getByRole("option", { name: "Mikro", exact: true }).click();
 
   const filteredRequest = page.waitForRequest((request) => {
     const url = new URL(request.url());
     return url.pathname === "/panel/infografis/" && url.searchParams.get("skala") === "micro";
   });
-  await page.getByRole("button", { name: "Terapkan Filter" }).click();
+  await dialog.getByRole("button", { name: "Terapkan Filter" }).click();
   await filteredRequest;
 
   await expect(page.getByRole("dialog")).toBeHidden();

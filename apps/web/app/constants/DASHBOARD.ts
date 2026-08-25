@@ -55,11 +55,11 @@ export const DASHBOARD_SECTIONS = {
     tooltip:
       "Kualitas data: usaha terpetakan memiliki kode KBLI valid yang dikenali sistem",
   },
-  kbliAccordion: {
-    title: "Rincian UMKM Berdasarkan Kategori KBLI",
+  umkmData: {
+    title: "Data UMKM",
     description:
-      "Dikelompokkan berdasarkan huruf kategori KBLI (A–U), diurutkan dari jumlah UMKM terbanyak. Klik baris untuk melihat komposisi skala usaha dan rincian kode KBLI.",
+      "Baris data UMKM sesuai filter infografis aktif. Persempit dengan filter tambahan, buka profil usaha per baris, atau unduh hasilnya sebagai CSV (maks. 50.000 baris).",
     tooltip:
-      "Kategori A–U berdasarkan Klasifikasi Baku Lapangan Usaha Indonesia (KBLI)",
+      "Data baris usaha dari snapshot usaha_tabular dengan filter & paginasi server-side",
   },
 } as const;

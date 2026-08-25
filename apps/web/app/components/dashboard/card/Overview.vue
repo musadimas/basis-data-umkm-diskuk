@@ -296,7 +296,7 @@ const coveragePercentage = computed(() => {
                 Total UMKM
               </p>
               <NuxtLink
-                to="/dashboard/tabular"
+                to="#data-umkm"
                 class="shrink-0 text-[11px] font-semibold text-brand-blue underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green"
               >
                 Lihat Data
@@ -397,7 +397,7 @@ const coveragePercentage = computed(() => {
               </UiTooltipProvider>
             </h2>
             <NuxtLink
-              to="/dashboard/tabular"
+              to="#data-umkm"
               class="shrink-0 rounded-md text-xs font-semibold text-brand-blue underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green"
             >
               Lihat Data
@@ -472,7 +472,7 @@ const coveragePercentage = computed(() => {
               </UiTooltipProvider>
             </h2>
             <NuxtLink
-              to="/dashboard/tabular"
+              to="#data-umkm"
               class="shrink-0 rounded-md text-xs font-semibold text-brand-blue underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green"
             >
               Lihat Data

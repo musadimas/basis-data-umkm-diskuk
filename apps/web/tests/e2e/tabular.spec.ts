@@ -6,7 +6,7 @@ test("tabular renders rows and supports forward and backward pagination", async 
   await loginMock(page, "/dashboard/tabular");
 
   await expect(page.getByRole("heading", { name: "Data Tabular UMKM" })).toBeVisible();
-  await expect(page.getByRole("cell", { name: "Usaha 01" })).toBeVisible();
+  await expect(page.getByRole("cell", { name: "Usaha 01", exact: true })).toBeVisible();
   await expect(page.getByText("1–10 dari 12 data")).toBeVisible();
 
   const secondPageRequest = page.waitForRequest((request) => {
@@ -15,7 +15,7 @@ test("tabular renders rows and supports forward and backward pagination", async 
   });
   await page.getByRole("button", { name: "Halaman berikutnya" }).click();
   await secondPageRequest;
-  await expect(page.getByRole("cell", { name: "Usaha 11" })).toBeVisible();
+  await expect(page.getByRole("cell", { name: "Usaha 11", exact: true })).toBeVisible();
   await expect(page.getByText("11–12 dari 12 data")).toBeVisible();
 
   const firstPageRequest = page.waitForRequest((request) => {
@@ -24,7 +24,7 @@ test("tabular renders rows and supports forward and backward pagination", async 
   });
   await page.getByRole("button", { name: "Halaman sebelumnya" }).click();
   await firstPageRequest;
-  await expect(page.getByRole("cell", { name: "Usaha 01" })).toBeVisible();
+  await expect(page.getByRole("cell", { name: "Usaha 01", exact: true })).toBeVisible();
 });
 
 test("tabular applies filters and links each row to its UMKM profile", async ({ page }) => {
