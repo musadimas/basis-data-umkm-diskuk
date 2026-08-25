@@ -117,3 +117,13 @@ export interface TabularApiResponse<
 > {
   data: T
 }
+
+/** State filter tabular (draft maupun terapan); "semua" = tanpa filter. */
+export interface TabularFilters {
+  kabupatenKota: string; // id kota dari Directus, "semua" = semua
+  kecamatan: string;
+  desaKelurahan: string;
+  skala: string;
+  kegiatanUsaha: string; // kategori KBLI
+  kodeKbli: string;
+}
