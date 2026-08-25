@@ -638,7 +638,6 @@ module.exports = {
           ), req.signal);
         } catch (e) { mapTimeoutError(e); }
 
-        const [countRow] = rows(countResult);
         res.json({
           data: rows(pointResult),
           meta: {

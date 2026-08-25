@@ -15,6 +15,7 @@
   },
   "scripts": {
     "build": "mkdir -p dist && cp src/index.js dist/index.js",
+    "pretest": "npm run build",
     "test": "node --test test/*.test.cjs"
   }
 }
