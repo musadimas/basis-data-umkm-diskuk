@@ -7,19 +7,16 @@ defineProps<{
 </script>
 
 <template>
-  <section
-    id="page-header"
-    class="relative isolate w-dvw pt-(--space-header) h-[40dvh] mb-20"
-  >
-    <div class="relative pb-8 pt-16 | lg:pb-16 lg:pt-20 h-full">
+  <section class="relative w-full pt-(--space-header) h-[40dvh] mb-20">
+    <div class="relative pb-8 pt-16 lg:pb-16 lg:pt-20 h-full">
       <div
-        class="max-w-screen-7xl mx-auto px-3 | lg:px-12 | xl:px-0 absolute bottom-0 left-1/2 -translate-x-1/2"
+        class="max-w-screen-7xl mx-auto px-3 lg:px-12 xl:px-0 absolute bottom-0 left-1/2 -translate-x-1/2"
       >
-        <div class="grid gap-8 | lg:grid-cols-12 lg:gap-16">
+        <div class="grid gap-8 lg:grid-cols-12 lg:gap-16">
           <div
-            class="grid-item col-span-full text-center | lg:col-span-8 lg:col-start-3"
+            class="grid-item col-span-full text-center lg:col-span-8 lg:col-start-3"
           >
-            <UiBadge :color="badgeColor" class="mb-4 | lg:mb-6">
+            <UiBadge :color="badgeColor" class="mb-4 lg:mb-6">
               {{ subtitle }}
             </UiBadge>
             <h1
@@ -44,7 +41,7 @@ defineProps<{
       <div class="absolute inset-0 bg-black mix-blend-screen" />
     </div>
     <div
-      class="absolute inset-y-0 inset-x-[-200vw] z-[-1] overflow-clip pt-48 -scale-y-100 mix-blend-multiply"
+      class="absolute inset-y-0 inset-x-full z-[-1] overflow-clip pt-48 -scale-y-100 mix-blend-multiply"
     >
       <div class="aspect-square rounded-full bg-blue-100 blur-[5rem]" />
     </div>

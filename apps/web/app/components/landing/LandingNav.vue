@@ -7,7 +7,7 @@ const navLinks: NavLink[] = [
   { label: "Dashboard", to: "/public-dashboard" },
   { label: "Katalog", to: "/katalog" },
   { label: "Konsultasi", to: "/konsultasi" },
-  { label: "Download", to: "/download" },
+  // { label: "Download", to: "/download" },
 ];
 
 const route = useRoute();

@@ -88,8 +88,18 @@ const cards: StatCard[] = [
       },
     ],
     splits: [
-      { id: "jenis-usaha-produksi", target: 97, format: percent, label: "Produksi" },
-      { id: "jenis-usaha-reseller", target: 3, format: percent, label: "Reseller" },
+      {
+        id: "jenis-usaha-produksi",
+        target: 97,
+        format: percent,
+        label: "Produksi",
+      },
+      {
+        id: "jenis-usaha-reseller",
+        target: 3,
+        format: percent,
+        label: "Reseller",
+      },
     ],
   },
   {
@@ -135,7 +145,12 @@ const cards: StatCard[] = [
       { d: "M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z" },
     ],
     splits: [
-      { id: "penjualan-offline", target: 68, format: percent, label: "Offline" },
+      {
+        id: "penjualan-offline",
+        target: 68,
+        format: percent,
+        label: "Offline",
+      },
       { id: "penjualan-online", target: 32, format: percent, label: "Online" },
     ],
   },
@@ -223,6 +238,178 @@ const statCards = reactive(
     })),
   })),
 );
+
+interface ChartRow {
+  [key: string]: unknown;
+  label: string;
+  value: number;
+}
+
+interface ChartCardConfig {
+  title: string;
+  type: "bar" | "donut";
+  orientation?: "horizontal" | "vertical";
+  data: ChartRow[];
+  height: string;
+  showXAxis?: boolean;
+  showYAxis?: boolean;
+  showLegend: boolean;
+  colSpan: "full" | "half";
+}
+
+const UMKM_CHART_COLORS = [
+  "#0F3B5F", // dark navy
+  "#0873BD", // sky/brand blue
+  "#FBBF24", // amber/brand amber
+  "#16A75C", // brand green
+  "#F97316", // orange
+];
+
+const kategoriUsahaData: ChartRow[] = [
+  { label: "Makanan", value: 6140 },
+  { label: "Kuliner", value: 2040 },
+  { label: "Craft", value: 1343 },
+  { label: "Fashion", value: 1298 },
+  { label: "Minuman", value: 850 },
+  { label: "Jasa", value: 354 },
+  { label: "Industri", value: 270 },
+  { label: "Agribisnis", value: 220 },
+  { label: "Konveksi", value: 215 },
+  { label: "Obat-obatan", value: 38 },
+  { label: "Lainnya", value: 13 },
+];
+
+// Institution/legal-entity labels are a placeholder pending real category names.
+const kelembagaanData: ChartRow[] = [
+  { label: "Perorangan", value: 7031 },
+  { label: "CV", value: 2709 },
+  { label: "PT", value: 1820 },
+  { label: "Koperasi", value: 1236 },
+  { label: "Lainnya", value: 254 },
+];
+
+const CHART_CATEGORIES: Extract<keyof ChartRow, string>[] = ["value"];
+
+interface GenderRow {
+  [key: string]: unknown;
+  gender: string;
+  tetap: number;
+  tidakTetap: number;
+}
+
+const tenagaKerjaGenderData: GenderRow[] = [
+  { gender: "Laki-laki", tetap: 21989, tidakTetap: 9692 },
+  { gender: "Perempuan", tetap: 22650, tidakTetap: 9802 },
+];
+
+const GENDER_SERIES: { key: string; label: string; color: string }[] = [
+  { key: "tetap", label: "Tetap", color: "#38BDF8" },
+  { key: "tidakTetap", label: "Tidak Tetap", color: "#EC4899" },
+];
+
+const chartCards: ChartCardConfig[] = [
+  {
+    title: "Jumlah UMKM Berdasarkan Kategori Usaha",
+    type: "bar",
+    orientation: "vertical",
+    data: kategoriUsahaData,
+    height: "h-[340px]",
+    showXAxis: true,
+    showYAxis: false,
+    showLegend: false,
+    colSpan: "full",
+  },
+  {
+    title: "Jumlah UMKM Berdasarkan Kelembagaan",
+    type: "donut",
+    data: kelembagaanData,
+    height: "h-72",
+    showLegend: true,
+    colSpan: "half",
+  },
+];
+
+// Wilayah pemasaran only has a handful of buckets — a donut reads better than a
+// bar here, unlike the long-tail category lists below.
+const wilayahPemasaranData: ChartRow[] = [
+  { label: "Lokal", value: 12564 },
+  { label: "Regional", value: 4282 },
+  { label: "Nasional", value: 686 },
+];
+
+// Freetext entries from the source data ("-", "BELUM", "TIDAK ADA", "NIHIL",
+// duplicate "MALAYSIA"/"SINGAPURA" rows, duplicate "LAINNYA" rows) are grouped
+// into single clean categories here rather than left as separate rows.
+const negaraEksporData: ChartRow[] = [
+  // { label: "Belum Ekspor", value: 20 },
+  { label: "Asia", value: 26 },
+  { label: "Asia Tenggara", value: 17 },
+  { label: "Timur Tengah", value: 12 },
+  { label: "Amerika Serikat", value: 7 },
+  { label: "Eropa", value: 5 },
+  { label: "Australia", value: 5 },
+];
+
+// "BANK"/"KUR BRI"/"BRI" merged into one bank-financing bucket; "SENDIRI" merged
+// into "Modal Sendiri"; the "LAINNYA"/"LAINYA" typo duplicate merged into one.
+const sumberPembiayaanData: ChartRow[] = [
+  { label: "Bank (termasuk KUR)", value: 1000 },
+  { label: "Modal Sendiri", value: 700 },
+  { label: "Investor", value: 200 },
+  { label: "Koperasi", value: 300 },
+  { label: "Lainnya", value: 500 },
+];
+
+// A handful of clean buckets after merging the freetext one-off entries
+// ("ADA, DARI PELATIHAN...", "KOPERASI RIMBA...", "ADA", "BLT KODIM", etc.)
+// into "Lainnya" — few enough categories that a donut fits better than a bar.
+const dukunganBumdData: ChartRow[] = [
+  { label: "BJB", value: 30 },
+  { label: "Lainnya", value: 9 },
+  { label: "Jamkrida", value: 3 },
+  { label: "Bank Patriot", value: 2 },
+];
+
+const kinerjaChartCards: ChartCardConfig[] = [
+  {
+    title: "Jumlah UMKM Berdasarkan Wilayah Pemasaran",
+    type: "donut",
+    data: wilayahPemasaranData,
+    height: "h-72",
+    showLegend: true,
+    colSpan: "half",
+  },
+  {
+    title: "Jumlah UMKM Berdasarkan Negara Tujuan Ekspor",
+    type: "bar",
+    orientation: "horizontal",
+    data: negaraEksporData,
+    height: "h-[340px]",
+    showXAxis: false,
+    showYAxis: true,
+    showLegend: false,
+    colSpan: "half",
+  },
+  {
+    title: "Jumlah UMKM Berdasarkan Sumber Pembiayaan",
+    type: "bar",
+    orientation: "horizontal",
+    data: sumberPembiayaanData,
+    height: "h-72",
+    showXAxis: false,
+    showYAxis: true,
+    showLegend: false,
+    colSpan: "half",
+  },
+  {
+    title: "Jumlah UMKM Berdasarkan Dukungan BUMD",
+    type: "donut",
+    data: dukunganBumdData,
+    height: "h-72",
+    showLegend: true,
+    colSpan: "half",
+  },
+];
 </script>
 
 <template>
@@ -298,7 +485,9 @@ const statCards = reactive(
                       class="leading-none text-center text-black"
                     >
                       <span :id="split.id" class="block text-4xl font-black">{{
-                        split.format ? split.format(split.animated) : split.animated
+                        split.format
+                          ? split.format(split.animated)
+                          : split.animated
                       }}</span>
                       <span
                         class="text-[11px] leading-none font-bold text-black"
@@ -309,6 +498,170 @@ const statCards = reactive(
                 </div>
               </div>
             </div>
+          </div>
+
+          <div class="mt-5 grid grid-cols-1 gap-4 | lg:mt-6 lg:grid-cols-2">
+            <UiCard
+              v-for="chart in chartCards"
+              :key="chart.title"
+              :class="[
+                'gap-3 border drop-shadow rounded-xl border-transparent p-5 shadow-sm sm:p-6',
+                chart.colSpan === 'full' ? 'lg:col-span-2' : '',
+              ]"
+            >
+              <UiCardHeader class="gap-1 px-0">
+                <p
+                  class="text-[11px] font-bold uppercase tracking-wide text-primary"
+                >
+                  Data
+                </p>
+                <UiCardTitle
+                  class="text-sm font-bold leading-snug text-foreground sm:text-base"
+                >
+                  {{ chart.title }}
+                </UiCardTitle>
+              </UiCardHeader>
+              <UiCardContent class="px-0 pt-5">
+                <UiBarChart
+                  v-if="chart.type === 'bar'"
+                  :class="chart.height"
+                  :orientation="chart.orientation"
+                  :data="chart.data"
+                  :categories="CHART_CATEGORIES"
+                  index="label"
+                  :colors="UMKM_CHART_COLORS"
+                  :show-x-axis="chart.showXAxis"
+                  :show-y-axis="chart.showYAxis"
+                  :show-legend="chart.showLegend"
+                  :value-formatter="(v: number) => v.toLocaleString('id-ID')"
+                />
+                <UiDonutChart
+                  v-else
+                  :class="chart.height"
+                  :data="chart.data"
+                  category="value"
+                  index="label"
+                  :colors="UMKM_CHART_COLORS"
+                  central-sub-label="Total Kelembagaan"
+                  :value-formatter="(v: number) => v.toLocaleString('id-ID')"
+                />
+                <ul
+                  v-if="chart.type === 'donut' && chart.showLegend"
+                  class="mt-8 flex flex-wrap justify-center gap-x-4 gap-y-1"
+                >
+                  <li
+                    v-for="(row, i) in chart.data"
+                    :key="row.label"
+                    class="flex items-center gap-1.5 text-xs text-muted-foreground"
+                  >
+                    <span
+                      class="size-2 rounded-full"
+                      :style="{
+                        background:
+                          UMKM_CHART_COLORS[i % UMKM_CHART_COLORS.length],
+                      }"
+                    />
+                    {{ row.label }}
+                  </li>
+                </ul>
+              </UiCardContent>
+            </UiCard>
+
+            <UiCard
+              class="border drop-shadow gap-3 rounded-xl border-transparent p-5 shadow-sm sm:p-6"
+            >
+              <UiCardHeader class="gap-1 px-0">
+                <p
+                  class="text-[11px] font-bold uppercase tracking-wide text-primary"
+                >
+                  Data
+                </p>
+                <UiCardTitle
+                  class="text-sm font-bold leading-snug text-foreground sm:text-base"
+                >
+                  Jumlah Tenaga Kerja Tetap / Tidak Tetap Berdasarkan Gender
+                </UiCardTitle>
+              </UiCardHeader>
+              <UiCardContent class="px-0 pt-5">
+                <UiGroupedBarChart
+                  class="h-auto"
+                  :data="tenagaKerjaGenderData"
+                  index="gender"
+                  :series="GENDER_SERIES"
+                  :value-formatter="(v: number) => v.toLocaleString('id-ID')"
+                />
+              </UiCardContent>
+            </UiCard>
+          </div>
+
+          <h2 class="mt-10 text-xl font-bold text-foreground | lg:mt-12">
+            Kinerja dan Kesiapan Daya Saing UMKM
+          </h2>
+          <div class="mt-5 grid grid-cols-1 gap-4 | lg:mt-6 lg:grid-cols-2">
+            <UiCard
+              v-for="chart in kinerjaChartCards"
+              :key="chart.title"
+              :class="[
+                'border drop-shadow gap-3 rounded-xl border-transparent p-5 shadow-sm sm:p-6',
+                chart.colSpan === 'full' ? 'lg:col-span-2' : '',
+              ]"
+            >
+              <UiCardHeader class="gap-1 px-0">
+                <p
+                  class="text-[11px] font-bold uppercase tracking-wide text-primary"
+                >
+                  Data
+                </p>
+                <UiCardTitle
+                  class="text-sm font-bold leading-snug text-foreground sm:text-base"
+                >
+                  {{ chart.title }}
+                </UiCardTitle>
+              </UiCardHeader>
+              <UiCardContent class="px-0 pt-5">
+                <UiBarChart
+                  v-if="chart.type === 'bar'"
+                  :class="chart.height"
+                  :orientation="chart.orientation"
+                  :data="chart.data"
+                  :categories="CHART_CATEGORIES"
+                  index="label"
+                  :colors="UMKM_CHART_COLORS"
+                  :show-x-axis="chart.showXAxis"
+                  :show-y-axis="chart.showYAxis"
+                  :show-legend="chart.showLegend"
+                  :value-formatter="(v: number) => v.toLocaleString('id-ID')"
+                />
+                <UiDonutChart
+                  v-else
+                  :class="chart.height"
+                  :data="chart.data"
+                  category="value"
+                  index="label"
+                  :colors="UMKM_CHART_COLORS"
+                  :value-formatter="(v: number) => v.toLocaleString('id-ID')"
+                />
+                <ul
+                  v-if="chart.type === 'donut' && chart.showLegend"
+                  class="mt-8 flex flex-wrap justify-center gap-x-4 gap-y-1"
+                >
+                  <li
+                    v-for="(row, i) in chart.data"
+                    :key="row.label"
+                    class="flex items-center gap-1.5 text-xs text-muted-foreground"
+                  >
+                    <span
+                      class="size-2 rounded-full"
+                      :style="{
+                        background:
+                          UMKM_CHART_COLORS[i % UMKM_CHART_COLORS.length],
+                      }"
+                    />
+                    {{ row.label }}
+                  </li>
+                </ul>
+              </UiCardContent>
+            </UiCard>
           </div>
         </div>
       </div>

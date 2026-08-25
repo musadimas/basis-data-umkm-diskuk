@@ -7,9 +7,9 @@ onUnmounted(() => document.documentElement.classList.remove("no-scrollbar"));
 </script>
 
 <template>
-  <div class="h-fit">
+  <div class="h-fit no-scrollbar">
     <LandingNav />
-    <main id="main-content">
+    <main id="main-content w-dvw! h-dvh!">
       <slot />
     </main>
     <LandingFooter />

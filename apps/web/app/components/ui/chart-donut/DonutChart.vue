@@ -41,6 +41,10 @@ const props = withDefaults(
        * dipakai apa adanya; bila `undefined` akan menampilkan total otomatis.
        */
       centralLabel?: string;
+      /**
+       * Subtext rendered below the central label (e.g. "Total Kelembagaan").
+       */
+      centralSubLabel?: string;
     }
   >(),
   {
@@ -160,9 +164,12 @@ function tooltipTemplate(
         :value="(d: Data) => Number(d[category] ?? 0)"
         :sort-function="sortFunction"
         :color="colors"
-        :arc-width="type === 'donut' ? 20 : 0"
+        :arc-width="type === 'donut' ? 35 : 0"
         :show-background="false"
         :central-label="centralLabelText"
+        :central-sub-label="centralSubLabel"
+        :corner-radius="10"
+        :pad-angle="0.02"
         :events="{
           [Donut.selectors.segment]: {
             click: onSegmentClick,

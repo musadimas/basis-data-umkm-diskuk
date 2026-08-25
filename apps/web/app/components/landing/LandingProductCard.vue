@@ -31,6 +31,9 @@ defineProps<{
           <MapPin class="size-3 shrink-0" aria-hidden="true" />
           <span class="truncate text-xs">{{ product.location }}</span>
         </div>
+        <p v-if="product.price" class="text-sm font-semibold text-foreground">
+          Rp{{ product.price.toLocaleString("id-ID") }}
+        </p>
       </div>
     </div>
   </a>

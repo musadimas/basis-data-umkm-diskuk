@@ -4,6 +4,8 @@ export interface Product {
   name: string
   location: string
   image: string
+  category?: string
+  price?: number
 }
 
 export interface FaqItem {
