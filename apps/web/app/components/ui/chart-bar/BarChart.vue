@@ -1,5 +1,5 @@
 <script setup lang="ts" generic="T extends Record<string, unknown>">
-import type { BaseChartProps } from "@/components/ui/chart";
+import type { BaseChartProps } from "../chart/interface";
 import { Orientation, StackedBar } from "@unovis/ts";
 import {
   VisAxis,
