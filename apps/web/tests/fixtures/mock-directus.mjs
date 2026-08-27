@@ -1,8 +1,47 @@
+import { createHmac } from "node:crypto";
+
+const SESSION_POLICY_SECRET = process.env.NUXT_SESSION_POLICY_SECRET || "playwright-session-policy-secret";
+const SESSION_POLICY_COOKIES = ["diskuk_session_started", "diskuk_session_last_activity"];
+const SPATIAL_TILE_ARCHIVE = Buffer.from(
+  "UE1UaWxlcwN/AAAAAAAAABkAAAAAAAAAmAAAAAAAAAClAQAAAAAAAD0CAAAAAAAAAAAAAAAAAAA9AgAAAAAAAFoAAAAAAAAAAQAAAAAAAAABAAAAAAAAAAEAAAAAAAAAAQICAQMDAHUiQMAk4/sAdSJAwCTj+wMAdSJAwCTj+x+LCAAAAAAAABNjdGaMYgQAAcZyRAUAAAAfiwgAAAAAAAATtZLPTsMwDMbve4opFy79tw06bRInXgAJbghVWeOO0CauUreiTHt34naMDTjsAOsl/mJ//sXzbiKsNCDWUxF30sUFVgpcEy8p7vr3lyztX1NjVyqbF9dlmqySm5fE/7Y2foyxBpujghgthDVqS1FtSFfQiGAiCnRGEhvXm4IF6uuhD3bgKtmzpKDJna5Jo/0HAt+nOTjPOd6CBScJHSuk6xpyaRGm3TxarqLkLCXDgar5lhri9A8hp1dh6CcB7rY1pbni0GirTWvCd0Rzuxgl+XYmhaEfbQ6MKy1pA04rLW0m1WvbEKhsg61VA/ksWUYpgyRBmEar8fSbOI4r54cPQFz9tBNaibVgNhGc/1fCCx6VkcR64c/y7XguNFTc/lD+QE7brc/3eyZP46aU1Ymw3z/zkvBcSBID7MTAcuef4/doFohPtKfDzRdcfszZAhog1/u7e561v5TkO2xagoPT4kQa3Y6hr/LQp37j1ormk7qTVTtUiZl43gfntcMTL6t+1KTLnw7jUC6zMLp06C34m+wnHw16bxrLAwAAH4sIAAAAAAAAE5Nyq2DiYinNzc7VaFCQYspMkWLJS8xNlGItzk7MSVRi5mI0VGLnYg3JLMnMBjFyM7OL8oUEJRiF2BgYGBmZmJRYOVsk33ACANNfA/1IAAAA",
+  "base64",
+);
+
+async function installSpatialTileArchive(page) {
+  await page.route("**/tiles/*.pmtiles", async (route) => {
+    const range = route.request().headers().range;
+    const match = range?.match(/^bytes=(\d+)-(\d*)$/);
+    const start = match ? Number(match[1]) : 0;
+    const requestedEnd = match?.[2] ? Number(match[2]) : SPATIAL_TILE_ARCHIVE.length - 1;
+    if (!Number.isSafeInteger(start) || start >= SPATIAL_TILE_ARCHIVE.length) {
+      await route.fulfill({
+        status: 416,
+        headers: { "content-range": `bytes */${SPATIAL_TILE_ARCHIVE.length}` },
+        body: "",
+      });
+      return;
+    }
+    const end = Math.min(requestedEnd, SPATIAL_TILE_ARCHIVE.length - 1);
+    const body = SPATIAL_TILE_ARCHIVE.subarray(start, end + 1);
+    await route.fulfill({
+      status: range ? 206 : 200,
+      headers: {
+        "accept-ranges": "bytes",
+        "content-length": String(body.length),
+        "content-range": `bytes ${start}-${end}/${SPATIAL_TILE_ARCHIVE.length}`,
+        "content-type": "application/vnd.pmtiles",
+      },
+      body,
+    });
+  });
+}
+
 export async function installMockDirectus(
   page,
-  { authenticated = false, renderMap = false, spatialTileset = null } = {},
+  { authenticated = false, renderMap = false, spatialTileset = null, serveSpatialTiles = false } = {},
 ) {
   let loggedIn = authenticated;
+  if (serveSpatialTiles) await installSpatialTileArchive(page);
   await page.route("**/panel/**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -12,7 +51,6 @@ export async function installMockDirectus(
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        headers: { "set-cookie": "diskuk_session_started=x; Path=/; HttpOnly" },
         body: JSON.stringify({ data: { expires: "2099-01-01T00:00:00Z" } }),
       });
       return;
@@ -616,11 +654,32 @@ export async function installMockDirectus(
 export async function loginMock(page, returnTo = "/dashboard") {
   await page.goto(`/sign-in?returnTo=${encodeURIComponent(returnTo)}`);
   await page.getByLabel("Email").waitFor({ state: "visible", timeout: 15000 });
-  await page.waitForTimeout(2500);
+  // Prove hydration through behavior before filling. Values entered into the
+  // SSR form can otherwise be replaced while Vue attaches v-model listeners.
+  const passwordInput = page.locator("#password");
+  const passwordToggle = page.getByRole("button", { name: "Tampilkan kata sandi" });
+  const hydrationDeadline = Date.now() + 15000;
+  while (Date.now() < hydrationDeadline && await passwordInput.getAttribute("type") !== "text") {
+    await passwordToggle.click();
+    await page.waitForTimeout(100);
+  }
+  if (await passwordInput.getAttribute("type") !== "text") {
+    throw new Error("Sign-in form did not hydrate");
+  }
+  await page.getByRole("button", { name: "Sembunyikan kata sandi" }).click();
   await page.getByLabel("Email").fill("analyst@example.invalid");
   await page
     .getByRole("textbox", { name: "Kata sandi" })
     .fill("not-a-real-secret");
+  const issuedAt = Math.floor(Date.now() / 1000);
+  await page.context().addCookies(SESSION_POLICY_COOKIES.map((name) => ({
+    name,
+    value: `${issuedAt}.${createHmac("sha256", SESSION_POLICY_SECRET).update(`${name}.${issuedAt}`).digest("base64url")}`,
+    url: new URL(page.url()).origin,
+    httpOnly: true,
+    sameSite: "Lax",
+    secure: false,
+  })));
   await page.getByRole("button", { name: "Masuk" }).click();
   await page.waitForURL((url) => url.pathname === returnTo, { timeout: 10000 });
 }
