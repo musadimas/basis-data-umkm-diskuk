@@ -96,31 +96,47 @@ const apiToSkala = {
 const pointsQuery = computed(() => ({
   kota: mapKota.value !== "semua" ? mapKota.value : undefined,
   kecamatan: mapKecamatan.value !== "semua" ? mapKecamatan.value : undefined,
+  kelurahan: mapKelurahan.value !== "semua" ? mapKelurahan.value : undefined,
   skala: appliedFilters.skala !== "semua" ? TABULAR_SKALA_TO_API.get(appliedFilters.skala) : undefined,
   kegiatan: appliedFilters.kegiatanUsaha !== "semua" ? appliedFilters.kegiatanUsaha : undefined,
   kbli: appliedFilters.kodeKbli !== "semua" ? appliedFilters.kodeKbli : undefined,
   limit: Number(pointLimit.value),
 }));
 
-// ── Tileset PMTiles (mode titik tanpa batas saat hanya filter skala aktif) ─
+// ── Tileset PMTiles (mode titik tanpa batas saat tidak ada filter aktif) ────
 const { data: tilesetResponse } = await useFetch<{ data: TabularSpatialTileset | null }>(
   "/panel/tabular/spasial/tileset",
   { default: () => ({ data: null }) },
 );
 const tileset = computed<TabularSpatialTileset | null>(() => tilesetResponse.value?.data ?? null);
+const tileReady = ref(false);
+const tileFailed = ref(false);
 
-// Kegiatan usaha / KBLI / drill-down wilayah tidak dapat dilayani tileset statis
-// (klaster build-time tidak bisa difilter ulang sisi klien) → fallback GeoJSON.
-const hasNonSkalaFilters = computed(() =>
-  appliedFilters.kegiatanUsaha !== "semua"
+// Klaster build-time tidak dapat difilter ulang dengan benar di sisi klien.
+// Setiap filter aktif memakai endpoint GeoJSON agar titik, klaster, dan total
+// selalu memiliki semantik yang sama.
+const hasTileIncompatibleFilters = computed(() =>
+  appliedFilters.skala !== "semua"
+  || appliedFilters.kegiatanUsaha !== "semua"
   || appliedFilters.kodeKbli !== "semua"
   || mapKota.value !== "semua"
   || mapKecamatan.value !== "semua"
   || mapKelurahan.value !== "semua");
-const tileMode = computed(() => Boolean(tileset.value?.url) && !hasNonSkalaFilters.value);
+const tileMode = computed(() =>
+  Boolean(tileset.value?.url)
+  && !tileFailed.value
+  && !hasTileIncompatibleFilters.value);
+
+watch(() => tileset.value?.url, () => {
+  tileReady.value = false;
+  tileFailed.value = false;
+});
+watch(tileMode, () => {
+  tileReady.value = false;
+});
 
 // Fetch titik GeoJSON dilewati pada mode tileset (semua titik datang dari arsip
-// PMTiles); kembali aktif saat filter non-skala diterapkan.
+// PMTiles); kembali aktif saat filter apa pun diterapkan.
 const {
   data: pointsData,
   error: pointsError,
@@ -160,6 +176,9 @@ const mapPointItems = computed<SpasialUmkmItem[]>(() =>
 const pointSummary = computed(() => {
   if (tileMode.value) {
     const total = tileset.value?.pointCount ?? 0;
+    if (!tileReady.value) {
+      return `Memuat ${formatAnalyticsNumber(total)} titik berkoordinat dari tileset…`;
+    }
     return `Menampilkan semua ${formatAnalyticsNumber(total)} titik berkoordinat (tileset).`;
   }
   const meta = pointsData.value?.meta;
@@ -168,10 +187,22 @@ const pointSummary = computed(() => {
   return `Menampilkan ${formatAnalyticsNumber(plotted)} titik dari ${formatAnalyticsNumber(meta.filterCount)} UMKM pada filter aktif.`;
 });
 
+function markTilesReady() {
+  if (tileMode.value) tileReady.value = true;
+}
+
+function fallbackFromTiles() {
+  if (!tileMode.value) return;
+  tileReady.value = false;
+  tileFailed.value = true;
+}
+
 // ── Interaksi peta ──────────────────────────────────────────────────────────
 const mapInfografis = computed(() => mapData.value?.data);
-const canMapGoBack = computed(() => [mapKota.value, mapKecamatan.value, mapKelurahan.value]
-  .some((value) => value !== "semua"));
+const canMapGoBack = computed(() =>
+  mapKota.value !== appliedFilters.kabupatenKota
+  || mapKecamatan.value !== appliedFilters.kecamatan
+  || mapKelurahan.value !== appliedFilters.desaKelurahan);
 
 const mapKotaName = computed(() =>
   mapKota.value === "semua"
@@ -196,12 +227,15 @@ function openRegion(region: { id: string; name?: string }) {
 }
 
 function mapBack() {
-  if (mapKelurahan.value !== "semua") {
-    mapKelurahan.value = "semua";
-  } else if (mapKecamatan.value !== "semua") {
-    mapKecamatan.value = "semua";
-  } else {
-    mapKota.value = "semua";
+  if (mapKelurahan.value !== appliedFilters.desaKelurahan) {
+    mapKelurahan.value = appliedFilters.desaKelurahan;
+  } else if (mapKecamatan.value !== appliedFilters.kecamatan) {
+    mapKecamatan.value = appliedFilters.kecamatan;
+    mapKelurahan.value = appliedFilters.desaKelurahan;
+  } else if (mapKota.value !== appliedFilters.kabupatenKota) {
+    mapKota.value = appliedFilters.kabupatenKota;
+    mapKecamatan.value = appliedFilters.kecamatan;
+    mapKelurahan.value = appliedFilters.desaKelurahan;
   }
 }
 
@@ -257,7 +291,7 @@ const mapSelectionLabel = computed(() => {
       </div>
 
       <DashboardMapInfographic
-        :key="tileMode ? 'tile-points' : 'geojson-points'"
+        :key="tileMode ? `tile-points:${tileset?.url}` : 'geojson-points'"
         :title="DASHBOARD_SECTIONS.spatialMap.title"
         :tooltip="DASHBOARD_SECTIONS.spatialMap.tooltip"
         :selection="mapSelectionLabel"
@@ -270,7 +304,6 @@ const mapSelectionLabel = computed(() => {
         :points="mapPointItems"
         :points-mode="tileMode ? 'tiles' : 'geojson'"
         :tileset-url="tileset?.url ?? ''"
-        :skala-filter="(appliedFilters.skala as 'semua' | SkalaUsaha)"
         :tile-point-count="tileset?.pointCount ?? 0"
         :show-regions="showRegions"
         :show-points="showPoints"
@@ -282,6 +315,8 @@ const mapSelectionLabel = computed(() => {
         hide-geometry-notice
         @update:show-regions="showRegions = $event"
         @update:show-points="showPoints = $event"
+        @tiles-ready="markTilesReady"
+        @tiles-error="fallbackFromTiles"
         @select="openRegion"
         @back="mapBack"
       />

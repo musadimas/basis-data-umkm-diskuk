@@ -40,8 +40,6 @@ const props = withDefaults(
     pointsMode?: "tiles" | "geojson";
     /** URL arsip PMTiles (dipakai saat pointsMode "tiles"), mis. "/tiles/current.pmtiles". */
     tilesetUrl?: string;
-    /** Filter skala usaha untuk moda tile; klaster tetap agregat campuran skala. */
-    skalaFilter?: "semua" | SkalaUsaha;
     /** Jumlah titik pada tileset untuk teks legenda (moda tile). */
     tilePointCount?: number;
     /** Sembunyikan saklar "Titik UMKM" (mis. landing page publik yang tak menampilkan titik). */
@@ -60,7 +58,6 @@ const props = withDefaults(
     showPoints: false,
     pointsMode: "geojson",
     tilesetUrl: "",
-    skalaFilter: "semua",
     tilePointCount: 0,
     hidePointsSwitcher: false,
     heightClass: "h-[480px] lg:h-[620px]",
@@ -72,6 +69,8 @@ const emit = defineEmits<{
   select: [region: InfografisRegion];
   "update:showRegions": [value: boolean];
   "update:showPoints": [value: boolean];
+  "tiles-ready": [];
+  "tiles-error": [];
 }>();
 const container = useTemplateRef<HTMLDivElement>("container");
 
@@ -79,6 +78,9 @@ let map: MapLibreMap | null = null;
 let popup: Popup | null = null;
 let resizeObserver: ResizeObserver | null = null;
 let hoveredRegionId: string | number | null = null;
+let tileReadyEmitted = false;
+let tileErrorEmitted = false;
+let tileReadyTimer: ReturnType<typeof setTimeout> | null = null;
 
 const maxValue = computed(() =>
   Math.max(0, ...props.regions.map((region) => region.value)),
@@ -179,13 +181,35 @@ function pointsFeatureCollection(): GeoJSON.FeatureCollection<GeoJSON.Point> {
   };
 }
 
-/** Filter titik individual pada tileset; skala hanya menyaring titik tunggal,
- *  klaster tetap tampil karena agregat campuran skala tak bisa di-recluster
- *  di klien. */
-function tilePointFilter(): ExpressionSpecification {
-  const individual: ExpressionSpecification = ["!", ["has", TILE_CLUSTER_COUNT_PROP]];
-  if (props.skalaFilter === "semua") return individual;
-  return ["all", individual, ["==", ["get", "skala"], props.skalaFilter]];
+async function verifyTilesetArchive() {
+  const response = await fetch(props.tilesetUrl, {
+    cache: "no-store",
+    headers: { Range: "bytes=0-6" },
+    signal: AbortSignal.timeout(5000),
+  });
+  const expectedLength = 7;
+  const validStatus = response.status === 206
+    || (response.status === 200 && Number(response.headers.get("content-length")) === expectedLength);
+  if (!validStatus) {
+    await response.body?.cancel();
+    throw new Error("PMTiles range request failed");
+  }
+  const bytes = await response.arrayBuffer();
+  if (bytes.byteLength !== expectedLength) throw new Error("Invalid PMTiles archive header length");
+  const magic = new TextDecoder().decode(bytes);
+  if (magic !== "PMTiles") throw new Error("Invalid PMTiles archive header");
+}
+
+function clearTileReadyTimer() {
+  if (tileReadyTimer !== null) clearTimeout(tileReadyTimer);
+  tileReadyTimer = null;
+}
+
+function reportTilesError() {
+  if (tileErrorEmitted) return;
+  tileErrorEmitted = true;
+  clearTileReadyTimer();
+  emit("tiles-error");
 }
 
 /** Tampilkan/sembunyikan seluruh layer titik tanpa membangun ulang source. */
@@ -450,7 +474,37 @@ onMounted(() => {
     }),
     "bottom-right",
   );
-  map.on("load", () => {
+  map.on("sourcedata", (event) => {
+    if (
+      event.sourceId === TILE_POINTS_SOURCE
+      && event.isSourceLoaded
+      && !tileReadyEmitted
+      && !tileErrorEmitted
+    ) {
+      tileReadyEmitted = true;
+      clearTileReadyTimer();
+      emit("tiles-ready");
+    }
+  });
+  map.on("error", (event) => {
+    // MapLibre adds sourceId while bubbling source errors, but omits it from
+    // the public ErrorEvent type.
+    const sourceId = (event as typeof event & { sourceId?: string }).sourceId;
+    if (sourceId === TILE_POINTS_SOURCE) reportTilesError();
+  });
+  map.on("load", async () => {
+    // Protocol errors do not always carry a MapLibre sourceId. Validate the
+    // archive header first so an unavailable tileset always reaches fallback.
+    if (props.pointsMode === "tiles" && props.tilesetUrl) {
+      try {
+        await verifyTilesetArchive();
+      } catch {
+        reportTilesError();
+        return;
+      }
+      if (!map) return;
+      tileReadyTimer = setTimeout(reportTilesError, 10000);
+    }
     map?.addSource("jabar-regions", {
       type: "geojson",
       data: featureCollection(),
@@ -587,8 +641,6 @@ onMounted(() => {
       map?.addSource(TILE_POINTS_SOURCE, {
         type: "vector",
         url: `pmtiles://${props.tilesetUrl}`,
-        minzoom: 3,
-        maxzoom: 14,
       });
       map?.addLayer({
         id: "umkm-tile-clusters",
@@ -624,7 +676,7 @@ onMounted(() => {
         type: "circle",
         source: TILE_POINTS_SOURCE,
         "source-layer": TILE_LAYER_NAME,
-        filter: tilePointFilter(),
+        filter: ["!", ["has", TILE_CLUSTER_COUNT_PROP]],
         layout: { visibility: "none" },
         paint: {
           "circle-color": skalaColorExpression(),
@@ -656,17 +708,8 @@ watch(
     if (map?.isStyleLoaded()) applyLayersVisibility();
   },
 );
-// Filter skala pada tileset: hanya memengaruhi layer titik individual.
-watch(
-  () => props.skalaFilter,
-  () => {
-    if (map?.isStyleLoaded() && map.getLayer("umkm-tile-point")) {
-      map.setFilter("umkm-tile-point", tilePointFilter());
-    }
-  },
-);
-
 onBeforeUnmount(() => {
+  clearTileReadyTimer();
   resizeObserver?.disconnect();
   popup?.remove();
   map?.remove();

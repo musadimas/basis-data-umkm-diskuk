@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { CircleHelp } from "@lucide/vue";
 import type { InfografisRegion } from "~/types/infografis";
-import type { SkalaUsaha, SpasialUmkmItem } from "~/types/dashboard";
+import type { SpasialUmkmItem } from "~/types/dashboard";
 
 const props = withDefaults(
   defineProps<{
@@ -28,8 +28,6 @@ const props = withDefaults(
     pointsMode?: "tiles" | "geojson";
     /** URL arsip PMTiles untuk moda tile. */
     tilesetUrl?: string;
-    /** Filter skala usaha untuk moda tile. */
-    skalaFilter?: "semua" | SkalaUsaha;
     /** Jumlah titik tileset untuk teks legenda (moda tile). */
     tilePointCount?: number;
     /** Saklar tampil/sembunyi poligon wilayah (v-model:show-regions). */
@@ -60,7 +58,6 @@ const props = withDefaults(
     points: () => [],
     pointsMode: "geojson",
     tilesetUrl: "",
-    skalaFilter: "semua",
     tilePointCount: 0,
     showRegions: true,
     showPoints: false,
@@ -77,6 +74,8 @@ const emit = defineEmits<{
   back: [];
   "update:showRegions": [value: boolean];
   "update:showPoints": [value: boolean];
+  "tiles-ready": [];
+  "tiles-error": [];
 }>();
 const mapped = computed(() =>
   props.regions.filter((region) => region.geometry),
@@ -132,7 +131,6 @@ onNuxtReady(() => {
       :points="points"
       :points-mode="pointsMode"
       :tileset-url="tilesetUrl"
-      :skala-filter="skalaFilter"
       :tile-point-count="tilePointCount"
       :show-regions="showRegions"
       :show-points="showPoints"
@@ -141,6 +139,8 @@ onNuxtReady(() => {
       :zoom-class="zoomClass"
       @update:show-regions="emit('update:showRegions', $event)"
       @update:show-points="emit('update:showPoints', $event)"
+      @tiles-ready="emit('tiles-ready')"
+      @tiles-error="emit('tiles-error')"
       @select="emit('select', $event)"
     />
     <div
