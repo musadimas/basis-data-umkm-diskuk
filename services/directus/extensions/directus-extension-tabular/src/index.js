@@ -8,7 +8,8 @@
  * Routes:
  *   GET  /tabular/               → { data: rows, meta: { filterCount, mikro, kecil, menengah, page, pageSize, nextCursor } }
  *   GET  /tabular/spasial        → { data: points, meta: { filterCount, mikro, kecil, menengah, limit } }
- *   GET  /tabular/spasial/tileset→ { data: { url, updatedAt, pointCount } | null } (arsip PMTiles)
+ *   GET  /tabular/spasial/authorize → 204 (otorisasi proxy arsip PMTiles)
+ *   GET  /tabular/spasial/tileset   → { data: { url, updatedAt, pointCount } | null } (arsip PMTiles)
  *   GET  /tabular/options        → { data: { kota, kecamatan, kategori, kbli } }
  *   GET  /tabular/kelurahan?kecamatan=<id> → { data: kelurahan }
  *   GET  /tabular/status         → waktu dan total snapshot aktif
@@ -558,6 +559,13 @@ module.exports = {
         logger.error(error, "Unable to export tabular");
         next(error);
       }
+    });
+
+    // Target forward_auth Caddy untuk setiap byte-range PMTiles. Route ini sengaja
+    // tidak membaca database agar request lanjutan arsip tetap ringan.
+    router.get("/spasial/authorize", (req, res, next) => {
+      if (!routeGuard(req, next)) return; privateHeaders(res);
+      res.status(204).end();
     });
 
     // Metadata arsip PMTiles titik UMKM; dibangun oleh scripts/build-spatial-tiles.sh

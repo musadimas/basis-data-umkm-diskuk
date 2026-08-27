@@ -17,13 +17,19 @@ const captureRouter = () => {
 };
 
 const fakeResponse = () => {
-  const res = { json: undefined, statusCode: 200 };
+  const res = { headers: {}, json: undefined, statusCode: 200 };
+  res.setHeader = (name, value) => {
+    res.headers[name.toLowerCase()] = value;
+  };
   res.json = (body) => {
     res.body = body;
   };
   res.status = (code) => {
     res.statusCode = code;
     return res;
+  };
+  res.end = (body) => {
+    res.body = body;
   };
   return res;
 };
@@ -258,13 +264,32 @@ test("tabular: spasial ignores invalid filters and clamps limit", async () => {
 
 test("tabular: returns spatial tileset metadata from snapshot", async () => {
   const router = captureRouter();
-  const tiles = { url: "/tiles/current.pmtiles", updatedAt: "2026-08-25T00:00:00Z", pointCount: 1234 };
+  const tiles = {
+    url: "/tiles/umkm-points-generation-sha256.pmtiles",
+    updatedAt: "2026-08-25T00:00:00Z",
+    pointCount: 1234,
+    generationId: "a5b88170-6c58-4b50-89ba-90b6a4f371f8",
+  };
   const raw = async (sql) => rows(sql.includes("payload -> 'spatialTiles'") ? [{ tiles }] : []);
   extension.handler(router, { database: { raw }, logger: { error: () => assert.fail("no errors expected") } });
 
   const res = await run(router.routes, "/spasial/tileset", {});
 
   assert.deepEqual(res.body.data, tiles);
+});
+
+test("tabular: authorizes spatial tile proxy without querying the database", async () => {
+  const router = captureRouter();
+  extension.handler(router, {
+    database: { raw: async () => assert.fail("database must not be called") },
+    logger: { error: () => assert.fail("no errors expected") },
+  });
+
+  const res = await run(router.routes, "/spasial/authorize", {});
+
+  assert.equal(res.statusCode, 204);
+  assert.equal(res.body, undefined);
+  assert.equal(res.headers["cache-control"], "private, no-store");
 });
 
 test("tabular: returns null tileset until the first tile build", async () => {
@@ -443,6 +468,7 @@ test("tabular: rejects anonymous and wrong-role requests before any query", asyn
     "/status",
     "/",
     "/spasial",
+    "/spasial/authorize",
     "/spasial/tileset",
     "/options",
     "/kelurahan",
