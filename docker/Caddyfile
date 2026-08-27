@@ -1,14 +1,23 @@
 diskuk.tangkassiskamling.com {
-    # Arsip PMTiles titik UMKM (prefix spatial-tiles pada bucket ekspor) disajikan
-    # langsung dari MinIO; PMTiles hanya butuh dukungan HTTP Range yang sudah
-    # disediakan MinIO. Baca anonim diizinkan karena koordinat & nama usaha
-    # bukan PII (ADR-0004); kebijakan anonim dipasang oleh build-spatial-tiles.sh.
-    handle_path /tiles/* {
-        header Access-Control-Allow-Origin *
-        header Cache-Control "public, max-age=3600"
-        rewrite * /{$ANALYTICS_EXPORT_BUCKET}/spatial-tiles{path}
-        reverse_proxy minio:9000
-    }
+	# Arsip PMTiles mengandung lokasi usaha rinci. Otorisasi setiap request Range
+	# melalui guard dashboard, lalu biarkan MinIO melayani byte range-nya.
+	handle_path /tiles/* {
+		route {
+			# Jangan percaya header internal dari klien. Salin pembaruan cookie
+			# aktivitas auth ke respons agar request tile menjaga idle session.
+			request_header -X-Auth-Set-Cookie
+			forward_auth web:3000 {
+				uri /panel/tabular/spasial/authorize
+				copy_headers Set-Cookie>X-Auth-Set-Cookie
+			}
+			header Set-Cookie {http.request.header.X-Auth-Set-Cookie}
+			request_header -X-Auth-Set-Cookie
+			header -Access-Control-Allow-Origin
+			header Cache-Control "private, no-store"
+			rewrite * /{$ANALYTICS_EXPORT_BUCKET}/spatial-tiles{path}
+			reverse_proxy minio:9000
+		}
+	}
 
-    reverse_proxy web:3000
+	reverse_proxy web:3000
 }
