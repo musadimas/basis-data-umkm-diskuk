@@ -47,6 +47,11 @@
         "type": "endpoint",
         "name": "v1/program/passport",
         "source": "src/endpoints/passport/index.js"
+      },
+      {
+        "type": "endpoint",
+        "name": "v1/program/klinik",
+        "source": "src/endpoints/klinik/index.js"
       }
     ],
     "host": "^11.0.0"
@@ -61,6 +66,7 @@
     "@directus/extensions-sdk": "18.0.5"
   },
   "dependencies": {
-    "altcha": "3.2.3"
+    "altcha": "3.2.3",
+    "busboy": "1.6.0"
   }
 }

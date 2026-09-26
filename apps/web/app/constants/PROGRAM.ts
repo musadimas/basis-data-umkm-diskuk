@@ -98,3 +98,35 @@ export const RADAR_DIMENSI: { key: keyof import("~/types/program").PassportSkor;
   { key: "sdm", label: "SDM" },
   { key: "kinerja", label: "Kinerja Program" },
 ];
+
+export const KLINIK_STATUS: { value: import("~/types/program").KlinikStatus; label: string }[] = [
+  { value: "masuk", label: "Tiket Masuk" },
+  { value: "dijadwalkan", label: "Jadwal Ditetapkan" },
+  { value: "berjalan", label: "Sesi Berjalan" },
+  { value: "tindak_lanjut", label: "Tindak Lanjut" },
+  { value: "selesai", label: "Selesai" },
+];
+
+export const KLINIK_PRIORITAS: Record<import("~/types/program").KlinikPrioritas, { label: string; className: string }> = {
+  normal: { label: "Normal", className: "bg-slate-100 text-slate-700" },
+  tinggi: { label: "Tinggi", className: "bg-amber-100 text-amber-900" },
+  mendesak: { label: "Mendesak", className: "bg-red-100 text-red-800" },
+};
+
+export const KLINIK_RUJUKAN: { value: import("~/types/program").KlinikRujukan; label: string }[] = [
+  { value: "sarpras", label: "Program Bantuan Sarpras" },
+  { value: "vokasi", label: "Pelatihan Vokasi" },
+  { value: "mediasi_sapa", label: "Mediasi Kementerian / SAPA UMKM" },
+  { value: "talent_lab", label: "Kurasi Talent Lab" },
+];
+
+/** Placeholder aspects until the official five-aspect framework is confirmed. */
+export const KLINIK_ASPEK: { value: import("~/types/program").KlinikAspek; label: string }[] = [
+  { value: "legalitas", label: "Legalitas" },
+  { value: "keuangan", label: "Keuangan" },
+  { value: "pemasaran", label: "Pemasaran" },
+  { value: "produksi", label: "Produksi" },
+  { value: "sdm", label: "SDM & Manajemen" },
+];
+
+export const KLINIK_SLOTS = ["09:00", "10:30", "13:00", "14:30"];

@@ -48,3 +48,11 @@ export function fromEnvelope<T extends { meta: object; data: object }>(payload: 
   // SAFETY: `payload` is `T["data"] & { meta: T["meta"] }`; removing `meta` leaves exactly `T["data"]`.
   return { meta, data } as T;
 }
+
+/**
+ * SDK command posting multipart form data to a custom endpoint, the way the SDK's own
+ * uploadFiles() does: the client drops the placeholder Content-Type so the browser sets the boundary.
+ */
+export function endpointForm<TOutput>(path: string, form: FormData) {
+  return customEndpoint<TOutput>({ path, method: "POST", body: form, headers: { "Content-Type": "multipart/form-data" } });
+}

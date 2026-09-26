@@ -344,3 +344,66 @@ export interface KontakHotline {
   jam_layanan: string | null;
   alamat: string | null;
 }
+
+export interface KlinikPoli {
+  id: number;
+  kode: string;
+  nama: string;
+  deskripsi: string | null;
+  sort: number | null;
+}
+
+export interface KlinikUsahaDitemukan {
+  /** Short-lived signed reference to the business; the UUID is never exposed publicly. */
+  ref: string;
+  nama: string;
+  skala: string | null;
+  kota: string | null;
+  kbli: string | null;
+}
+
+export interface KlinikSlot {
+  slot: string;
+  tersedia: boolean;
+}
+
+export interface KlinikTiketDibuat {
+  nomor: string;
+  poli: string;
+  moda: "daring" | "luring";
+  tanggal: string;
+  slot: string;
+}
+
+export type KlinikStatus = "masuk" | "dijadwalkan" | "berjalan" | "tindak_lanjut" | "selesai" | "batal";
+export type KlinikPrioritas = "normal" | "tinggi" | "mendesak";
+export type KlinikRujukan = "sarpras" | "vokasi" | "mediasi_sapa" | "talent_lab";
+export type KlinikAspek = "legalitas" | "keuangan" | "pemasaran" | "produksi" | "sdm";
+
+export interface KlinikTiket {
+  id: string;
+  nomor: string;
+  usaha: string | null;
+  namaUsaha: string;
+  namaKontak: string;
+  whatsapp: string;
+  email: string | null;
+  poli: number;
+  poliNama: string;
+  deskripsi: string;
+  moda: "daring" | "luring";
+  jadwalTanggal: string;
+  jadwalSlot: string;
+  prioritas: KlinikPrioritas;
+  status: KlinikStatus;
+  pendamping: string | null;
+  pendampingNama: string | null;
+  linkMeet: string | null;
+  diagnosis: Partial<Record<KlinikAspek, string>>;
+  actionPlan: string | null;
+  rujukan: KlinikRujukan[];
+  catatan: string | null;
+  lampiran: string[];
+  dateCreated: string;
+  dateUpdated: string;
+}

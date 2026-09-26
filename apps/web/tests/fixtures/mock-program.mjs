@@ -56,6 +56,8 @@ export function createProgramState() {
     uploads: [],
     uploadFolders: [],
     passport: null,
+    tiket: [],
+    tiketForms: [],
     requests: [],
   };
 }
@@ -87,7 +89,12 @@ export async function installMockProgram(page, state = createProgramState()) {
     const request = route.request();
     const method = request.method();
     const path = new URL(request.url()).pathname.replace("/panel/v1/program", "");
-    const body = method === "GET" ? null : (request.postDataJSON?.() ?? null);
+    let body = null;
+    try {
+      body = method === "GET" ? null : (request.postDataJSON?.() ?? null);
+    } catch {
+      body = null; // multipart; handled by the route that expects it
+    }
     state.requests.push({ method, path, body });
     const find = (id) => state.pengajuan.find((item) => item.id === id);
     let match;
@@ -99,6 +106,30 @@ export async function installMockProgram(page, state = createProgramState()) {
       for (const week of met) { let n = 0; while (met.has(week + n)) n += 1; best = Math.max(best, n); }
       return best;
     };
+    if (method === "POST" && path === "/klinik/lookup") {
+      if (!body?.captcha) return json(route, 400, "CAPTCHA_INVALID");
+      return json(route, 200, body.nomor === "1234567890123" ? [{ ref: "ref-usaha-01", nama: state.usaha.nama, skala: "micro", kota: state.usaha.kota, kbli: "10794" }] : []);
+    }
+    if (method === "GET" && path === "/klinik/slot") {
+      return json(route, 200, ["09:00", "10:30", "13:00", "14:30"].map((slot) => ({ slot, tersedia: slot !== "09:00" })));
+    }
+    if (method === "POST" && path === "/klinik/tiket") {
+      // Multipart: keep the raw parts so the spec can check what the browser sent.
+      const raw = request.postDataBuffer()?.toString("latin1") ?? "";
+      const part = (name) => raw.split(/--[^\r\n]+/).find((chunk) => chunk.includes(`name="${name}"`))?.split("\r\n\r\n")[1]?.replace(/\r\n$/, "") ?? null;
+      const form = { payload: JSON.parse(part("payload") ?? "{}"), captcha: part("captcha"), files: [...raw.matchAll(/name="lampiran"; filename="([^"]+)"/g)].map((m) => m[1]), contentType: request.headers()["content-type"] };
+      state.tiketForms.push(form);
+      return json(route, 201, { nomor: "KLN-2026-09-0042", poli: "Poli Legalitas & Perizinan", moda: form.payload.moda, tanggal: form.payload.tanggal, slot: form.payload.slot });
+    }
+    if (method === "GET" && path === "/klinik/tiket") return json(route, 200, state.tiket);
+    match = path.match(/^\/klinik\/tiket\/([^/]+)$/);
+    if (method === "PATCH" && match) {
+      const item = state.tiket.find((t) => t.id === match[1]);
+      Object.assign(item, body);
+      if (body.pendamping) item.pendampingNama = "Analis Provinsi";
+      return json(route, 200, item);
+    }
+
     if (method === "GET" && path === "/passport") {
       const eligible = ["talent_pool", "accelerator", "champion"].includes(state.usaha.talentStatus);
       return json(route, 200, {

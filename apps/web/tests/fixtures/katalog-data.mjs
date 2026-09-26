@@ -168,7 +168,13 @@ export function kegiatanFixtures(now = Date.now()) {
 }
 
 /** Public editorial content: kegiatan, FAQ and the hotline singleton. */
+export const POLI = [
+  { id: 1, kode: "legalitas", nama: "Poli Legalitas & Perizinan", deskripsi: "NIB, PIRT, halal.", sort: 1 },
+  { id: 2, kode: "pemasaran", nama: "Poli Pemasaran & Digitalisasi", deskripsi: "Branding dan marketplace.", sort: 2 },
+];
+
 export function portalResponse(pathname) {
+  if (pathname.endsWith("/items/konsultasi_poli")) return { data: POLI };
   if (pathname.endsWith("/items/kegiatan")) return { data: kegiatanFixtures() };
   if (pathname.endsWith("/items/faq")) return { data: FAQ };
   if (pathname.endsWith("/items/kontak_hotline")) return { data: KONTAK_HOTLINE };

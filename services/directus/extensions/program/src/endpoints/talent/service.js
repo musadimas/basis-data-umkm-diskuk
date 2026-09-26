@@ -337,9 +337,11 @@ export const createBeritaAcara =
         }
         const created = rows(
           await trx.raw(
+            // lpad truncates longer strings, so pad to at least 4 digits without cutting past 9999.
             `INSERT INTO talent_berita_acara (nomor, disetujui_oleh, catatan)
              SELECT 'BA-TS/' || to_char(NOW() AT TIME ZONE 'Asia/Jakarta', 'YYYY') || '/' ||
-                    lpad(nextval('talent_berita_acara_nomor_seq')::text, 4, '0'), ?, ?
+                    lpad(n::text, GREATEST(4, length(n::text)), '0'), ?, ?
+               FROM (SELECT nextval('talent_berita_acara_nomor_seq') AS n) seq
              RETURNING id, nomor, tanggal, catatan, berkas, date_created AS "dateCreated"`,
             [req.accountability.user, catatan],
           ),

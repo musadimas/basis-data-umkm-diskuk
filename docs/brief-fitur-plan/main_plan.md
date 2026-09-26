@@ -283,7 +283,15 @@ The current [`katalog.vue`](../../apps/web/app/pages/(public)/katalog.vue) uses 
 - Detail modal with event information and requirements.
 - The "Daftar" button is not wired up yet because the registration flow is red.
 
-### 6.3 Klinik Konsultasi
+### 6.3 Klinik Konsultasi — implemented
+
+> **As built:** migration `20260926J-create-klinik-konsultasi.js`, endpoints under `/v1/program/klinik`, pages `/konsultasi` (the public 4-step form) and `/dashboard/klinik` (kanban and list with a session sheet).
+> Notes:
+> - The six poli and the five diagnosis aspects are placeholder names until DISKUK confirms them; the poli are editable in the Data Studio.
+> - The NIB/NIK lookup and the submission each consume a captcha. The lookup returns a 30-minute signed reference instead of the business UUID, and never the owner's name.
+> - Attachments (up to 3 files of 5 MB) go through the ticket endpoint as multipart, are checked by content (PDF, JPG, PNG, WebP) and stored in the private "Lampiran Klinik" folder. If the booking fails, the uploads are removed.
+> - Each poli has one ticket per slot, enforced by a unique index. The slots are 09:00, 10:30, 13:00 and 14:30 WIB on weekdays, from tomorrow up to 30 days ahead.
+> - `notify()` (`src/lib/notify.js`) only logs events until a WhatsApp gateway exists; the form shows the ticket number on screen.
 
 The current [`konsultasi.vue`](../../apps/web/app/pages/(public)/konsultasi.vue) is a placeholder.
 
@@ -331,7 +339,7 @@ CAPTCHA and rate limiting protect the form. The NIB/NIK lookup and ticket creati
 4. ~~Phase 4: Weekly KPI monitoring~~ (done)
 5. ~~Phase 6.1: Katalog~~ (done)
 6. ~~Phase 5: Talent Passport~~ (done, except PDFs)
-7. Phases 6.2–6.4: Kegiatan, Klinik, FAQ
+7. ~~Phases 6.2–6.4: Kegiatan, Klinik, FAQ~~ (done)
 8. Phase 2: PPT export and map pop-up
 
 Talent status (Phase 3) feeds the map pop-up, katalog badges, passport and KPI modules, so it should be built early.

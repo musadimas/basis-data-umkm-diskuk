@@ -1,6 +1,6 @@
 import type { AppRole } from "~/composables/useAuth";
 import type { SavedAnalysis } from "~/types/analytics";
-import type { FaqEntry, Kegiatan, KontakHotline, ProdukPublik } from "~/types/program";
+import type { FaqEntry, Kegiatan, KlinikPoli, KontakHotline, ProdukPublik } from "~/types/program";
 
 /**
  * Directus schema for the SDK client (`useDirectus()`).
@@ -23,4 +23,5 @@ export interface DirectusSchema {
   kegiatan: Kegiatan[];
   faq: FaqEntry[];
   kontak_hotline: KontakHotline;
+  konsultasi_poli: KlinikPoli[];
 }

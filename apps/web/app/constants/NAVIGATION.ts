@@ -1,5 +1,6 @@
 import {
   BadgeCheck,
+  Stethoscope,
   ChartColumnDecreasing,
   ClipboardCheck,
   PackageCheck,
@@ -75,6 +76,12 @@ export const NAVIGATION_LINKS = {
       label: "Talent Passport",
       to: "/dashboard/usaha/passport",
       icon: BadgeCheck,
+    },
+    {
+      id: "klinik",
+      label: "Klinik Konsultasi",
+      to: "/dashboard/klinik",
+      icon: Stethoscope,
     },
   ],
 };

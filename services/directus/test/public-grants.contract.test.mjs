@@ -8,6 +8,7 @@ const MIGRATIONS = new URL("../migrations/", import.meta.url);
 const NEVER_PUBLIC = [
   "usaha", "pelaku_usaha", "alamat", "usaha_tabular", "usaha_legalitas", "directus_users",
   "talent_pengajuan", "talent_berita_acara", "program_peserta", "kpi_laporan", "kpi_laporan_bukti", "produk_loi",
+  "talent_passport", "konsultasi_tiket", "konsultasi_tiket_lampiran",
 ];
 // Institutional contact details (DISKUK's own hotline), public by design rather than personal data.
 const OFFICIAL_CONTACT = ["kontak_hotline"];
