@@ -151,3 +151,94 @@ export interface KpiLaporanInput {
   bukti: string[];
   clientUuid: string;
 }
+
+export type KurasiStatus = "menunggu" | "tayang" | "rekomendasi_marketplace" | "ditolak";
+
+/** A published product as the Directus Public policy exposes it (collection `produk`). */
+export interface ProdukPublik {
+  id: string;
+  nama: string;
+  deskripsi: string | null;
+  kategori: string | null;
+  kbli: string | null;
+  harga_retail: number | null;
+  harga_grosir: number | null;
+  moq: number | null;
+  video_url: string | null;
+  dimensi: string | null;
+  berat: string | null;
+  shelf_life: string | null;
+  bahan_baku: string | null;
+  tkdn_persen: number | string | null;
+  kapasitas_bulanan: string | null;
+  lead_time: string | null;
+  persen_bahan_lokal: number | string | null;
+  pdn_deklarasi: boolean;
+  status_kurasi: KurasiStatus;
+  foto: { directus_files_id: string }[];
+  usaha_nama: string | null;
+  usaha_skala: string | null;
+  usaha_talent_status: TalentStatus | null;
+  usaha_pdn: boolean;
+  usaha_ramah_disabilitas: boolean;
+  usaha_whatsapp: string | null;
+  usaha_kota: number | null;
+  usaha_kota_nama: string | null;
+  usaha_sertifikasi: string;
+  date_created: string;
+}
+
+/** A product as its owner and the curators see it (/v1/program/katalog). */
+export interface Produk {
+  id: string;
+  usaha: string;
+  nama: string;
+  deskripsi: string | null;
+  kategori: string | null;
+  kbli: string | null;
+  hargaRetail: number | null;
+  hargaGrosir: number | null;
+  moq: number | null;
+  videoUrl: string | null;
+  dimensi: string | null;
+  berat: string | null;
+  shelfLife: string | null;
+  bahanBaku: string | null;
+  tkdnPersen: number | null;
+  kapasitasBulanan: string | null;
+  leadTime: string | null;
+  persenBahanLokal: number | null;
+  pdnDeklarasi: boolean;
+  foto: string[];
+  statusKurasi: KurasiStatus;
+  catatanKurasi: string | null;
+  dikurasiAt: string | null;
+  usahaNama: string | null;
+  usahaKota: string | null;
+  dateCreated: string;
+  dateUpdated: string;
+}
+
+export type ProdukInput = Omit<Produk, "id" | "usaha" | "statusKurasi" | "catatanKurasi" | "dikurasiAt" | "usahaNama" | "usahaKota" | "dateCreated" | "dateUpdated">;
+
+export interface UsahaPilihan {
+  id: string;
+  nama: string;
+  nib: string | null;
+  kota: string | null;
+}
+
+export interface ProdukLoi {
+  id: string;
+  produk: string;
+  produkNama: string;
+  usahaNama: string | null;
+  nama: string;
+  instansi: string | null;
+  email: string;
+  telepon: string | null;
+  jumlah: string | null;
+  pesan: string;
+  status: "baru" | "ditindaklanjuti" | "ditutup";
+  dateCreated: string;
+}

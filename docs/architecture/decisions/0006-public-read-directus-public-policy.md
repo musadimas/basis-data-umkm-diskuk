@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Tanggal:** 26 September 2026
-- **Keputusan target:** belum ada grant publik; setiap fase Brief Fitur yang menambah collection publik (katalog, kegiatan, FAQ, hotline) menambahkan grant-nya sendiri di migration yang sama. Lihat [rencana Brief Fitur](../../brief-fitur-plan/main_plan.md).
+- **Keputusan target:** grant publik pertama ada di migration `20260926G-create-katalog.js` (`produk`, `produk_foto`, dan `directus_files` di folder "Katalog Publik"); fase berikutnya (kegiatan, FAQ, hotline) menambahkan grant-nya sendiri di migration yang sama. Test kontrak: `services/directus/test/public-grants.contract.test.mjs`. Lihat [rencana Brief Fitur](../../brief-fitur-plan/main_plan.md).
 
 ## Context
 

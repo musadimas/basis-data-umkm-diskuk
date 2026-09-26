@@ -1,4 +1,5 @@
 import { createServer } from "node:http";
+import { PNG_1PX, katalogResponse } from "./katalog-data.mjs";
 
 const host = "127.0.0.1";
 const port = 3101;
@@ -8,6 +9,20 @@ const server = createServer((request, response) => {
   if (request.url === "/server/ping") {
     response.writeHead(200, { "content-type": "text/plain" });
     response.end("pong");
+    return;
+  }
+
+  const url = new URL(request.url ?? "/", `http://${host}:${port}`);
+  if (url.pathname.startsWith("/assets/")) {
+    response.writeHead(200, { "content-type": "image/png" });
+    response.end(PNG_1PX);
+    return;
+  }
+  // Public catalogue reads (Directus Public policy) are server-rendered.
+  const katalog = katalogResponse(url.pathname, url.searchParams);
+  if (katalog) {
+    response.writeHead(katalog.status ?? 200, { "content-type": "application/json" });
+    response.end(JSON.stringify(katalog));
     return;
   }
 

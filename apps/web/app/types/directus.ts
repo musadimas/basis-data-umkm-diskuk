@@ -1,5 +1,6 @@
 import type { AppRole } from "~/composables/useAuth";
 import type { SavedAnalysis } from "~/types/analytics";
+import type { ProdukPublik } from "~/types/program";
 
 /**
  * Directus schema for the SDK client (`useDirectus()`).
@@ -17,4 +18,6 @@ export interface DirectusSchema {
   };
   analitik_view: SavedAnalysis[];
   usaha: { id: string; status: string }[];
+  /** Published products, readable through the Public policy (ADR-006). */
+  produk: ProdukPublik[];
 }

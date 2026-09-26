@@ -37,6 +37,11 @@
         "type": "endpoint",
         "name": "v1/program/kpi",
         "source": "src/endpoints/kpi/index.js"
+      },
+      {
+        "type": "endpoint",
+        "name": "v1/program/katalog",
+        "source": "src/endpoints/katalog/index.js"
       }
     ],
     "host": "^11.0.0"
@@ -49,5 +54,8 @@
   },
   "devDependencies": {
     "@directus/extensions-sdk": "18.0.5"
+  },
+  "dependencies": {
+    "altcha": "3.2.3"
   }
 }

@@ -169,6 +169,12 @@ services:
       # Empty = PUBLIC_URL's origin, which is also the web's origin behind Caddy.
       AUTH_ALLOWED_ORIGINS: ${AUTH_ALLOWED_ORIGINS:-}
       ALTCHA_HMAC_SECRET: ${ALTCHA_HMAC_SECRET:-}
+      # ADR-006: the public catalogue reads through the Directus Public policy, so every route is
+      # limited per client IP. Caddy sets X-Forwarded-For and the web's /panel proxy passes it on.
+      RATE_LIMITER_ENABLED: ${RATE_LIMITER_ENABLED:-true}
+      RATE_LIMITER_STORE: memory
+      RATE_LIMITER_POINTS: ${RATE_LIMITER_POINTS:-100}
+      RATE_LIMITER_DURATION: ${RATE_LIMITER_DURATION:-1}
       AUTH_PASSWORD_RESET_URL: ${AUTH_PASSWORD_RESET_URL:-}
       PASSWORD_RESET_URL_ALLOW_LIST: ${AUTH_PASSWORD_RESET_URL:-}
       EMAIL_FROM: ${EMAIL_FROM:-no-reply@diskuk.jabarprov.go.id}

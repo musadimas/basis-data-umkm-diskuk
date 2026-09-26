@@ -1,6 +1,8 @@
 import {
   ChartColumnDecreasing,
   ClipboardCheck,
+  PackageCheck,
+  ShoppingBag,
   Map,
   Smartphone,
   Sparkles,
@@ -54,6 +56,18 @@ export const NAVIGATION_LINKS = {
       label: "Laporan KPI (UMKM)",
       to: "/dashboard/usaha",
       icon: Smartphone,
+    },
+    {
+      id: "katalog-kurasi",
+      label: "Kurasi Katalog",
+      to: "/dashboard/katalog/kurasi",
+      icon: PackageCheck,
+    },
+    {
+      id: "produk-umkm",
+      label: "Produk Katalog (UMKM)",
+      to: "/dashboard/usaha/produk",
+      icon: ShoppingBag,
     },
   ],
 };

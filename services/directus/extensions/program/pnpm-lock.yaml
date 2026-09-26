@@ -7,10 +7,14 @@ settings:
 importers:
 
   .:
+    dependencies:
+      altcha:
+        specifier: 3.2.3
+        version: 3.2.3
     devDependencies:
       '@directus/extensions-sdk':
         specifier: 18.0.5
-        version: 18.0.5(@types/node@26.6.2)(@unhead/vue@3.4.1(@oxc-project/types@0.139.0)(esbuild@0.28.1)(lightningcss@1.33.0)(rolldown@1.1.5)(rollup@4.59.0)(vite@8.1.2(@types/node@26.6.2)(esbuild@0.28.1)(terser@5.51.2))(vue@3.5.24))(debug@4.4.3)(knex@3.1.0)(pinia@2.3.1(vue@3.5.24))(terser@5.51.2)
+        version: 18.0.5(@types/node@26.6.2)(@unhead/vue@3.4.1(@oxc-project/types@0.139.0)(esbuild@0.28.1)(lightningcss@1.33.0)(rolldown@1.1.5)(rollup@4.59.0)(vite@8.1.2(@types/node@26.6.2)(esbuild@0.28.1)(terser@5.51.2))(vue@3.5.24))(knex@3.1.0)(pinia@2.3.1(vue@3.5.24))(terser@5.51.2)
 
 packages:
 
@@ -953,6 +957,9 @@ packages:
     resolution: {integrity: sha512-RZNwNclF7+MS/8bDg70amg32dyeZGZxiDuQmZxKLAlQjr3jGyLx+4Kkk58UO7D2QdgFIQCovuSuZESne6RG6XQ==}
     engines: {node: '>= 6.0.0'}
 
+  altcha@3.2.3:
+    resolution: {integrity: sha512-yBHJIOoGZyU4/ap3AnlL2kChEVw40QP142BtxYZN5dCjAeBlaScuAEWxmrLDVQjlRBplayapUIvARs0eG48OVw==}
+
   ansi-regex@5.0.1:
     resolution: {integrity: sha512-quJQXlTSUGL2LH9SUXo8VwsY4soanhgo6LNSm84E1LBcE8s3O0wpdiRzyR9z/ZZJMlMWv37qOOb9pdJlMUEKFQ==}
     engines: {node: '>=8'}
@@ -1322,6 +1329,9 @@ packages:
   has-tostringtag@1.0.2:
     resolution: {integrity: sha512-NqADB8VjPFLM2V0VvHUewwwsw0ZWBaIdgo+ieHtK3hasLz4qeCRjYcqfB6AQrBggRKppKF8L52/VqdVsO47Dlw==}
     engines: {node: '>= 0.4'}
+
+  hash-wasm@4.12.0:
+    resolution: {integrity: sha512-+/2B2rYLb48I/evdOIhP+K/DD2ca2fgBjp6O+GBEnCDk2e4rpeXIK8GvIyRPjTezgmWn9gmKwkQjjx6BtqDHVQ==}
 
   hasown@2.0.4:
     resolution: {integrity: sha512-T2UbfbBEF32wiepXIsMlTW9+dDYC6wMh/t/vYA4tuOMKqWz/n3vr1NFSxQiyP+zk2mXsoMA/i/7qV6LKut1t1A==}
@@ -2248,12 +2258,12 @@ snapshots:
 
   '@directus/ai@1.3.2': {}
 
-  '@directus/composables@11.6.3(debug@4.4.3)(vue@3.5.24)':
+  '@directus/composables@11.6.3(vue@3.5.24)':
     dependencies:
       '@directus/constants': 14.4.1
       '@directus/utils': 13.5.5(vue@3.5.24)
       '@vueuse/core': 14.0.0(vue@3.5.24)
-      axios: 1.18.1(debug@4.4.3)
+      axios: 1.18.1
       lodash-es: 4.18.1
       nanoid: 5.1.16
       vue: 3.5.24
@@ -2263,9 +2273,9 @@ snapshots:
 
   '@directus/constants@14.4.1': {}
 
-  '@directus/extensions-sdk@18.0.5(@types/node@26.6.2)(@unhead/vue@3.4.1(@oxc-project/types@0.139.0)(esbuild@0.28.1)(lightningcss@1.33.0)(rolldown@1.1.5)(rollup@4.59.0)(vite@8.1.2(@types/node@26.6.2)(esbuild@0.28.1)(terser@5.51.2))(vue@3.5.24))(debug@4.4.3)(knex@3.1.0)(pinia@2.3.1(vue@3.5.24))(terser@5.51.2)':
+  '@directus/extensions-sdk@18.0.5(@types/node@26.6.2)(@unhead/vue@3.4.1(@oxc-project/types@0.139.0)(esbuild@0.28.1)(lightningcss@1.33.0)(rolldown@1.1.5)(rollup@4.59.0)(vite@8.1.2(@types/node@26.6.2)(esbuild@0.28.1)(terser@5.51.2))(vue@3.5.24))(knex@3.1.0)(pinia@2.3.1(vue@3.5.24))(terser@5.51.2)':
     dependencies:
-      '@directus/composables': 11.6.3(debug@4.4.3)(vue@3.5.24)
+      '@directus/composables': 11.6.3(vue@3.5.24)
       '@directus/constants': 14.4.1
       '@directus/extensions': 4.0.5(knex@3.1.0)(vue@3.5.24)
       '@directus/themes': 3.0.0(@unhead/vue@3.4.1(@oxc-project/types@0.139.0)(esbuild@0.28.1)(lightningcss@1.33.0)(rolldown@1.1.5)(rollup@4.59.0)(vite@8.1.2(@types/node@26.6.2)(esbuild@0.28.1)(terser@5.51.2))(vue@3.5.24))(pinia@2.3.1(vue@3.5.24))(vue@3.5.24)
@@ -3076,6 +3086,10 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  altcha@3.2.3:
+    dependencies:
+      hash-wasm: 4.12.0
+
   ansi-regex@5.0.1: {}
 
   ansi-regex@6.3.0: {}
@@ -3088,9 +3102,9 @@ snapshots:
 
   asynckit@0.4.0: {}
 
-  axios@1.18.1(debug@4.4.3):
+  axios@1.18.1:
     dependencies:
-      follow-redirects: 1.16.0(debug@4.4.3)
+      follow-redirects: 1.16.0
       form-data: 4.0.6
       https-proxy-agent: 5.0.1
       proxy-from-env: 2.1.0
@@ -3388,9 +3402,7 @@ snapshots:
 
   flat@6.0.1: {}
 
-  follow-redirects@1.16.0(debug@4.4.3):
-    optionalDependencies:
-      debug: 4.4.3
+  follow-redirects@1.16.0: {}
 
   form-data@4.0.6:
     dependencies:
@@ -3453,6 +3465,8 @@ snapshots:
   has-tostringtag@1.0.2:
     dependencies:
       has-symbols: 1.1.0
+
+  hash-wasm@4.12.0: {}
 
   hasown@2.0.4:
     dependencies:

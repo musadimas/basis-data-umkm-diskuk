@@ -3,6 +3,8 @@
  * Directus /files uploads. Install after installMockDirectus: Playwright gives later routes
  * priority, and anything this mock does not handle falls back to the base mock.
  */
+import { PNG_1PX, katalogResponse } from "./katalog-data.mjs";
+
 export const USAHA_ID = "11111111-1111-4111-8111-000000000001";
 export const PESERTA_ID = "33333333-3333-4333-8333-000000000001";
 
@@ -49,16 +51,34 @@ export function createProgramState() {
       },
     ],
     laporan: [],
+    produk: [],
+    loi: [],
     uploads: [],
+    uploadFolders: [],
     requests: [],
   };
 }
 
 export async function installMockProgram(page, state = createProgramState()) {
+  await page.route("**/panel/assets/**", (route) => route.fulfill({ status: 200, contentType: "image/png", body: PNG_1PX }));
+  // Public catalogue reads through the Directus Public policy.
+  await page.route(/\/panel\/items\/produk/, async (route) => {
+    const url = new URL(route.request().url());
+    state.requests.push({ method: "GET", path: url.pathname, query: Object.fromEntries(url.searchParams) });
+    const body = katalogResponse(url.pathname, url.searchParams);
+    if (!body) return route.fallback();
+    await route.fulfill({ status: body.status ?? 200, contentType: "application/json", body: JSON.stringify(body) });
+  });
+
   await page.route("**/panel/files", async (route) => {
     if (route.request().method() !== "POST") return route.fallback();
     const id = `00000000-0000-4000-8000-${String(state.uploads.length + 1).padStart(12, "0")}`;
     state.uploads.push(id);
+    // Directus applies multipart fields that precede the file; record the folder the same way.
+    const raw = route.request().postDataBuffer()?.toString("latin1") ?? "";
+    const folderAt = raw.indexOf('name="folder"');
+    const fileAt = raw.indexOf('name="file"');
+    state.uploadFolders.push(folderAt >= 0 && folderAt < fileAt ? raw.slice(folderAt).split("\r\n")[2] : null);
     await json(route, 200, { id, filename_download: "surat.pdf" });
   });
 
@@ -78,6 +98,32 @@ export async function installMockProgram(page, state = createProgramState()) {
       for (const week of met) { let n = 0; while (met.has(week + n)) n += 1; best = Math.max(best, n); }
       return best;
     };
+    if (method === "GET" && path === "/katalog/usaha") {
+      const q = new URL(request.url()).searchParams.get("q") ?? "";
+      return json(route, 200, q.length >= 3 ? [{ id: USAHA_ID, nama: state.usaha.nama, nib: state.usaha.nib, kota: state.usaha.kota }] : []);
+    }
+    if (method === "GET" && path === "/katalog/produk") return json(route, 200, state.produk);
+    if (method === "POST" && path === "/katalog/produk") {
+      const created = { id: `88888888-8888-4888-8888-${String(state.produk.length + 1).padStart(12, "0")}`, ...body, statusKurasi: "menunggu", catatanKurasi: null, dikurasiAt: null, usahaNama: state.usaha.nama, usahaKota: state.usaha.kota, dateCreated: new Date().toISOString(), dateUpdated: new Date().toISOString() };
+      state.produk.push(created);
+      return json(route, 201, created);
+    }
+    if (method === "GET" && path === "/katalog/kurasi") {
+      const status = new URL(request.url()).searchParams.get("status") ?? "menunggu";
+      return json(route, 200, state.produk.filter((item) => item.statusKurasi === status));
+    }
+    match = path.match(/^\/katalog\/produk\/([^/]+)\/kurasi$/);
+    if (method === "POST" && match) {
+      const item = state.produk.find((p) => p.id === match[1]);
+      Object.assign(item, { statusKurasi: body.keputusan, catatanKurasi: body.catatan });
+      return json(route, 200, item);
+    }
+    if (method === "GET" && path === "/katalog/loi") return json(route, 200, state.loi);
+    if (method === "POST" && path === "/katalog/loi") {
+      state.loi.push(body);
+      return json(route, 201, { diterima: true });
+    }
+
     if (method === "GET" && path === "/kpi/peserta") {
       return json(route, 200, state.peserta.map((item) => {
         const own = laporanOf(item.id);
@@ -202,4 +248,33 @@ export async function installMockProgram(page, state = createProgramState()) {
     return route.fallback();
   });
   return state;
+}
+
+/**
+ * Client-side navigation through the dashboard sidebar (a full page load would server-render
+ * against the static mock server). On narrow screens the sidebar is closed or icon-only, so
+ * open it first with whichever toggle is visible.
+ */
+export async function navigateSidebar(page, name, path) {
+  const link = page.getByRole("link", { name, exact: true });
+  let opened = false;
+  if (!(await link.isVisible())) {
+    const toggles = page.getByRole("button", { name: /toggle sidebar/i });
+    for (let index = 0; index < (await toggles.count()); index += 1) {
+      if (await toggles.nth(index).isVisible()) {
+        await toggles.nth(index).click();
+        opened = true;
+        break;
+      }
+    }
+  }
+  if (!(await link.isVisible())) {
+    // At exactly the md breakpoint (iPad Mini, 768px) neither the sidebar nor its trigger shows;
+    // fall back to the app's router so the navigation stays client-side.
+    await page.evaluate((target) => document.querySelector("#__nuxt").__vue_app__.config.globalProperties.$router.push(target), path);
+    return;
+  }
+  await link.click();
+  // The mobile sidebar is a modal sheet that stays open after navigating.
+  if (opened && (await page.getByRole("dialog").count())) await page.keyboard.press("Escape");
 }

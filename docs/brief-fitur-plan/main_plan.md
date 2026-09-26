@@ -215,7 +215,16 @@ These are Executive Summary & Business Scorecard, and Katalog Ekspor.
 
 Public reads in this phase go through the Directus `public` policy ([ADR-006](../architecture/decisions/0006-public-read-directus-public-policy.md)).
 
-### 6.1 Katalog
+### 6.1 Katalog — implemented
+
+> **As built:** migration `20260926G-create-katalog.js` (`produk`, `produk_foto`, `produk_loi`, a "Katalog Publik" file folder, and the first Public policy grants), endpoints under `/v1/program/katalog`, pages `/katalog`, `/katalog/[id]`, `/dashboard/usaha/produk` and `/dashboard/katalog/kurasi`.
+> Notes:
+> - Visitors read `produk`, `produk_foto` and files in the "Katalog Publik" folder through the Public policy, with field allowlists and a filter for published products only. `usaha` stays private: the business attributes the catalogue filters on are copied onto `produk` by database triggers whenever the business or its certificates change.
+> - A certificate that expires by date alone stays on `produk` until the business or its certificates next change. A daily refresh would close that gap.
+> - The LOI form is a public custom endpoint behind the same ALTCHA captcha as login. LOIs are listed on the curation page.
+> - The Directus rate limiter is now on (100 requests/s per client IP by default, set in `docker-compose.yml`).
+> - "Official sales contact" on the detail page is the LOI form plus the business's WhatsApp. The DISKUK hotline comes with 6.4.
+> - `usaha.nomor_whatsapp` is shown publicly for published products. It is a business contact entered for the catalogue, not the owner's personal phone from SIDT.
 
 The current [`katalog.vue`](../../apps/web/app/pages/(public)/katalog.vue) uses hard-coded dummy data.
 
@@ -307,7 +316,7 @@ CAPTCHA and rate limiting protect the form. The NIB/NIK lookup and ticket creati
 2. ~~Phase 1: Login and profile~~ (already built)
 3. ~~Phase 3: Talent Scouting~~ (done)
 4. ~~Phase 4: Weekly KPI monitoring~~ (done)
-5. Phase 6.1: Katalog
+5. ~~Phase 6.1: Katalog~~ (done)
 6. Phase 5: Talent Passport
 7. Phases 6.2–6.4: Kegiatan, Klinik, FAQ
 8. Phase 2: PPT export and map pop-up

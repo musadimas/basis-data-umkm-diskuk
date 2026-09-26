@@ -67,3 +67,26 @@ export const FASE_LABEL: Record<string, string> = {
 export function assetUrl(id: string, width?: number) {
   return `/panel/assets/${encodeURIComponent(id)}${width ? `?width=${width}&quality=75` : ""}`;
 }
+
+/** Directus folder the Public policy may read (migration 20260926G); product photos are uploaded here. */
+export const KATALOG_FOLDER_ID = "6f3c1a9e-2b7d-4e58-9a41-0d5e8c7b2f10";
+
+export const KATEGORI_PRODUK: { value: string; label: string }[] = [
+  { value: "makanan", label: "Makanan" },
+  { value: "minuman", label: "Minuman" },
+  { value: "fashion", label: "Fashion" },
+  { value: "kerajinan", label: "Kerajinan" },
+  { value: "kesehatan_kecantikan", label: "Kesehatan & Kecantikan" },
+  { value: "agribisnis", label: "Agribisnis" },
+  { value: "lainnya", label: "Lainnya" },
+];
+
+export const KURASI_STATUS: Record<import("~/types/program").KurasiStatus, { label: string; className: string }> = {
+  menunggu: { label: "Menunggu kurasi", className: "bg-amber-100 text-amber-900" },
+  tayang: { label: "Tayang", className: "bg-emerald-100 text-emerald-800" },
+  rekomendasi_marketplace: { label: "Rekomendasi Marketplace", className: "bg-indigo-100 text-indigo-800" },
+  ditolak: { label: "Ditolak", className: "bg-red-100 text-red-800" },
+};
+
+/** Talent statuses the catalogue shows as a "Talent Jabar" badge. */
+export const TALENT_BADGE_STATUS = ["talent_pool", "accelerator", "champion"] as const;
