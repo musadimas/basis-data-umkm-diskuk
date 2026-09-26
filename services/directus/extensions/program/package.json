@@ -52,6 +52,11 @@
         "type": "endpoint",
         "name": "v1/program/klinik",
         "source": "src/endpoints/klinik/index.js"
+      },
+      {
+        "type": "endpoint",
+        "name": "v1/program/peta",
+        "source": "src/endpoints/peta/index.js"
       }
     ],
     "host": "^11.0.0"

@@ -62,7 +62,12 @@ The public pages (katalog, kegiatan, FAQ, klinik, passport verification) need da
 
 ---
 
-## Phase 2: Modul 2 and 3 gaps
+## Phase 2: Modul 2 and 3 gaps — implemented
+
+> **As built:**
+> - **Slide PPT:** "Slide PPT (dari tampilan saat ini)" in the Canvas Analitik export dialog builds a three-slide deck in the browser: a cover with the active filters and total, the rendered chart (SVG rasterised with inline styles), and the aggregation table (top 15 groups plus "Lainnya"). `pptxgenjs` is loaded only when used.
+> - **Map pin card:** the card endpoint is `GET /v1/program/peta/:usahaId` in the program extension rather than under `/tabular`, because it reads the programme tables (certificates, talent status). The dashboard maps opt in with the `point-card` prop; the public landing map does not.
+> - Known issue that predates this work: at phone width the export dialog's submit button never settles, so the slide test is skipped on the mobile project.
 
 1. **Export Slide PPT** in Canvas Analitik
    - PDF and PNG already exist in [`ExportDialog.vue`](../../apps/web/app/components/analytics/ExportDialog.vue).
@@ -340,7 +345,7 @@ CAPTCHA and rate limiting protect the form. The NIB/NIK lookup and ticket creati
 5. ~~Phase 6.1: Katalog~~ (done)
 6. ~~Phase 5: Talent Passport~~ (done, except PDFs)
 7. ~~Phases 6.2–6.4: Kegiatan, Klinik, FAQ~~ (done)
-8. Phase 2: PPT export and map pop-up
+8. ~~Phase 2: PPT export and map pop-up~~ (done)
 
 Talent status (Phase 3) feeds the map pop-up, katalog badges, passport and KPI modules, so it should be built early.
 

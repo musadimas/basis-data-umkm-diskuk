@@ -83,3 +83,27 @@ test("database failures return a generic 500", async () => {
   assert.doesNotMatch(JSON.stringify(res.body), /relation/);
   assert.deepEqual(logged, [{ code: "42P01", status: 500 }]);
 });
+
+test("the map card never sends the owner's NIK", async () => {
+  const { default: registerPeta } = await import("../src/endpoints/peta/index.js");
+  let handler;
+  registerPeta({ get: (_path, value) => (handler = value) }, {
+    database: {
+      raw: async (sql) =>
+        sql.includes("FROM usaha u")
+          ? { rows: [{ id: USAHA_ID, nama: "Keripik", nama_lengkap: "Siti", nik: "3201234567890123", skala: "micro", kode_kbli: "10794", omzet_tahunan: "150000000", talent_status: "talent_pool", talent_batch: "2026-1", tenaga_kerja: 2 }] }
+          : { rows: [{ jenis: "pirt", status: "terbit" }, { jenis: "halal", status: "kedaluwarsa" }] },
+    },
+    logger: { error: () => {} },
+  });
+  const res = { headers: {} };
+  res.setHeader = (key, value) => (res.headers[key] = value);
+  res.json = (value) => (res.body = value);
+  await handler({ accountability: APP_USER, params: { usahaId: USAHA_ID } }, res, assert.fail);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(res.body.data, {
+    id: USAHA_ID, nama: "Keripik", pemilik: "Siti", skala: "micro", kodeKbli: "10794", kegiatanUtama: undefined,
+    omzetTahunan: 150000000, sertifikasi: ["pirt"], talentStatus: "talent_pool", talentBatch: "2026-1",
+  });
+  assert.doesNotMatch(JSON.stringify(res.body), /3201234567890123/);
+});
