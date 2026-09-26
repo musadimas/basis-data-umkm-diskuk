@@ -25,6 +25,11 @@ export const layerOrderStore = localforage.createInstance({
   name: IDB_DB_NAME,
   storeName: "layerOrder",
 });
+/** Unsent weekly KPI reports (see ~/lib/kpi-outbox). */
+export const kpiOutboxStore = localforage.createInstance({
+  name: IDB_DB_NAME,
+  storeName: "kpiOutbox",
+});
 
 export function createQueryPersister(): Persister {
   return {
@@ -48,6 +53,7 @@ export async function clearPrivateClientState(queryClient?: {
     geoJsonStore.clear(),
     layerGroupStore.clear(),
     layerOrderStore.clear(),
+    kpiOutboxStore.clear(),
   ]);
   if (import.meta.client && "caches" in window) {
     const names = await caches.keys();

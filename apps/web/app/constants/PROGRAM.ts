@@ -49,3 +49,21 @@ export const SKOR_DIMENSI: { key: "finansial" | "pasar" | "legalitas" | "sdm"; l
 
 /** Stored with scores computed by the placeholder rubric (see the program extension's scoring.js). */
 export const PLACEHOLDER_RUBRIK = "placeholder-v0";
+
+export const LAPORAN_STATUS: Record<import("~/types/program").LaporanStatus | "belum_mengirim", { label: string; className: string }> = {
+  menunggu: { label: "Menunggu review", className: "bg-amber-100 text-amber-900" },
+  disetujui: { label: "Disetujui", className: "bg-emerald-100 text-emerald-800" },
+  ditolak: { label: "Perlu perbaikan", className: "bg-red-100 text-red-800" },
+  belum_mengirim: { label: "Belum mengirim", className: "bg-slate-200 text-slate-700" },
+};
+
+export const FASE_LABEL: Record<string, string> = {
+  pra_akselerasi: "Pra-akselerasi",
+  akselerasi: "Akselerasi",
+  pasca_akselerasi: "Pasca-akselerasi",
+};
+
+/** Directus asset URL through the same-origin /panel proxy; `width` asks Directus for a resized copy. */
+export function assetUrl(id: string, width?: number) {
+  return `/panel/assets/${encodeURIComponent(id)}${width ? `?width=${width}&quality=75` : ""}`;
+}

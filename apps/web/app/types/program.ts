@@ -91,3 +91,63 @@ export interface BeritaAcara {
   dateCreated: string;
   jumlahPengajuan: number;
 }
+
+export type LaporanStatus = "menunggu" | "disetujui" | "ditolak";
+
+export interface KpiPeserta {
+  id: string;
+  usaha: { id: string; nama: string; nib: string | null; skala: string | null; kota: string | null };
+  batch: string;
+  fase: string;
+  pendamping: { id: string; nama: string | null } | null;
+  tanggalMulai: string;
+  jumlahMinggu: number;
+  /** 0 before the programme starts. */
+  mingguBerjalan: number;
+  targetMingguan: number;
+  rekomendasiPitching: boolean;
+  status: "aktif" | "selesai" | "keluar";
+}
+
+export interface KpiPesertaListItem extends KpiPeserta {
+  laporanTerkirim: number;
+  statusMingguIni: LaporanStatus | "belum_mengirim" | null;
+}
+
+export interface KpiLaporan {
+  id: string;
+  peserta: string;
+  mingguKe: number;
+  target: number;
+  realisasiOmzet: number;
+  jumlahTransaksi: number;
+  capaianPersen: number | null;
+  kendala: string | null;
+  bukti: string[];
+  status: LaporanStatus;
+  catatanPendamping: string | null;
+  direviewAt: string | null;
+  clientUuid: string;
+  dateCreated: string;
+  dateUpdated: string;
+}
+
+export interface KpiLaporanQueueItem extends KpiLaporan {
+  pesertaInfo: KpiPeserta | null;
+}
+
+export interface KpiPesertaDetail {
+  peserta: KpiPeserta;
+  laporan: KpiLaporan[];
+  pitching: { streak: number; dibutuhkan: number; memenuhi: boolean };
+  akses: { kirim: boolean; review: boolean };
+}
+
+export interface KpiLaporanInput {
+  mingguKe: number;
+  realisasiOmzet: number;
+  jumlahTransaksi: number;
+  kendala: string | null;
+  bukti: string[];
+  clientUuid: string;
+}

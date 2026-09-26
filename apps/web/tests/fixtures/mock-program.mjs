@@ -4,6 +4,7 @@
  * priority, and anything this mock does not handle falls back to the base mock.
  */
 export const USAHA_ID = "11111111-1111-4111-8111-000000000001";
+export const PESERTA_ID = "33333333-3333-4333-8333-000000000001";
 
 const json = (route, status, data) =>
   route.fulfill({ status, contentType: "application/json", body: JSON.stringify(status >= 400 ? { errors: [{ message: "error", extensions: { code: data } }] } : { data }) });
@@ -32,6 +33,22 @@ export function createProgramState() {
     legalitas: [{ id: "l1", jenis: "halal", nomor: "ID3210", status: "terbit", berlakuHingga: "2030-01-01", berkas: null }],
     pengajuan: [],
     beritaAcara: [],
+    peserta: [
+      {
+        id: PESERTA_ID,
+        usaha: { id: USAHA_ID, nama: "Usaha 01", nib: "1234567890123", skala: "micro", kota: "Kabupaten Bogor" },
+        batch: "2026-1",
+        fase: "akselerasi",
+        pendamping: { id: "user-2", nama: "Budi Pendamping" },
+        tanggalMulai: "2026-08-01",
+        jumlahMinggu: 12,
+        mingguBerjalan: 6,
+        targetMingguan: 1000000,
+        rekomendasiPitching: false,
+        status: "aktif",
+      },
+    ],
+    laporan: [],
     uploads: [],
     requests: [],
   };
@@ -52,6 +69,70 @@ export async function installMockProgram(page, state = createProgramState()) {
     const body = method === "GET" ? null : (request.postDataJSON?.() ?? null);
     state.requests.push({ method, path, body });
     const find = (id) => state.pengajuan.find((item) => item.id === id);
+    let match;
+
+    const laporanOf = (pesertaId) => state.laporan.filter((item) => item.peserta === pesertaId).sort((a, b) => a.mingguKe - b.mingguKe);
+    const streak = (pesertaId) => {
+      const met = new Set(laporanOf(pesertaId).filter((item) => item.status === "disetujui" && item.realisasiOmzet >= item.target).map((item) => item.mingguKe));
+      let best = 0;
+      for (const week of met) { let n = 0; while (met.has(week + n)) n += 1; best = Math.max(best, n); }
+      return best;
+    };
+    if (method === "GET" && path === "/kpi/peserta") {
+      return json(route, 200, state.peserta.map((item) => {
+        const own = laporanOf(item.id);
+        return { ...item, laporanTerkirim: own.length, statusMingguIni: own.find((l) => l.mingguKe === item.mingguBerjalan)?.status ?? "belum_mengirim" };
+      }));
+    }
+    match = path.match(/^\/kpi\/peserta\/([^/]+)$/);
+    if (method === "GET" && match) {
+      const peserta = state.peserta.find((item) => item.id === match[1]);
+      if (!peserta) return json(route, 404, "PESERTA_NOT_FOUND");
+      const best = streak(peserta.id);
+      return json(route, 200, { peserta, laporan: laporanOf(peserta.id), pitching: { streak: best, dibutuhkan: 4, memenuhi: best >= 4 }, akses: { kirim: true, review: true } });
+    }
+    match = path.match(/^\/kpi\/peserta\/([^/]+)\/laporan$/);
+    if (method === "POST" && match) {
+      const duplicate = state.laporan.find((item) => item.clientUuid === body.clientUuid);
+      if (duplicate) return json(route, 200, duplicate);
+      const peserta = state.peserta.find((item) => item.id === match[1]);
+      const created = {
+        id: `44444444-4444-4444-8444-${String(state.laporan.length + 1).padStart(12, "0")}`,
+        peserta: peserta.id,
+        mingguKe: body.mingguKe,
+        target: peserta.targetMingguan,
+        realisasiOmzet: body.realisasiOmzet,
+        jumlahTransaksi: body.jumlahTransaksi,
+        capaianPersen: Math.round((body.realisasiOmzet / peserta.targetMingguan) * 1000) / 10,
+        kendala: body.kendala,
+        bukti: body.bukti,
+        status: "menunggu",
+        catatanPendamping: null,
+        direviewAt: null,
+        clientUuid: body.clientUuid,
+        dateCreated: new Date().toISOString(),
+        dateUpdated: new Date().toISOString(),
+      };
+      state.laporan.push(created);
+      return json(route, 201, created);
+    }
+    match = path.match(/^\/kpi\/peserta\/([^/]+)\/pitching$/);
+    if (method === "PATCH" && match) {
+      const peserta = state.peserta.find((item) => item.id === match[1]);
+      if (body.rekomendasi && streak(peserta.id) < 4) return json(route, 409, "PITCHING_BELUM_MEMENUHI");
+      peserta.rekomendasiPitching = body.rekomendasi;
+      return json(route, 200, peserta);
+    }
+    if (method === "GET" && path === "/kpi/laporan") {
+      const status = new URL(request.url()).searchParams.get("status") ?? "menunggu";
+      return json(route, 200, state.laporan.filter((item) => item.status === status).map((item) => ({ ...item, pesertaInfo: state.peserta.find((p) => p.id === item.peserta) })));
+    }
+    match = path.match(/^\/kpi\/laporan\/([^/]+)\/review$/);
+    if (method === "POST" && match) {
+      const item = state.laporan.find((l) => l.id === match[1]);
+      Object.assign(item, { status: body.keputusan, catatanPendamping: body.catatan, direviewAt: new Date().toISOString() });
+      return json(route, 200, item);
+    }
 
     if (method === "GET" && path === `/talent/usaha/${USAHA_ID}`) {
       const latest = state.pengajuan.filter((item) => item.usaha === USAHA_ID).at(-1) ?? null;
@@ -75,7 +156,7 @@ export async function installMockProgram(page, state = createProgramState()) {
       state.usaha.talentStatus = "nominated";
       return json(route, 201, created);
     }
-    let match = path.match(/^\/talent\/pengajuan\/([^/]+)$/);
+    match = path.match(/^\/talent\/pengajuan\/([^/]+)$/);
     if (method === "PATCH" && match) {
       const item = find(match[1]);
       Object.assign(item, body, { status: "draft", skor: null });

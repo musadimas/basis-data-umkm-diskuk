@@ -126,7 +126,15 @@ The public pages (katalog, kegiatan, FAQ, klinik, passport verification) need da
 
 ---
 
-## Phase 4: Modul 5, weekly KPI monitoring
+## Phase 4: Modul 5, weekly KPI monitoring — implemented
+
+> **As built:** migration `20260926F-create-kpi-monitoring.js`, endpoints under `/v1/program/kpi`, pages `/dashboard/usaha` (UMKM phone view), `/dashboard/pendampingan` and `/dashboard/pendampingan/[pesertaId]`.
+> Notes:
+> - Participants are enrolled in the Directus Data Studio (`program_peserta`); there is no enrolment screen yet.
+> - Every report goes through the IndexedDB outbox, online or not. It syncs on page load, when the connection returns, and every 30 s while items are queued. There is no service-worker background sync, so the app must be open for queued reports to go out.
+> - The outbox is cleared on logout with the other private browser state (ADR-004), so unsent reports are lost if the user signs out first.
+> - Access is scoped by `app_role`: admin and Provinsi see all participants, Kab/Kota sees its `kota_scope`, Pendamping sees their assigned participants, and UMKM sees its own business. The super admin opens the UMKM view through a participant picker.
+> - Known limit: non-admin users can only read files they uploaded, so a non-admin pendamping cannot open evidence photos yet. This needs a file-access rule before real pendamping accounts are used.
 
 ### Collections
 
@@ -298,7 +306,7 @@ CAPTCHA and rate limiting protect the form. The NIB/NIK lookup and ticket creati
 1. ~~Phase 0: Foundations~~ (done)
 2. ~~Phase 1: Login and profile~~ (already built)
 3. ~~Phase 3: Talent Scouting~~ (done)
-4. Phase 4: Weekly KPI monitoring
+4. ~~Phase 4: Weekly KPI monitoring~~ (done)
 5. Phase 6.1: Katalog
 6. Phase 5: Talent Passport
 7. Phases 6.2–6.4: Kegiatan, Klinik, FAQ

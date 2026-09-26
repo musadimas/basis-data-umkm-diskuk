@@ -32,6 +32,11 @@
         "type": "endpoint",
         "name": "v1/program/talent",
         "source": "src/endpoints/talent/index.js"
+      },
+      {
+        "type": "endpoint",
+        "name": "v1/program/kpi",
+        "source": "src/endpoints/kpi/index.js"
       }
     ],
     "host": "^11.0.0"

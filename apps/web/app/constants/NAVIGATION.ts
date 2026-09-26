@@ -1,6 +1,8 @@
 import {
   ChartColumnDecreasing,
+  ClipboardCheck,
   Map,
+  Smartphone,
   Sparkles,
   Table,
 } from "@lucide/vue";
@@ -40,6 +42,18 @@ export const NAVIGATION_LINKS = {
       label: "Kurasi Talent Scouting",
       to: "/dashboard/talent/kurasi",
       icon: Sparkles,
+    },
+    {
+      id: "pendampingan",
+      label: "Panel Pendampingan",
+      to: "/dashboard/pendampingan",
+      icon: ClipboardCheck,
+    },
+    {
+      id: "laporan-kpi",
+      label: "Laporan KPI (UMKM)",
+      to: "/dashboard/usaha",
+      icon: Smartphone,
     },
   ],
 };
