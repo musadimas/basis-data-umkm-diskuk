@@ -10,3 +10,4 @@ apps/web/playwright-report/
 /services/caddy/
 docs/
 tools/
+.dirac-cache/
