@@ -26,6 +26,13 @@ export const layerOrderStore = localforage.createInstance({
   storeName: "layerOrder",
 });
 
+/** Antrean laporan KPI offline (Y03). Retensi: bertahan di perangkat (reload),
+ *  terhapus otomatis per-item saat sinkron sukses; ikut terhapus saat logout. */
+export const kpiOutboxStore = localforage.createInstance({
+  name: IDB_DB_NAME,
+  storeName: "kpiOutbox",
+});
+
 export function createQueryPersister(): Persister {
   return {
     persistClient: (client: PersistedClient) =>
@@ -48,7 +55,15 @@ export async function clearPrivateClientState(queryClient?: {
     geoJsonStore.clear(),
     layerGroupStore.clear(),
     layerOrderStore.clear(),
+    kpiOutboxStore.clear(),
   ]);
+  if (import.meta.client) {
+    try {
+      localStorage.removeItem("diskuk:usaha-saya");
+    } catch {
+      /* abaikan */
+    }
+  }
   if (import.meta.client && "caches" in window) {
     const names = await caches.keys();
     await Promise.allSettled(
