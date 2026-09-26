@@ -3,6 +3,32 @@
 const APPLICATION_ROLE_ID = "7d6d493c-1a6d-4c59-9e74-40d42a7862eb";
 const ANALYTICS_POLICY_ID = "9325db4b-9518-41db-b122-8c667f2ce510";
 
+// Frozen role identifiers; 20260926A-operational-roles.js must stay in sync.
+const ROLE_IDS = {
+  provinsi: APPLICATION_ROLE_ID,
+  kabkota: "ade3c009-8725-46ba-a7a0-904eeba89d01",
+  pendamping: "d824230f-46db-407d-b8ea-fb2ed58c6c4f",
+  umkm: "d821d35e-62e1-4f27-a323-843845d6c965",
+};
+
+const ALL_ROLES = ["provinsi", "kabkota", "pendamping", "umkm"];
+
+const ROLE_LABELS = {
+  provinsi: "Admin Provinsi",
+  kabkota: "Admin Kab/Kota",
+  pendamping: "Pendamping",
+  umkm: "Pelaku UMKM",
+};
+
+function roleKeyOf(accountability) {
+  if (!accountability) return null;
+  if (accountability.admin) return "provinsi";
+  for (const [key, roleId] of Object.entries(ROLE_IDS)) {
+    if (accountability.role === roleId) return key;
+  }
+  return null;
+}
+
 class DashboardAuthError extends Error {
   constructor(statusCode, code, message) {
     super(message);
@@ -13,7 +39,7 @@ class DashboardAuthError extends Error {
   }
 }
 
-function requireDashboardAccountability(req, { adminOnly = false } = {}) {
+function requireDashboardAccountability(req, { adminOnly = false, roles = ["provinsi"] } = {}) {
   const accountability = req?.accountability;
   if (!accountability?.user) {
     throw new DashboardAuthError(401, "AUTHENTICATION_REQUIRED", "Authentication required");
@@ -21,10 +47,15 @@ function requireDashboardAccountability(req, { adminOnly = false } = {}) {
   if (adminOnly && !accountability.admin) {
     throw new DashboardAuthError(403, "FORBIDDEN", "Administrator access required");
   }
-  if (!accountability.admin && accountability.role !== APPLICATION_ROLE_ID) {
+  const role = roleKeyOf(accountability);
+  if (!role || !roles.includes(role)) {
     throw new DashboardAuthError(403, "FORBIDDEN", "Dashboard access is not permitted");
   }
   return accountability;
+}
+
+function requireRole(req, roles) {
+  return requireDashboardAccountability(req, { roles });
 }
 
 function requireApplicationUser(req) {
@@ -49,8 +80,13 @@ function sanitizeError(error) {
 module.exports = {
   APPLICATION_ROLE_ID,
   ANALYTICS_POLICY_ID,
+  ROLE_IDS,
+  ALL_ROLES,
+  ROLE_LABELS,
+  roleKeyOf,
   DashboardAuthError,
   requireDashboardAccountability,
+  requireRole,
   requireApplicationUser,
   routeGuard,
   sanitizeError,
