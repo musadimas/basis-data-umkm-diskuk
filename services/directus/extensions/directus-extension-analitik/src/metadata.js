@@ -32,7 +32,7 @@ async function getMetadata(database) {
   };
 }
 
-async function getOptions(database, query = {}) {
+async function getOptions(database, query = {}, operator = null) {
   const limit = Math.min(
     Math.max(Number.parseInt(query.limit || "20", 10) || 20, 1),
     100,
@@ -50,6 +50,8 @@ async function getOptions(database, query = {}) {
   if (!field || field.lifecycle_status !== "active")
     return { fieldId, options: [] };
 
+  const kabkota = operator?.role === "kabkota" && operator?.kotaId != null;
+
   // Prefer small reference tables / snapshot over scanning 5.4M fact rows.
   // Only use fact-distinct as last resort with prefix filter and budget.
   const likeParam = search ? `${search}%` : null;
@@ -62,7 +64,7 @@ async function getOptions(database, query = {}) {
     typeof query.parent === "string" || typeof query.parent === "number"
       ? String(query.parent).slice(0, 100)
       : "";
-  const parentId =
+  let parentId =
     /^(0|[1-9][0-9]*)$/.test(parentRaw) &&
     Number(parentRaw) <= 2147483647 &&
     Number(parentRaw) > 0
@@ -101,8 +103,16 @@ async function getOptions(database, query = {}) {
     return { fieldId, options: filtered.slice(0, limit), nextCursor: null };
   }
 
-  // Kota – from reference table `kota` (Jawa Barat only), ~27 rows
+  // Kota – from reference table `kota` (Jawa Barat only), ~27 rows.
+  // kabkota hanya melihat kotanya sendiri.
   if (field.semantic_id === "kota_nama" || field.semantic_id === "kota_kode") {
+    if (kabkota) {
+      return {
+        fieldId,
+        options: [{ id: String(operator.kotaId), label: operator.kotaNama ?? String(operator.kotaId) }],
+        nextCursor: null,
+      };
+    }
     const sql = likeParam
       ? `SELECT k.id::text AS id, k.nama AS label FROM kota k JOIN provinsi p ON p.id=k.provinsi WHERE lower(p.nama)='jawa barat' AND k.nama ILIKE ? ORDER BY k.nama LIMIT ?`
       : `SELECT k.id::text AS id, k.nama AS label FROM kota k JOIN provinsi p ON p.id=k.provinsi WHERE lower(p.nama)='jawa barat' ORDER BY k.nama LIMIT ?`;
@@ -117,10 +127,12 @@ async function getOptions(database, query = {}) {
 
   // Kecamatan – reference table, scoped to the parent kota when cascading.
   // Unscoped listings stay bounded by LIMIT and never touch the fact table.
+  // kabkota: parent dari klien diabaikan, selalu kota operator.
   if (
     field.semantic_id === "kecamatan_id" ||
     field.semantic_id === "kecamatan_nama"
   ) {
+    if (kabkota) parentId = operator.kotaId;
     const scopeSql = parentId
       ? " AND kc.kota=?"
       : parentName
@@ -140,20 +152,23 @@ async function getOptions(database, query = {}) {
   }
 
   // Kelurahan – reference table, scoped to the parent kecamatan when cascading.
+  // kabkota: tambahkan guard kota operator di samping scope parent.
   if (
     field.semantic_id === "kelurahan_id" ||
     field.semantic_id === "kelurahan_nama"
   ) {
+    const kotaGuardSql = kabkota ? " AND kc.kota=?" : "";
+    const kotaGuardParams = kabkota ? [operator.kotaId] : [];
     const scopeSql = parentId
       ? " AND kl.kecamatan=?"
       : parentName
         ? " AND EXISTS (SELECT 1 FROM kecamatan kc2 WHERE kc2.id=kl.kecamatan AND lower(kc2.nama)=?)"
         : "";
     const sql = likeParam
-      ? `SELECT kl.id::text AS id, kl.nama AS label FROM kelurahan kl JOIN kecamatan kc ON kc.id=kl.kecamatan JOIN kota k ON k.id=kc.kota JOIN provinsi p ON p.id=k.provinsi WHERE lower(p.nama)='jawa barat'${scopeSql} AND kl.nama ILIKE ? ORDER BY kl.nama LIMIT ?`
-      : `SELECT kl.id::text AS id, kl.nama AS label FROM kelurahan kl JOIN kecamatan kc ON kc.id=kl.kecamatan JOIN kota k ON k.id=kc.kota JOIN provinsi p ON p.id=k.provinsi WHERE lower(p.nama)='jawa barat'${scopeSql} ORDER BY kl.nama LIMIT ?`;
+      ? `SELECT kl.id::text AS id, kl.nama AS label FROM kelurahan kl JOIN kecamatan kc ON kc.id=kl.kecamatan JOIN kota k ON k.id=kc.kota JOIN provinsi p ON p.id=k.provinsi WHERE lower(p.nama)='jawa barat'${kotaGuardSql}${scopeSql} AND kl.nama ILIKE ? ORDER BY kl.nama LIMIT ?`
+      : `SELECT kl.id::text AS id, kl.nama AS label FROM kelurahan kl JOIN kecamatan kc ON kc.id=kl.kecamatan JOIN kota k ON k.id=kc.kota JOIN provinsi p ON p.id=k.provinsi WHERE lower(p.nama)='jawa barat'${kotaGuardSql}${scopeSql} ORDER BY kl.nama LIMIT ?`;
     const scopeParams = parentId || parentName ? [parentId ?? parentName] : [];
-    const params = [...scopeParams, ...(likeParam ? [likeParam] : []), limit];
+    const params = [...kotaGuardParams, ...scopeParams, ...(likeParam ? [likeParam] : []), limit];
     const rows = await runRefQuery(sql, params);
     return {
       fieldId,

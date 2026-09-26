@@ -162,3 +162,234 @@ test("download signatures are expiring and tamper resistant", async () => {
   assert.equal(verifyDownload("job", "other", expiry, sig), false);
   assert.equal(verifyDownload("job", "owner", Date.now() - 1, sig), false);
 });
+
+// ---- Y01 multi-role scoping (kabkota / pendamping) ----
+
+const KABKOTA_ROLE = "ade3c009-8725-46ba-a7a0-904eeba89d01";
+const PENDAMPING_ROLE = "d824230f-46db-407d-b8ea-fb2ed58c6c4f";
+const KABKOTA_USER = "22222222-2222-4222-8222-222222222222";
+const PROFILE_ID = "11111111-1111-4111-8111-111111111111";
+
+const profileRow = (overrides = {}) => ({
+  usaha_id: PROFILE_ID,
+  kota_id: 7,
+  kota_nama: "KABUPATEN SUBANG",
+  status: "active",
+  nama: "Usaha Canari",
+  kegiatan_utama: "jualan",
+  produk_utama: null,
+  status_hukum: null,
+  skala: "micro",
+  kode_kbli: "47112",
+  kategori_kbli: "PERDAGANGAN",
+  business_address: null,
+  latitude: null,
+  longitude: null,
+  omzet_quality: "reported",
+  aset_quality: "missing",
+  masked_nik: "************1234",
+  masked_phone: "08******1234",
+  owner_name: "Pemilik",
+  age_band: "25–34",
+  source_updated_at: "2026-08-17T00:00:00Z",
+  extra_fields: {},
+  data_as_of: "2026-08-17T00:00:00Z",
+  ...overrides,
+});
+
+// Serves the kabkota operator lookup plus the queryAnalytics internals
+// (active generation, field registry, live aggregate scan) and, when
+// profileRow is given, the /umkm/:id profile lookup.
+function kabkotaDatabase(calls, { kota = 7, profileRow: row = null } = {}) {
+  return {
+    raw: async (sql, params = []) => {
+      calls.push({ sql, params });
+      if (sql.includes("FROM directus_users u"))
+        return {
+          rows: [
+            {
+              id: KABKOTA_USER,
+              kota,
+              kota_nama: kota == null ? null : "KABUPATEN SUBANG",
+              usaha: null,
+              usaha_nama: null,
+              usaha_nib: null,
+            },
+          ],
+        };
+      if (sql.includes("FROM analitik_active_generation"))
+        return {
+          rows: [
+            {
+              id: "generation-1",
+              status: "active",
+              data_as_of: "2026-09-26T00:00:00Z",
+              reconciled_at: "2026-09-26T01:00:00Z",
+              row_count: 10,
+              active_row_count: 10,
+              archived_row_count: 0,
+            },
+          ],
+        };
+      if (sql.includes("FROM analitik_field"))
+        return {
+          rows: [
+            {
+              id: "metric",
+              semantic_id: "jumlah_umkm",
+              lifecycle_status: "active",
+              semantic_role: "metric",
+            },
+            {
+              id: "city",
+              semantic_id: "kota_nama",
+              lifecycle_status: "active",
+              semantic_role: "dimension",
+            },
+            {
+              id: "kota",
+              semantic_id: "kota_id",
+              lifecycle_status: "active",
+              semantic_role: "dimension",
+            },
+          ],
+        };
+      if (sql.includes("FROM analitik_usaha_current") && row)
+        return { rows: [row] };
+      if (sql.includes("group_key"))
+        return {
+          rows: [
+            {
+              group_key: "7",
+              group_label: "KABUPATEN SUBANG",
+              value: 10,
+              eligible: 10,
+              matched: 10,
+              missing: 0,
+              needs_verification: 0,
+              metric_total: 10,
+            },
+          ],
+        };
+      throw new Error(`Unexpected SQL: ${sql}`);
+    },
+  };
+}
+
+test("kabkota query is forced onto its own kota before compilation", async () => {
+  const { __resetBudgetForTests } = require("../src/query-service.js");
+  __resetBudgetForTests();
+  const calls = [];
+  const r = router();
+  extension.handler(r, { database: kabkotaDatabase(calls), logger: { error() {} } });
+
+  const out = await run(r.routes["POST /query"], {
+    accountability: { user: KABKOTA_USER, role: KABKOTA_ROLE },
+    query: {},
+    body: {
+      schemaVersion: 1,
+      metric: "jumlah_umkm",
+      groupBy: "kota_nama",
+      filters: [{ field: "kota_nama", operator: "eq", value: "OTHER" }],
+    },
+  });
+
+  assert.equal(out.error, undefined);
+  assert.equal(out.res.statusCode, 200);
+  assert.equal(out.res.body.data.total, 10);
+  assert.deepEqual(out.res.body.data.normalizedFilters.filters, [
+    { fieldId: "kota_id", operator: "eq", value: "7" },
+  ]);
+  const scan = calls.find(
+    ({ sql }) =>
+      sql.includes("group_key") && sql.includes("FROM analitik_usaha_current"),
+  );
+  assert.ok(scan, "live aggregate scan must run for the filtered request");
+  assert.match(scan.sql, /a\.kota_id = \?::integer/);
+  assert.ok(scan.params.includes(7), "SQL must bind the operator kota 7");
+  assert.ok(
+    !scan.params.includes("OTHER"),
+    "client kota_nama filter must be dropped before compilation",
+  );
+});
+
+test("kabkota profile access outside its kota is a 404 PROFILE_NOT_FOUND", async () => {
+  const calls = [];
+  const r = router();
+  extension.handler(r, {
+    database: kabkotaDatabase(calls, {
+      profileRow: profileRow({ kota_id: 9, kota_nama: "KOTA BANDUNG" }),
+    }),
+    logger: { error() {} },
+  });
+
+  const out = await run(r.routes["GET /umkm/:id"], {
+    accountability: { user: KABKOTA_USER, role: KABKOTA_ROLE },
+    params: { id: PROFILE_ID },
+  });
+
+  assert.equal(out.res.statusCode, 404);
+  assert.equal(out.res.body.errors[0].extensions.code, "PROFILE_NOT_FOUND");
+});
+
+test("kabkota can open a profile inside its kota without province actions", async () => {
+  const calls = [];
+  const r = router();
+  extension.handler(r, {
+    database: kabkotaDatabase(calls, { profileRow: profileRow() }),
+    logger: { error() {} },
+  });
+
+  const out = await run(r.routes["GET /umkm/:id"], {
+    accountability: { user: KABKOTA_USER, role: KABKOTA_ROLE },
+    params: { id: PROFILE_ID },
+  });
+
+  assert.equal(out.res.statusCode, 200);
+  assert.equal(out.res.body.data.id, PROFILE_ID);
+  // Y02 keeps edit available for provinsi + kabkota; archive/restore remain
+  // provinsi-only decisions per Y01.
+  assert.equal(out.res.body.data.actions.canEdit, true);
+  assert.equal(out.res.body.data.actions.canArchive, false);
+  assert.equal(out.res.body.data.actions.canRestore, false);
+});
+
+test("provinsi keeps full profile actions", async () => {
+  const r = router();
+  extension.handler(r, {
+    database: { raw: async () => ({ rows: [profileRow()] }) },
+    logger: { error() {} },
+  });
+
+  const out = await run(r.routes["GET /umkm/:id"], {
+    accountability: { user: "u", role: ROLE },
+    params: { id: PROFILE_ID },
+  });
+
+  assert.equal(out.res.statusCode, 200);
+  assert.equal(out.res.body.data.actions.canEdit, true);
+  assert.equal(out.res.body.data.actions.canArchive, true);
+  assert.equal(out.res.body.data.actions.canRestore, false);
+});
+
+test("pendamping is rejected at the guard before any database access", async () => {
+  let calls = 0;
+  const r = router();
+  extension.handler(r, {
+    database: {
+      raw: async () => {
+        calls += 1;
+      },
+    },
+    logger: { error() {} },
+  });
+
+  const out = await run(r.routes["POST /query"], {
+    accountability: { user: "u", role: PENDAMPING_ROLE },
+    query: {},
+    body: { schemaVersion: 1, metric: "jumlah_umkm", groupBy: "kota_nama" },
+  });
+
+  assert.equal(out.error.statusCode, 403);
+  assert.equal(calls, 0);
+});

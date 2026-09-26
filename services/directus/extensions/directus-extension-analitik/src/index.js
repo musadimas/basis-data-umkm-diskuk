@@ -1,4 +1,10 @@
 const { routeGuard } = require("../../shared/auth.cjs");
+const { DATA_ROLES, resolveOperator } = require("../../shared/operator.cjs");
+const {
+  scopeAnalysisRequest,
+  permissionScopeOf,
+  assertUsahaInScope,
+} = require("./scope.js");
 const { correlation } = require("./meta.js");
 const { sendError } = require("./errors.js");
 const { getMetadata, getOptions } = require("./metadata.js");
@@ -21,13 +27,16 @@ function finish(res, payload, requestId, status = 200) {
   res.setHeader?.("X-Request-Id", requestId);
   res.status(status).json(payload);
 }
-function wrap(req, res, next, task) {
-  if (!routeGuard(req, next)) return;
+function wrap(req, res, next, database, task, roles = DATA_ROLES) {
+  if (!routeGuard(req, next, { roles })) return;
   const requestId = correlation(req);
   const started = Date.now();
   signals.requests++;
   Promise.resolve()
-    .then(task)
+    .then(async () => {
+      const operator = await resolveOperator(database, req.accountability);
+      return task(operator);
+    })
     .then((result) => {
       signals.durations.push(Date.now() - started);
       if (signals.durations.length > 300) signals.durations.shift();
@@ -52,47 +61,58 @@ module.exports = {
   id: "analitik",
   handler: (router, { database }) => {
     router.get("/metadata", (req, res, next) =>
-      wrap(req, res, next, () => getMetadata(database)),
+      wrap(req, res, next, database, () => getMetadata(database)),
     );
     router.get("/metadata/options", (req, res, next) =>
-      wrap(req, res, next, () => getOptions(database, req.query || {})),
+      wrap(req, res, next, database, (operator) =>
+        getOptions(database, req.query || {}, operator),
+      ),
     );
     router.get("/templates", (req, res, next) =>
-      wrap(req, res, next, () => ({
+      wrap(req, res, next, database, () => ({
         schemaVersion: 1,
         templates: listTemplates(),
       })),
     );
     router.get("/status", (req, res, next) =>
-      wrap(req, res, next, () => getStatus(database)),
+      wrap(req, res, next, database, () => getStatus(database)),
     );
     router.post("/query", (req, res, next) =>
-      wrap(req, res, next, () =>
-        queryAnalytics(database, jsonBody(req), {
+      wrap(req, res, next, database, (operator) =>
+        queryAnalytics(database, scopeAnalysisRequest(jsonBody(req), operator), {
           user: req.accountability?.user,
-          permissionScope: req.accountability?.admin
-            ? "admin"
-            : req.accountability?.role,
+          permissionScope: permissionScopeOf(operator),
         }),
       ),
     );
     router.post("/records", (req, res, next) =>
-      wrap(req, res, next, () =>
-        listRecords(database, jsonBody(req), {
+      wrap(req, res, next, database, (operator) =>
+        listRecords(database, scopeAnalysisRequest(jsonBody(req), operator), {
           user: req.accountability?.user,
         }),
       ),
     );
     router.get("/umkm/:id", (req, res, next) =>
-      wrap(req, res, next, () => getProfile(database, req.params?.id)),
-    );
-    router.post("/exports", (req, res, next) =>
-      wrap(req, res, next, () =>
-        submitExport(database, jsonBody(req), req.accountability.user),
+      wrap(req, res, next, database, (operator) =>
+        getProfile(database, req.params?.id, operator),
       ),
     );
+    router.post("/exports", (req, res, next) =>
+      wrap(req, res, next, database, async (operator) => {
+        const body = jsonBody(req);
+        const scoped = {
+          ...body,
+          config: scopeAnalysisRequest(body.config ?? {}, operator),
+        };
+        const exportType = body.type ?? body.exportType;
+        if (exportType === "profile_pdf") {
+          await assertUsahaInScope(database, body.profileId, operator);
+        }
+        return submitExport(database, scoped, req.accountability.user);
+      }),
+    );
     router.get("/exports/:jobId", (req, res, next) =>
-      wrap(req, res, next, () =>
+      wrap(req, res, next, database, () =>
         getExportStatus(
           database,
           req.params?.jobId,
@@ -102,7 +122,7 @@ module.exports = {
       ),
     );
     router.get("/exports/:jobId/download", (req, res, next) => {
-      if (!routeGuard(req, next)) return;
+      if (!routeGuard(req, next, { roles: DATA_ROLES })) return;
       const requestId = correlation(req);
       Promise.resolve(
         downloadExport(

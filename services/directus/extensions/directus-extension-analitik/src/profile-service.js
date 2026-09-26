@@ -99,16 +99,23 @@ function profileSections(row) {
     },
   ];
 }
-async function getProfile(database, id) {
+async function getProfile(database, id, operator = null) {
   if (!UUID.test(String(id || "")))
     throw new AnalyticsApiError(404, "PROFILE_NOT_FOUND");
   const result = await database.raw(
-    `SELECT c.usaha_id,c.status,c.nama,c.kota_nama,kegiatan_utama,produk_utama,status_hukum,skala,kode_kbli,kategori_kbli,business_address,latitude,longitude,omzet_quality,aset_quality,masked_nik,masked_phone,owner_name,age_band,source_updated_at,extra_fields,g.data_as_of FROM analitik_usaha_current c JOIN analitik_active_generation p ON p.id=1 AND p.active_generation_id=c.generation_id JOIN analitik_generation g ON g.id=c.generation_id WHERE c.usaha_id=? LIMIT 1`,
+    `SELECT c.usaha_id,c.kota_id,c.status,c.nama,c.kota_nama,kegiatan_utama,produk_utama,status_hukum,skala,kode_kbli,kategori_kbli,business_address,latitude,longitude,omzet_quality,aset_quality,masked_nik,masked_phone,owner_name,age_band,source_updated_at,extra_fields,g.data_as_of FROM analitik_usaha_current c JOIN analitik_active_generation p ON p.id=1 AND p.active_generation_id=c.generation_id JOIN analitik_generation g ON g.id=c.generation_id WHERE c.usaha_id=? LIMIT 1`,
     [id],
   );
   const row = (result.rows ?? result[0] ?? [])[0];
   if (!row) throw new AnalyticsApiError(404, "PROFILE_NOT_FOUND");
+  if (operator?.role === "kabkota" && operator?.kotaId != null && Number(row.kota_id) !== Number(operator.kotaId)) {
+    throw new AnalyticsApiError(404, "PROFILE_NOT_FOUND");
+  }
   const sections = profileSections(row);
+  // Y02: edit in-app via /dashboard/data-lapangan untuk provinsi + kabkota
+  // (scoping kota tetap dari Y01 di atas). Archive tetap keputusan Y01.
+  const canEdit = ["provinsi", "kabkota"].includes(operator?.role);
+  const isProvinsi = operator?.role === "provinsi";
   return {
     meta: baseMeta({
       status: "current",
@@ -131,10 +138,10 @@ async function getProfile(database, id) {
       },
       sections,
       actions: {
-        canEdit: true,
-        canArchive: row.status === "active",
-        canRestore: row.status === "archived",
-        editPath: `/admin/content/usaha/${row.usaha_id}`,
+        canEdit,
+        canArchive: isProvinsi && row.status === "active",
+        canRestore: isProvinsi && row.status === "archived",
+        editPath: `/dashboard/data-lapangan/${row.usaha_id}`,
       },
       maskingVersion: MASKING_VERSION,
     },
