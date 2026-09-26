@@ -9,6 +9,7 @@ Dokumen di direktori ini adalah target architecture yang telah disetujui, bukan 
 | [ADR-003](./0003-dynamic-semantic-field-registry.md) | Dynamic semantic field registry |
 | [ADR-004](./0004-server-side-privacy-masking.md) | Server-side privacy dan masking |
 | [ADR-005](./0005-internal-health-rto-rpo.md) | Internal health collection serta RTO/RPO |
+| [ADR-006](./0006-public-read-directus-public-policy.md) | Akses baca publik melalui Directus Public policy |
 
 ## Status vocabulary
 

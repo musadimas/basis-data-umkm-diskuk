@@ -18,6 +18,8 @@ RUN cd /directus/extensions/docs && pnpm install --frozen-lockfile && pnpm run b
 RUN cd /directus/extensions/analytics && pnpm install --frozen-lockfile && pnpm run build
 # Authentication bundle (/v1/auth endpoints + auth.login hook), built with the extensions SDK.
 RUN cd /directus/extensions/authentication && pnpm install --frozen-lockfile && pnpm run build
+# Program bundle (/v1/program endpoints for the Brief Fitur modules), built with the extensions SDK.
+RUN cd /directus/extensions/program && pnpm install --frozen-lockfile && pnpm run build
 
 FROM directus/directus:11.17.4
 USER root
