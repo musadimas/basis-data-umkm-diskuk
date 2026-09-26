@@ -1,4 +1,5 @@
 import {
+  BadgeCheck,
   ChartColumnDecreasing,
   ClipboardCheck,
   PackageCheck,
@@ -68,6 +69,12 @@ export const NAVIGATION_LINKS = {
       label: "Produk Katalog (UMKM)",
       to: "/dashboard/usaha/produk",
       icon: ShoppingBag,
+    },
+    {
+      id: "talent-passport",
+      label: "Talent Passport",
+      to: "/dashboard/usaha/passport",
+      icon: BadgeCheck,
     },
   ],
 };

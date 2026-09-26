@@ -42,6 +42,11 @@
         "type": "endpoint",
         "name": "v1/program/katalog",
         "source": "src/endpoints/katalog/index.js"
+      },
+      {
+        "type": "endpoint",
+        "name": "v1/program/passport",
+        "source": "src/endpoints/passport/index.js"
       }
     ],
     "host": "^11.0.0"

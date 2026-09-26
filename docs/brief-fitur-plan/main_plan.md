@@ -175,7 +175,16 @@ Route group `/dashboard/usaha/*`, shown in a phone-frame layout on desktop.
 
 ---
 
-## Phase 5: Modul 6, Talent Passport and Digital Twin
+## Phase 5: Modul 6, Talent Passport and Digital Twin — implemented (without PDFs)
+
+> **As built:** migration `20260926H-create-talent-passport.js`, endpoints under `/v1/program/passport`, pages `/dashboard/usaha/passport` and `/passport/[kode]`.
+> Notes:
+> - The signature is HMAC-SHA256 over a canonical JSON payload, keyed by `PASSPORT_SIGNING_SECRET`, or derived from Directus `SECRET` when that is unset. Rotating either key invalidates every issued passport.
+> - Codes look like `TP` plus 10 Crockford base32 characters. Re-issuing revokes the previous passport; verification reports revoked and tampered passports without showing their data.
+> - The signed payload holds only business facts (name, scale, kab/kota, KBLI, badge, scores, certificates, PDN). It has no NIB, NIK, owner name or phone.
+> - Radar dimensions: the four Talent Index scores from the approved submission, plus "Kinerja Program" (share of started weeks with an approved report on target). Both are placeholders until the official rubric arrives.
+> - The public portfolio's photos, videos and specs come from the business's published catalogue products. They are live, not part of the signature.
+> - Not built: the Executive Summary & Business Scorecard and Katalog Ekspor PDFs, pending open decision 3.
 
 The investor matchmaking directory is red and is not part of this phase.
 
@@ -317,7 +326,7 @@ CAPTCHA and rate limiting protect the form. The NIB/NIK lookup and ticket creati
 3. ~~Phase 3: Talent Scouting~~ (done)
 4. ~~Phase 4: Weekly KPI monitoring~~ (done)
 5. ~~Phase 6.1: Katalog~~ (done)
-6. Phase 5: Talent Passport
+6. ~~Phase 5: Talent Passport~~ (done, except PDFs)
 7. Phases 6.2–6.4: Kegiatan, Klinik, FAQ
 8. Phase 2: PPT export and map pop-up
 

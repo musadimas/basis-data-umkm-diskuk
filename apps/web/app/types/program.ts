@@ -242,3 +242,61 @@ export interface ProdukLoi {
   status: "baru" | "ditindaklanjuti" | "ditutup";
   dateCreated: string;
 }
+
+export interface PassportSkor {
+  finansial: number;
+  pasar: number;
+  legalitas: number;
+  sdm: number;
+  kinerja: number;
+}
+
+/** The signed, public part of a Talent Passport. */
+export interface PassportPayload {
+  versi: number;
+  kode: string;
+  usaha: { nama: string; skala: string | null; kota: string | null; kbli: string | null };
+  statusBadge: string;
+  skor: PassportSkor;
+  rubrikVersi: string;
+  sertifikasi: JenisLegalitas[];
+  pdnTerverifikasi: boolean;
+  diterbitkanAt: string;
+}
+
+export interface Passport {
+  id: string;
+  kode: string;
+  status: "aktif" | "dicabut";
+  statusBadge: string;
+  skor: PassportSkor;
+  payload: PassportPayload;
+  diterbitkanAt: string;
+}
+
+export interface PassportDetail {
+  usaha: { id: string; nama: string; talentStatus: TalentStatus };
+  eligible: boolean;
+  alasan: string | null;
+  bisaMenerbitkan: boolean;
+  passport: Passport | null;
+}
+
+export interface PassportPortfolioItem {
+  id: string;
+  nama: string;
+  deskripsi: string | null;
+  videoUrl: string | null;
+  dimensi: string | null;
+  berat: string | null;
+  shelfLife: string | null;
+  bahanBaku: string | null;
+  tkdnPersen: number | string | null;
+  kapasitasBulanan: string | null;
+  leadTime: string | null;
+  foto: string[];
+}
+
+export type PassportVerification =
+  | { kode: string; valid: true; status: "aktif"; passport: PassportPayload; portfolio: PassportPortfolioItem[] }
+  | { kode: string; valid: false; status: "tidak_valid" | "dicabut"; dicabutAt?: string };

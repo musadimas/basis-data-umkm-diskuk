@@ -90,3 +90,11 @@ export const KURASI_STATUS: Record<import("~/types/program").KurasiStatus, { lab
 
 /** Talent statuses the catalogue shows as a "Talent Jabar" badge. */
 export const TALENT_BADGE_STATUS = ["talent_pool", "accelerator", "champion"] as const;
+
+export const RADAR_DIMENSI: { key: keyof import("~/types/program").PassportSkor; label: string }[] = [
+  { key: "finansial", label: "Finansial" },
+  { key: "pasar", label: "Pasar" },
+  { key: "legalitas", label: "Legalitas" },
+  { key: "sdm", label: "SDM" },
+  { key: "kinerja", label: "Kinerja Program" },
+];

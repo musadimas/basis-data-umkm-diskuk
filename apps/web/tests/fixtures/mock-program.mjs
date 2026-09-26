@@ -3,7 +3,7 @@
  * Directus /files uploads. Install after installMockDirectus: Playwright gives later routes
  * priority, and anything this mock does not handle falls back to the base mock.
  */
-import { PNG_1PX, katalogResponse } from "./katalog-data.mjs";
+import { PASSPORT_PAYLOAD, PNG_1PX, katalogResponse } from "./katalog-data.mjs";
 
 export const USAHA_ID = "11111111-1111-4111-8111-000000000001";
 export const PESERTA_ID = "33333333-3333-4333-8333-000000000001";
@@ -55,6 +55,7 @@ export function createProgramState() {
     loi: [],
     uploads: [],
     uploadFolders: [],
+    passport: null,
     requests: [],
   };
 }
@@ -98,6 +99,21 @@ export async function installMockProgram(page, state = createProgramState()) {
       for (const week of met) { let n = 0; while (met.has(week + n)) n += 1; best = Math.max(best, n); }
       return best;
     };
+    if (method === "GET" && path === "/passport") {
+      const eligible = ["talent_pool", "accelerator", "champion"].includes(state.usaha.talentStatus);
+      return json(route, 200, {
+        usaha: { id: USAHA_ID, nama: state.usaha.nama, talentStatus: state.usaha.talentStatus },
+        eligible,
+        alasan: eligible ? null : "Usaha belum masuk Talent Pool.",
+        bisaMenerbitkan: true,
+        passport: state.passport,
+      });
+    }
+    if (method === "POST" && path === "/passport") {
+      state.passport = { id: "99999999-9999-4999-8999-000000000001", kode: PASSPORT_PAYLOAD.kode, status: "aktif", statusBadge: PASSPORT_PAYLOAD.statusBadge, skor: PASSPORT_PAYLOAD.skor, payload: PASSPORT_PAYLOAD, diterbitkanAt: PASSPORT_PAYLOAD.diterbitkanAt };
+      return json(route, 201, state.passport);
+    }
+
     if (method === "GET" && path === "/katalog/usaha") {
       const q = new URL(request.url()).searchParams.get("q") ?? "";
       return json(route, 200, q.length >= 3 ? [{ id: USAHA_ID, nama: state.usaha.nama, nib: state.usaha.nib, kota: state.usaha.kota }] : []);

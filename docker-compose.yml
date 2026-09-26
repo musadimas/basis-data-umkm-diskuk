@@ -169,6 +169,9 @@ services:
       # Empty = PUBLIC_URL's origin, which is also the web's origin behind Caddy.
       AUTH_ALLOWED_ORIGINS: ${AUTH_ALLOWED_ORIGINS:-}
       ALTCHA_HMAC_SECRET: ${ALTCHA_HMAC_SECRET:-}
+      # Talent Passport HMAC key (min. 32 chars). Empty = derived from SECRET; rotating either
+      # invalidates every issued passport, so re-issue them afterwards.
+      PASSPORT_SIGNING_SECRET: ${PASSPORT_SIGNING_SECRET:-}
       # ADR-006: the public catalogue reads through the Directus Public policy, so every route is
       # limited per client IP. Caddy sets X-Forwarded-For and the web's /panel proxy passes it on.
       RATE_LIMITER_ENABLED: ${RATE_LIMITER_ENABLED:-true}

@@ -1,5 +1,5 @@
 import { createServer } from "node:http";
-import { PNG_1PX, katalogResponse } from "./katalog-data.mjs";
+import { PNG_1PX, katalogResponse, passportResponse } from "./katalog-data.mjs";
 
 const host = "127.0.0.1";
 const port = 3101;
@@ -19,7 +19,7 @@ const server = createServer((request, response) => {
     return;
   }
   // Public catalogue reads (Directus Public policy) are server-rendered.
-  const katalog = katalogResponse(url.pathname, url.searchParams);
+  const katalog = katalogResponse(url.pathname, url.searchParams) ?? passportResponse(url.pathname);
   if (katalog) {
     response.writeHead(katalog.status ?? 200, { "content-type": "application/json" });
     response.end(JSON.stringify(katalog));

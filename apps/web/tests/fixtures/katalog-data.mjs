@@ -107,3 +107,34 @@ export function katalogResponse(pathname, searchParams) {
   }
   return null;
 }
+
+export const PASSPORT_KODE = "TP7K2M9QX4RB";
+export const PASSPORT_PAYLOAD = {
+  versi: 1,
+  kode: PASSPORT_KODE,
+  usaha: { nama: "Keripik Siti", skala: "micro", kota: "Kota Bandung", kbli: "10794" },
+  statusBadge: "Talent Pool Jawa Barat",
+  skor: { finansial: 35, pasar: 100, legalitas: 60, sdm: 80, kinerja: 50 },
+  rubrikVersi: "placeholder-v0",
+  sertifikasi: ["halal", "pirt"],
+  pdnTerverifikasi: false,
+  diterbitkanAt: "2026-09-26T03:00:00.000Z",
+};
+
+/** Public passport verification (/v1/program/passport/verify/:kode). */
+export function passportResponse(pathname) {
+  const match = pathname.match(/\/v1\/program\/passport\/verify\/([^/]+)$/);
+  if (!match) return null;
+  const kode = decodeURIComponent(match[1]).toUpperCase();
+  if (kode === PASSPORT_KODE) {
+    const produk = PRODUK_PUBLIK[0];
+    return {
+      data: {
+        kode, valid: true, status: "aktif", passport: PASSPORT_PAYLOAD,
+        portfolio: [{ id: produk.id, nama: produk.nama, deskripsi: produk.deskripsi, videoUrl: produk.video_url, dimensi: produk.dimensi, berat: produk.berat, shelfLife: produk.shelf_life, bahanBaku: produk.bahan_baku, tkdnPersen: produk.tkdn_persen, kapasitasBulanan: produk.kapasitas_bulanan, leadTime: produk.lead_time, foto: [FOTO_ID] }],
+      },
+    };
+  }
+  if (kode === "TP0000000000") return { data: { kode, valid: false, status: "tidak_valid" } };
+  return { status: 404, errors: [{ message: "Passport not found.", extensions: { code: "PASSPORT_NOT_FOUND" } }] };
+}
