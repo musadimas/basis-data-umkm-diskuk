@@ -1,6 +1,7 @@
 import { withTransaction } from "./db.js";
 import { reconcileGeneration } from "./reconcile.js";
 import { projectRecord, safeProjection } from "./projector.js";
+import { legacyTabularInsertSql } from "./legacy-tabular.js";
 
 const SECTORS_SQL = `SELECT code,division_start,division_end FROM analitik_kbli_sector WHERE schema_version=1 ORDER BY code`;
 const GENERATION_ID =
@@ -87,49 +88,7 @@ LIMIT $2
 async function refreshLegacySnapshots(client, dataAsOf) {
   // TRUNCATE + INSERT usaha_tabular from canonical source (active Jawa Barat)
   await client.query(`TRUNCATE usaha_tabular`);
-  await client.query(`
-    INSERT INTO usaha_tabular (
-      id, nama, skala, produk_utama, kegiatan_utama,
-      kode_kbli, kategori_kbli, deskripsi_kbli,
-      kota_id, kota_nama, kecamatan_id, kecamatan_nama, kelurahan_id, kelurahan_nama,
-      tenaga_kerja_laki_laki, tenaga_kerja_perempuan,
-      latitude, longitude
-    )
-    SELECT
-      u.id,
-      u.nama,
-      u.skala,
-      u.produk_utama,
-      u.kegiatan_utama,
-      kk.kode,
-      kk.kategori,
-      kk.deskripsi,
-      ko.id,
-      COALESCE(ko.nama, 'Tidak diketahui'),
-      kc.id,
-      COALESCE(kc.nama, 'Tidak diketahui'),
-      kl.id,
-      COALESCE(kl.nama, 'Tidak diketahui'),
-      COALESCE(stk.dibayar_laki_laki, 0) +
-        COALESCE(stk.tidak_dibayar_laki_laki, 0) +
-        COALESCE(stk.disabilitas_dibayar_laki_laki, 0) +
-        COALESCE(stk.disabilitas_tidak_dibayar_laki_laki, 0),
-      COALESCE(stk.dibayar_perempuan, 0) +
-        COALESCE(stk.tidak_dibayar_perempuan, 0) +
-        COALESCE(stk.disabilitas_dibayar_perempuan, 0) +
-        COALESCE(stk.disabilitas_tidak_dibayar_perempuan, 0),
-      u.latitude,
-      u.longitude
-    FROM usaha u
-    LEFT JOIN alamat a ON a.id = u.alamat
-    LEFT JOIN kelurahan kl ON kl.id = a.kelurahan
-    LEFT JOIN kecamatan kc ON kc.id = kl.kecamatan
-    LEFT JOIN kota ko ON ko.id = kc.kota
-    LEFT JOIN provinsi p ON p.id = ko.provinsi
-    LEFT JOIN klasifikasi_usaha kk ON kk.id = u.klasifikasi
-    LEFT JOIN statistik_tenaga_kerja stk ON stk.usaha = u.id
-    WHERE u.status = 'active' AND (p.id IS NULL OR LOWER(p.nama) = 'jawa barat')
-  `);
+  await client.query(legacyTabularInsertSql(""));
 
   // Build infografis_snapshot payload – exact contract from refresh-dashboard-snapshots.sql
   await client.query(
