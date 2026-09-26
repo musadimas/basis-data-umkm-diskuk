@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { createHash } from "node:crypto";
 import { createServer, type Server } from "node:http";
 import { createApp, eventHandler, toNodeListener } from "h3";
 import { createPolicyCookies } from "../../server/utils/session-policy";
@@ -9,9 +10,25 @@ const CHUNK = 256 * 1024;
 const CHUNKS = 10;
 const DRIP_MS = 60;
 
+let upstreamRequestCount = 0;
+
 function startUpstream() {
   const server: Server = createServer((req, res) => {
+    upstreamRequestCount += 1;
     const mode = new URL(req.url ?? "/", "http://u").pathname;
+    if (mode === "/echo-sha") {
+      const chunks: Buffer[] = [];
+      req.on("data", (c: Buffer) => chunks.push(Buffer.from(c)));
+      req.on("end", () => {
+        const body = Buffer.concat(chunks);
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify({
+          sha: createHash("sha256").update(body).digest("hex"),
+          bytes: body.length,
+        }));
+      });
+      return;
+    }
     if (mode === "/torn") {
       res.writeHead(200, { "content-type": "application/octet-stream" });
       res.write(Buffer.alloc(CHUNK, 0x61));
@@ -58,6 +75,7 @@ function snapshotEnv() {
 
 beforeEach(async () => {
   previousEnv = snapshotEnv();
+  upstreamRequestCount = 0;
   upstream = await startUpstream();
   process.env.NUXT_DIRECTUS_INTERNAL_URL = upstream.url;
   process.env.NUXT_SESSION_POLICY_SECRET = secret;
@@ -107,6 +125,42 @@ describe("directus proxy streaming", () => {
     expect(body.errors[0].extensions.code).toBe("AUTHENTICATION_REQUIRED");
   });
 
+  it("blocks browser access to internal operasional extension paths with 404", async () => {
+    const response = await fetch(`${proxyUrl}/panel/operasional/internal/resolve-nib`, {
+      method: "POST",
+      headers: { cookie: sessionCookie(), origin: proxyUrl, "content-type": "application/json" },
+      body: JSON.stringify({ nib: "9900000000001" }),
+    });
+    expect(response.status).toBe(404);
+    const body = await response.json();
+    expect(body.errors[0].extensions.code).toBe("NOT_FOUND");
+    expect(upstreamRequestCount).toBe(0);
+  });
+
+  it("always forwards the real client IP in x-forwarded-for", async () => {
+    let seenForwardedFor: string | null = null;
+    const probe = createServer((_req, res) => {
+      seenForwardedFor = String(_req.headers["x-forwarded-for"] || "");
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({ data: {} }));
+    });
+    await new Promise<void>((resolve) => probe.listen(0, "127.0.0.1", resolve));
+    const previousInternal = process.env.NUXT_DIRECTUS_INTERNAL_URL;
+    // SAFETY: listen() has settled above, so the bound address is the object form.
+    process.env.NUXT_DIRECTUS_INTERNAL_URL = `http://127.0.0.1:${(probe.address() as { port: number }).port}`;
+    try {
+      // Spoofed header from the client must be overridden with the socket address.
+      const response = await fetch(`${proxyUrl}/panel/spoofed-forward`, {
+        headers: { cookie: sessionCookie(), "x-forwarded-for": "203.0.113.99" },
+      });
+      expect(response.status).toBe(200);
+      expect(seenForwardedFor).toBe("127.0.0.1");
+    } finally {
+      process.env.NUXT_DIRECTUS_INTERNAL_URL = previousInternal;
+      await new Promise<void>((resolve) => probe.close(() => resolve()));
+    }
+  });
+
   it("delivers the first body byte while the upstream is still sending", async () => {
     const response = await fetch(`${proxyUrl}/panel/drip`, {
       headers: { cookie: sessionCookie() },
@@ -128,6 +182,21 @@ describe("directus proxy streaming", () => {
     expect(response.status).toBe(404);
     expect(response.headers.get("x-request-id")).toBeTruthy();
     expect(response.headers.get("cache-control")).toBe("private, no-store");
+  });
+
+  it("meneruskan body biner identik byte-per-byte (unggah berkas)", async () => {
+    const payload = Buffer.from(Array.from({ length: 256 }, (_, i) => i));
+    const expected = createHash("sha256").update(payload).digest("hex");
+    const response = await fetch(`${proxyUrl}/panel/echo-sha`, {
+      method: "POST",
+      headers: { cookie: sessionCookie(), origin: proxyUrl, "content-type": "application/octet-stream" },
+      body: payload,
+    });
+    expect(response.status).toBe(200);
+    // SAFETY: upstream /echo-sha selalu menjawab JSON { sha, bytes }; assertion hanya memulihkan bentuknya.
+    const json = await response.json() as { sha: string; bytes: number };
+    expect(json.bytes).toBe(256);
+    expect(json.sha).toBe(expected);
   });
 
   it("surfacing upstream failure mid-body never looks like a complete transfer", async () => {

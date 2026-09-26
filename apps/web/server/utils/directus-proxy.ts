@@ -110,11 +110,12 @@ function setJsonError(
   event.node.res.end(body);
 }
 
-function isStringBody(value: string | null | undefined): value is string {
+function isStringBody(value: string | Buffer | null | undefined): value is string {
   return typeof value === "string";
 }
 
-function getSetCookies(headers: Headers): string[] {
+// Dipakai juga oleh directus-session-login untuk meneruskan set-cookie upstream.
+export function getSetCookies(headers: Headers): string[] {
   // SAFETY: older runtimes lack Headers.prototype.getSetCookie; probe the accessor before calling it.
   const getSetCookie = (headers as Headers & { getSetCookie?: () => string[] })
     .getSetCookie;
@@ -122,6 +123,11 @@ function getSetCookies(headers: Headers): string[] {
   return (headers.get("set-cookie") || "")
     .split(/,(?=[^;,=]+=[^;,]+)/g)
     .filter(Boolean);
+}
+
+/** IP klien asli (prefiks ::ffff: IPv4-mapped dihapus) untuk header x-forwarded-for. */
+function clientAddress(event: H3Event) {
+  return (event.node.req.socket.remoteAddress || "").replace(/^::ffff:/, "");
 }
 
 export async function proxyToDirectus(event: H3Event) {
@@ -133,6 +139,13 @@ export async function proxyToDirectus(event: H3Event) {
 
   if (!sameOriginMutation(event)) {
     setJsonError(event, 403, "ORIGIN_MISMATCH", requestId);
+    return;
+  }
+
+  // Endpoint internal ekstensi operasional tidak boleh dijangkau browser;
+  // hanya server Nuxt yang memanggilnya langsung dengan secret internal.
+  if (pathname.startsWith("/panel/operasional/internal/")) {
+    setJsonError(event, 404, "NOT_FOUND", requestId);
     return;
   }
 
@@ -149,7 +162,18 @@ export async function proxyToDirectus(event: H3Event) {
   const login = isLoginPath(pathname);
   const logout = isLogoutPath(pathname);
   const refresh = isRefreshPath(pathname);
-  if (!passthrough && isPrivatePanelPath(pathname) && !login && !logout) {
+  // Alur lupa kata sandi berjalan sebelum ada sesi: lewati gerbang policy,
+  // tetap melewati pemeriksaan same-origin di atas.
+  const passwordReset =
+    pathname === "/panel/auth/password/request" ||
+    pathname === "/panel/auth/password/reset";
+  if (
+    !passthrough &&
+    isPrivatePanelPath(pathname) &&
+    !login &&
+    !logout &&
+    !passwordReset
+  ) {
     const policy = readPolicyFromEvent(event);
     if (!policy.valid) {
       clearCookiesWithoutH3(event);
@@ -161,12 +185,17 @@ export async function proxyToDirectus(event: H3Event) {
   const target = passthrough
     ? `${base}${pathname}${url.search}`
     : `${base}${pathname.slice("/panel".length) || "/"}${url.search}`;
+  // Biner utuh: Buffer tanpa konversi UTF-8 agar unggah berkas (multipart)
+  // lewat proxy identik byte-per-byte. Cabang isStringBody tetap aman.
   const body = ["GET", "HEAD"].includes(
     event.node.req.method?.toUpperCase() || "GET",
   )
     ? undefined
-    : await readRawBody(event);
+    : await readRawBody(event, false);
   const headers = forwardHeaders(event, requestId);
+  // Selalu kirim IP klien asli agar rate limit per-IP Directus bekerja per klien,
+  // bukan per nilai x-forwarded-for yang dapat dipalsukan.
+  headers.set("x-forwarded-for", clientAddress(event));
   if (
     passthrough &&
     ["POST", "PUT", "PATCH", "DELETE"].includes(
@@ -178,9 +207,7 @@ export async function proxyToDirectus(event: H3Event) {
     headers.set("origin", new URL(base).origin);
   }
   if (body !== undefined && body !== null) {
-    const length = isStringBody(body)
-      ? Buffer.byteLength(body)
-      : Buffer.byteLength(Buffer.from(body));
+    const length = isStringBody(body) ? Buffer.byteLength(body) : Buffer.from(body).length;
     headers.set("content-length", String(length));
   }
 
