@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { readItem } from "@directus/sdk";
+import { readItem, readSingleton } from "@directus/sdk";
 import { ArrowLeft, BadgeCheck, MapPin, MessageCircle, Package, ShieldCheck } from "@lucide/vue";
 import { JENIS_LEGALITAS, KATEGORI_PRODUK, SKALA_LABEL, TALENT_BADGE_STATUS, assetUrl } from "~/constants";
 import { endpoint } from "~/lib/directus";
 import { hargaRange, sertifikasiList, whatsappLink, youtubeEmbed } from "~/lib/katalog";
 import { requestErrorCode } from "~/lib/request-error";
-import type { ProdukPublik } from "~/types/program";
+import type { KontakHotline, ProdukPublik } from "~/types/program";
 
 definePageMeta({ layout: "landing" });
 
@@ -26,6 +26,16 @@ const { data: produk } = await useAsyncData(`katalog:${id}`, async () => {
     // SAFETY: see the catalogue list page; the SDK cannot type the junction path `foto.directus_files_id`.
     const item = await directus.request(readItem("produk", id, { fields: DETAIL_FIELDS, deep: { foto: { _sort: ["sort"] } } } as never));
     return item && typeof item === "object" && "id" in item ? (item as ProdukPublik) : null;
+  } catch {
+    return null;
+  }
+});
+
+// Official sales contact (DISKUK hotline), shown next to the business's own WhatsApp.
+const { data: kontak } = await useAsyncData("katalog:kontak", async () => {
+  try {
+    const item = await directus.request(readSingleton("kontak_hotline"));
+    return item && typeof item === "object" && "nama_layanan" in item ? (item as KontakHotline) : null;
   } catch {
     return null;
   }
@@ -199,6 +209,8 @@ async function kirimLoi() {
             </div>
           </dl>
         </div>
+
+        <ProgramHotlineCard v-if="kontak" :kontak="kontak" :pesan="`Halo DISKUK, saya ingin bertanya tentang produk ${produk.nama} di Katalog UMKM.`" />
 
         <form class="grid gap-3 rounded-xl border bg-muted/30 p-4" novalidate aria-labelledby="loi-title" @submit.prevent="kirimLoi">
           <div>

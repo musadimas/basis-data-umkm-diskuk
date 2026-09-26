@@ -9,6 +9,8 @@ const NEVER_PUBLIC = [
   "usaha", "pelaku_usaha", "alamat", "usaha_tabular", "usaha_legalitas", "directus_users",
   "talent_pengajuan", "talent_berita_acara", "program_peserta", "kpi_laporan", "kpi_laporan_bukti", "produk_loi",
 ];
+// Institutional contact details (DISKUK's own hotline), public by design rather than personal data.
+const OFFICIAL_CONTACT = ["kontak_hotline"];
 
 async function publicGrants() {
   const grants = [];
@@ -40,7 +42,8 @@ test("public grants are read-only allowlists and never touch private collections
     assert.equal(typeof fields, "string", `${grant.migration}: fields must be bound`);
     assert.ok(!fields.split(",").includes("*"), `${grant.migration}: ${collection} must not grant "*"`);
     assert.ok(!NEVER_PUBLIC.includes(collection), `${grant.migration}: ${collection} must never be public`);
-    for (const forbidden of ["nik", "telepon", "email", "usaha", "uploaded_by", "filename_disk"]) {
+    const personal = OFFICIAL_CONTACT.includes(collection) ? ["nik", "usaha"] : ["nik", "telepon", "email", "usaha"];
+    for (const forbidden of [...personal, "uploaded_by", "filename_disk"]) {
       assert.ok(!fields.split(",").includes(forbidden), `${grant.migration}: ${collection}.${forbidden} must not be public`);
     }
   }

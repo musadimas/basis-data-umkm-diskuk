@@ -300,3 +300,47 @@ export interface PassportPortfolioItem {
 export type PassportVerification =
   | { kode: string; valid: true; status: "aktif"; passport: PassportPayload; portfolio: PassportPortfolioItem[] }
   | { kode: string; valid: false; status: "tidak_valid" | "dicabut"; dicabutAt?: string };
+
+export type KategoriKegiatan = "pelatihan" | "pameran" | "bazar" | "seminar" | "temu_bisnis" | "lainnya";
+
+/** A published event as the Directus Public policy exposes it (collection `kegiatan`). */
+export interface Kegiatan {
+  id: string;
+  judul: string;
+  ringkasan: string | null;
+  kategori: KategoriKegiatan;
+  penyelenggara: string | null;
+  kota_nama: string | null;
+  metode: "luring" | "daring" | "hybrid";
+  ramah_disabilitas: boolean;
+  tanggal_mulai: string;
+  tanggal_selesai: string;
+  batas_registrasi: string | null;
+  lokasi: string | null;
+  link: string | null;
+  kuota: number | null;
+  terisi: number;
+  silabus: string | null;
+  narasumber: string | null;
+  fasilitas: string | null;
+  syarat: string | null;
+  poster: string | null;
+}
+
+export interface FaqEntry {
+  id: number;
+  pertanyaan: string;
+  jawaban: string;
+  kategori: string | null;
+  sort: number | null;
+}
+
+export interface KontakHotline {
+  id: number;
+  nama_layanan: string;
+  whatsapp: string | null;
+  telepon: string | null;
+  email: string | null;
+  jam_layanan: string | null;
+  alamat: string | null;
+}

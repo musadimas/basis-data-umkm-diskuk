@@ -138,3 +138,39 @@ export function passportResponse(pathname) {
   if (kode === "TP0000000000") return { data: { kode, valid: false, status: "tidak_valid" } };
   return { status: 404, errors: [{ message: "Passport not found.", extensions: { code: "PASSPORT_NOT_FOUND" } }] };
 }
+
+export const KONTAK_HOTLINE = {
+  id: 1,
+  nama_layanan: "Layanan Informasi DISKUK Jawa Barat",
+  whatsapp: "081100000000",
+  telepon: "022-0000000",
+  email: "layanan@contoh.invalid",
+  jam_layanan: "Senin–Jumat 08.00–16.00 WIB",
+  alamat: "Jalan Soekarno-Hatta No. 705 Kota Bandung",
+};
+
+export const FAQ = [
+  { id: 1, pertanyaan: "Bagaimana cara mengajukan konsultasi?", jawaban: "Isi formulir di halaman Konsultasi.", kategori: "Klinik", sort: 1 },
+  { id: 2, pertanyaan: "Apakah katalog berbayar?", jawaban: "Tidak, katalog gratis untuk UMKM terkurasi.", kategori: "Katalog", sort: 2 },
+];
+
+/** Events relative to "now", so each status column has one entry whenever the suite runs. */
+export function kegiatanFixtures(now = Date.now()) {
+  const day = 86_400_000;
+  const at = (offset) => new Date(now + offset).toISOString();
+  const base = { ringkasan: null, penyelenggara: "DISKUK Jabar", kota_nama: "Kota Bandung", ramah_disabilitas: false, lokasi: "Gedung Sate", link: null, kuota: 50, terisi: 10, silabus: null, narasumber: null, fasilitas: null, syarat: null, poster: null };
+  return [
+    { ...base, id: "k1", judul: "Pelatihan Pemasaran Digital", kategori: "pelatihan", metode: "daring", tanggal_mulai: at(-day), tanggal_selesai: at(day), batas_registrasi: null, silabus: "Media sosial dan marketplace" },
+    { ...base, id: "k2", judul: "Pameran Produk Unggulan", kategori: "pameran", metode: "luring", ramah_disabilitas: true, tanggal_mulai: at(10 * day), tanggal_selesai: at(12 * day), batas_registrasi: at(8 * day), syarat: "Memiliki NIB" },
+    { ...base, id: "k3", judul: "Temu Bisnis Ekspor", kategori: "temu_bisnis", metode: "hybrid", penyelenggara: "Kementerian", tanggal_mulai: at(5 * day), tanggal_selesai: at(5 * day + 3600_000), batas_registrasi: at(-2 * day) },
+    { ...base, id: "k4", judul: "Bazar Ramadan", kategori: "bazar", metode: "luring", tanggal_mulai: at(-20 * day), tanggal_selesai: at(-18 * day), batas_registrasi: null },
+  ];
+}
+
+/** Public editorial content: kegiatan, FAQ and the hotline singleton. */
+export function portalResponse(pathname) {
+  if (pathname.endsWith("/items/kegiatan")) return { data: kegiatanFixtures() };
+  if (pathname.endsWith("/items/faq")) return { data: FAQ };
+  if (pathname.endsWith("/items/kontak_hotline")) return { data: KONTAK_HOTLINE };
+  return null;
+}

@@ -264,7 +264,9 @@ The current [`katalog.vue`](../../apps/web/app/pages/(public)/katalog.vue) uses 
   - Curation status stepper and PMSE compliance notice.
 - Admin curation queue.
 
-### 6.2 Kegiatan
+### 6.2 Kegiatan — implemented
+
+> **As built:** migration `20260926I-create-kegiatan-faq.js` and the public page `/kegiatan`. Events are entered in the Data Studio (`kegiatan`) and appear once `status_publikasi` is "terbit". Filters run in the browser over the published events of the last 90 days onward.
 
 **Collection `kegiatan`**
 
@@ -312,7 +314,9 @@ CAPTCHA and rate limiting protect the form. The NIB/NIK lookup and ticket creati
 
 **WhatsApp notification:** there's no gateway yet. For now the ticket number is shown on screen, with a `notify()` hook left in the code for later.
 
-### 6.4 FAQ & Hotline
+### 6.4 FAQ & Hotline — implemented
+
+> **As built:** same migration; `/bantuan` page, a hotline card that also appears on the catalogue detail page, and "Kegiatan" and "Bantuan" links in the landing nav. The FAQ is seeded with the six answers the landing page already showed. The hotline starts with only the office address: DISKUK needs to fill in the WhatsApp number, phone, email and hours in the Data Studio.
 
 - Collections: `faq` and `kontak_hotline` (singleton).
 - New page `/bantuan` that reuses [`LandingFaq.vue`](../../apps/web/app/components/landing/LandingFaq.vue) fed from Directus, plus a WhatsApp contact button.
