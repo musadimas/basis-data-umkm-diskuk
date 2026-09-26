@@ -82,12 +82,11 @@ Frontend-only development against the production Directus, without the local Doc
 pnpm dev:direct   # from the repo root
 ```
 
-Starts the Nuxt dev server on `http://localhost:3000`. Every `/panel/*` request is forwarded by the
-Nitro proxy (`server/middleware/01-panel-proxy.ts`) to
-`https://diskuk.tangkassiskamling.com/panel/*` with the path, cookies, and a rewritten `Origin`
-preserved, so login and session handling are enforced by the production Directus proxy itself. To
-point at a different Directus, run the app directly:
+Starts the Nuxt dev server on `http://localhost:3000`. Every `/panel/*` request is proxied by the
+`/panel/**` route rule in `nuxt.config.ts` to `PANEL_URL` (the `/panel` prefix is stripped), with
+cookies preserved, so login and sessions are handled by Directus itself. To point at a different
+Directus, set `PANEL_URL` when starting the app (it is read when the config loads):
 
 ```bash
-NUXT_DIRECTUS_PROXY_TARGET=https://example.com pnpm dev   # from apps/web
+PANEL_URL=https://directus.example.com pnpm dev   # from apps/web
 ```

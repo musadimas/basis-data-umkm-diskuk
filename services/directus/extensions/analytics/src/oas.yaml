@@ -1,0 +1,39 @@
+openapi: 3.0.3
+info:
+  title: Analitik UMKM private API
+  version: "1.0.0"
+  description: Authenticated semantic analytics contract. No raw owner PII is returned.
+servers:
+  - url: /panel/v1/analytics/analysis
+security:
+  - Session: []
+components:
+  securitySchemes:
+    Session:
+      type: apiKey
+      in: cookie
+      name: diskuk_session
+  schemas:
+    Meta:
+      type: object
+      required: [schemaVersion, generatedAt, status, population, matched]
+      properties:
+        schemaVersion: { type: integer, example: 1 }
+        dataAsOf: { type: string, format: date-time }
+        generatedAt: { type: string, format: date-time }
+        status: { type: string, enum: [current, processing, stale_last_good] }
+        population: { type: integer }
+        matched: { type: integer }
+        coverage: { type: object }
+        warnings: { type: array, items: { type: string } }
+paths:
+  /metadata: { get: { responses: { "200": { description: Registry metadata }, "401": { description: Authentication required }, "403": { description: Forbidden } } } }
+  /metadata/options: { get: { parameters: [{ in: query, name: fieldId, required: true, schema: { type: string } }], responses: { "200": { description: Safe options } } } }
+  /templates: { get: { responses: { "200": { description: Versioned templates } } } }
+  /status: { get: { responses: { "200": { description: Read model status } } } }
+  /query: { post: { requestBody: { required: true, content: { application/json: { schema: { type: object } } } }, responses: { "200": { description: Semantic aggregate response }, "422": { description: Complexity limit }, "504": { description: Timeout } } } }
+  /records: { post: { requestBody: { required: true, content: { application/json: { schema: { type: object } } } }, responses: { "200": { description: Safe record DTOs } } } }
+  /umkm/{id}: { get: { parameters: [{ in: path, name: id, required: true, schema: { type: string, format: uuid } }], responses: { "200": { description: Masked semantic UMKM profile }, "404": { description: Not found } } } }
+  /exports: { post: { requestBody: { required: true, content: { application/json: { schema: { type: object } } } }, responses: { "200": { description: Completed aggregate export }, "202": { description: Queued private export } } } }
+  /exports/{jobId}: { get: { parameters: [{ in: path, name: jobId, required: true, schema: { type: string, format: uuid } }], responses: { "200": { description: Owner-scoped export status } } } }
+  /exports/{jobId}/download: { get: { parameters: [{ in: path, name: jobId, required: true, schema: { type: string, format: uuid } }, { in: query, name: expires, required: true, schema: { type: integer } }, { in: query, name: sig, required: true, schema: { type: string } }], responses: { "200": { description: Expiring private artifact }, "410": { description: Expired artifact } } } }

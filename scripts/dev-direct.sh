@@ -30,7 +30,8 @@ command -v autossh >/dev/null 2>&1 ||
   die "autossh is required; install it first (macOS: brew install autossh)"
 
 log "building Directus analytics extension"
-pnpm --dir "$DIRECTUS_DIR/extensions/directus-extension-analitik" build
+pnpm --dir "$DIRECTUS_DIR/extensions/analytics" install --frozen-lockfile
+pnpm --dir "$DIRECTUS_DIR/extensions/analytics" build
 
 cleanup() {
   log "shutting down..."
@@ -93,10 +94,7 @@ wait_for_port "$DIRECTUS_PORT" "Directus" "$DIRECTUS_PID"
 log "starting Nuxt on http://localhost:$WEB_PORT"
 (
   cd "$WEB_DIR"
-  export NUXT_DIRECTUS_INTERNAL_URL="http://127.0.0.1:$DIRECTUS_PORT"
-  export NUXT_SESSION_POLICY_SECRET="$DIRECTUS_SECRET"
-  export SESSION_COOKIE_SECURE=false
-  export NUXT_PUBLIC_PANEL_URL=/panel
+  export PANEL_URL="http://127.0.0.1:$DIRECTUS_PORT"
   pnpm dev --port "$WEB_PORT" --host 127.0.0.1
 ) &
 WEB_PID=$!

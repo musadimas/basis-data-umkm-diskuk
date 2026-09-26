@@ -8,7 +8,7 @@ extension domain, read model analitik, dan worker terpisah untuk proyeksi/rebuil
 | Paket | Isi |
 | --- | --- |
 | `apps/web` | Nuxt 4 — panel privat `/panel/*`, dashboard publik, proxy session Directus |
-| `services/directus` | Directus + extension endpoint: Tabular, Infografis, Analitik, Analytics Watchdog, `shared/` auth |
+| `services/directus` | Directus + extension bundles: `analytics` (`/v1/analytics`: analysis, infographic, tabular, watchdog), `authentication` (`/v1/auth` + auth guards), `shared/` auth |
 | `services/analytics-worker` | Worker proyeksi/rebuild/reconcile/export read model analitik (process terpisah) |
 | `services/caddy`, `services/storage` | Reverse proxy dan object storage (MinIO) |
 | `docker/`, `docker-compose.yml` | PostGIS, PgBouncer, Redis, MinIO, Directus, web, worker |
@@ -39,9 +39,8 @@ pnpm --dir apps/web test:unit                    # unit web (vitest)
 pnpm --dir apps/web typecheck                    # vue-tsc
 pnpm --dir apps/web build                        # build produksi web
 pnpm --dir apps/web test:e2e --project=chromium  # Playwright, mock Directus
-pnpm --dir services/directus/extensions/directus-extension-analitik test
-pnpm --dir services/directus/extensions/directus-extension-tabular test
-pnpm --dir services/directus/extensions/directus-extension-infografis test
+pnpm --dir services/directus/extensions/analytics test
+pnpm --dir services/directus/extensions/authentication test
 pnpm --dir services/directus test                # kontrak foundation
 pnpm --dir services/analytics-worker test
 ```
@@ -52,7 +51,7 @@ melaporkan `skipped` eksplisit, bukan pass palsu:
 ```bash
 ANALYTICS_INTEGRATION_BASE_URL=http://127.0.0.1:8055 \
 ANALYTICS_INTEGRATION_EMAIL=... ANALYTICS_INTEGRATION_PASSWORD=... \
-pnpm --dir services/directus/extensions/directus-extension-analitik test
+pnpm --dir services/directus/extensions/analytics test
 ```
 
 Worker mengharuskan `ANALYTICS_DATABASE_URL` dedicated (lihat `services/analytics-worker/src/config.js`).

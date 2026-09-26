@@ -1,7 +1,11 @@
+import { updateItem } from "@directus/sdk"
 import type { AnalyticsProfile } from "~/types/analytics"
+import { endpoint, fromEnvelope, type Enveloped } from "~/lib/directus"
 import { isUnauthorized } from "~/lib/request-error"
 
 export async function useUmkmProfile(id: string) {
+  // Resolve the client before the first await so the Nuxt context is still available.
+  const directus = useDirectus()
   const profile = shallowRef<AnalyticsProfile | null>(null)
   const pending = ref(false)
   const error = ref<unknown>(null)
@@ -10,10 +14,11 @@ export async function useUmkmProfile(id: string) {
     pending.value = true
     error.value = null
     try {
-      profile.value = await $fetch<AnalyticsProfile>(`/panel/analitik/umkm/${encodeURIComponent(id)}`, {
-        credentials: "include",
-        headers: import.meta.server ? useRequestHeaders(["cookie"]) : undefined,
-      })
+      profile.value = fromEnvelope<AnalyticsProfile>(
+        await directus.request(
+          endpoint<Enveloped<AnalyticsProfile>>(`/v1/analytics/analysis/umkm/${encodeURIComponent(id)}`),
+        ),
+      )
     } catch (cause: unknown) {
       error.value = cause
       if (import.meta.client && isUnauthorized(cause)) window.dispatchEvent(new Event("auth:unauthorized"))
@@ -22,7 +27,7 @@ export async function useUmkmProfile(id: string) {
   async function setStatus(status: "active" | "archived") {
     mutating.value = true
     try {
-      await $fetch(`/panel/items/usaha/${encodeURIComponent(id)}`, { method: "PATCH", body: { status }, credentials: "include" })
+      await directus.request(updateItem("usaha", id, { status }))
       await load()
     } finally { mutating.value = false }
   }

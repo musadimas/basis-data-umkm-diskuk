@@ -84,7 +84,7 @@ test("infografis applies the reusable compact filter FAB", async ({ page }) => {
   const filteredRequest = page.waitForRequest((request) => {
     const url = new URL(request.url());
     return (
-      url.pathname === "/panel/infografis/" &&
+      url.pathname === "/panel/v1/analytics/infographic/" &&
       url.searchParams.get("skala") === "micro"
     );
   });

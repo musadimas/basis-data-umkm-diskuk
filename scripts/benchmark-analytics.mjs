@@ -11,10 +11,10 @@ const concurrency = Math.max(1, Math.min(16, Number.parseInt(process.env.ANALYTI
 const profileId = process.env.ANALYTICS_PROFILE_ID || ""
 const defaultConfig = { schemaVersion: 1, metric: "jumlah_umkm", groupBy: "kota_nama", filters: [], visual: "bar", includeOthers: true, shareOfFilteredTotal: true }
 const jobs = [
-  ...Array.from({ length: iterations }, () => ({ kind: "common", path: "/panel/analitik/query", method: "POST", body: defaultConfig })),
-  ...Array.from({ length: Math.max(1, Math.ceil(iterations / 2)) }, () => ({ kind: "records", path: "/panel/analitik/records", method: "POST", body: { schemaVersion: 1, filters: [], pageSize: 20 } })),
+  ...Array.from({ length: iterations }, () => ({ kind: "common", path: "/panel/v1/analytics/analysis/query", method: "POST", body: defaultConfig })),
+  ...Array.from({ length: Math.max(1, Math.ceil(iterations / 2)) }, () => ({ kind: "records", path: "/panel/v1/analytics/analysis/records", method: "POST", body: { schemaVersion: 1, filters: [], pageSize: 20 } })),
 ]
-if (profileId) jobs.push(...Array.from({ length: Math.max(1, Math.ceil(iterations / 2)) }, () => ({ kind: "profile", path: `/panel/analitik/umkm/${encodeURIComponent(profileId)}` })))
+if (profileId) jobs.push(...Array.from({ length: Math.max(1, Math.ceil(iterations / 2)) }, () => ({ kind: "profile", path: `/panel/v1/analytics/analysis/umkm/${encodeURIComponent(profileId)}` })))
 const results = []
 let cursor = 0
 async function runOne(job) {
@@ -26,7 +26,7 @@ async function runOne(job) {
     const response = await fetch(base + job.path, { method: job.method || "GET", headers: { cookie, "content-type": "application/json" }, body: job.body ? JSON.stringify(job.body) : undefined, signal: AbortSignal.timeout(10_000) })
     if (!response.ok) error = true
     const payload = await response.json().catch(() => null)
-    const dataAsOf = payload?.meta?.dataAsOf
+    const dataAsOf = payload?.data?.meta?.dataAsOf
     if (dataAsOf) freshness = Math.max(0, Math.round((Date.now() - Date.parse(dataAsOf)) / 1000))
   } catch (cause) {
     error = true

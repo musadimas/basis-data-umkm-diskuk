@@ -69,7 +69,7 @@ const talenta = computed(() => data.value?.talenta ?? null);
     <section class="rounded-xl border border-border/80 bg-card p-5">
       <h1 class="text-xl font-bold tracking-tight text-foreground">Beranda Usaha</h1>
       <p class="mt-3 text-sm font-semibold text-foreground">
-        {{ data?.usaha?.nama || auth.user.value?.usaha?.nama || "Usaha Anda" }}
+        {{ data?.usaha?.nama || auth.user.value?.instansi || "Usaha Anda" }}
       </p>
       <p v-if="data?.pemilik?.nama" class="mt-1 text-xs text-muted-foreground">
         Pengusaha {{ data.pemilik.nama }}

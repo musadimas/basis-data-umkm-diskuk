@@ -16,7 +16,7 @@ test("spasial applies filters to the point layer", async ({ page }) => {
 
   const filteredRequest = page.waitForRequest((request) => {
     const url = new URL(request.url());
-    return url.pathname === "/panel/tabular/spasial" && url.searchParams.get("skala") === "micro";
+    return url.pathname === "/panel/v1/analytics/tabular/spasial" && url.searchParams.get("skala") === "micro";
   });
   await applyButton.click();
   await filteredRequest;
@@ -29,7 +29,7 @@ test("spasial serves all unfiltered points from a healthy PMTiles tileset", asyn
   const pointRequests: string[] = [];
   page.on("request", (request) => {
     const url = new URL(request.url());
-    if (url.pathname === "/panel/tabular/spasial") pointRequests.push(url.search);
+    if (url.pathname === "/panel/v1/analytics/tabular/spasial") pointRequests.push(url.search);
   });
 
   await installMockDirectus(page, {
@@ -51,7 +51,7 @@ test("spasial serves all unfiltered points from a healthy PMTiles tileset", asyn
 
   const fallbackRequest = page.waitForRequest((request) => {
     const url = new URL(request.url());
-    return url.pathname === "/panel/tabular/spasial" && url.searchParams.get("skala") === "micro";
+    return url.pathname === "/panel/v1/analytics/tabular/spasial" && url.searchParams.get("skala") === "micro";
   });
   await page.getByRole("button", { name: "Terapkan Filter" }).click();
   await fallbackRequest;
@@ -64,7 +64,7 @@ test("spasial falls back to GeoJSON when the PMTiles archive fails", async ({ pa
     spatialTileset: { url: "/tiles/missing.pmtiles", updatedAt: "2026-08-17T00:30:00Z", pointCount: 123456 },
   });
   const fallbackRequest = page.waitForRequest((request) =>
-    new URL(request.url()).pathname === "/panel/tabular/spasial");
+    new URL(request.url()).pathname === "/panel/v1/analytics/tabular/spasial");
 
   await loginMock(page, "/dashboard/spasial");
   await fallbackRequest;
@@ -87,7 +87,7 @@ test("spasial sends the applied kelurahan and keeps it as the back boundary", as
 
   const filteredRequest = page.waitForRequest((request) => {
     const url = new URL(request.url());
-    return url.pathname === "/panel/tabular/spasial"
+    return url.pathname === "/panel/v1/analytics/tabular/spasial"
       && url.searchParams.get("kota") === "1"
       && url.searchParams.get("kecamatan") === "11"
       && url.searchParams.get("kelurahan") === "111";

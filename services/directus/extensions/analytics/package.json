@@ -1,0 +1,61 @@
+{
+  "name": "@diskuk/analytics",
+  "description": "Analytics endpoints under /v1/analytics (analysis canvas queries, records, profiles and exports; infographic snapshots and maps; tabular data, spatial points and CSV export) plus the analytics read-model watchdog hook",
+  "icon": "insights",
+  "version": "1.0.0",
+  "private": true,
+  "keywords": [
+    "directus",
+    "directus-extension",
+    "directus-extension-bundle"
+  ],
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "directus:extension": {
+    "type": "bundle",
+    "path": {
+      "app": "dist/app.js",
+      "api": "dist/api.js"
+    },
+    "entries": [
+      {
+        "type": "endpoint",
+        "name": "v1/analytics/analysis",
+        "source": "src/endpoints/analysis/index.js"
+      },
+      {
+        "type": "endpoint",
+        "name": "v1/analytics/infographic",
+        "source": "src/endpoints/infographic/index.js"
+      },
+      {
+        "type": "endpoint",
+        "name": "v1/analytics/tabular",
+        "source": "src/endpoints/tabular/index.js"
+      },
+      {
+        "type": "hook",
+        "name": "analytics/watchdog",
+        "source": "src/hooks/watchdog.js"
+      }
+    ],
+    "host": "^11.0.0"
+  },
+  "scripts": {
+    "build": "directus-extension build",
+    "dev": "directus-extension build -w --no-minify",
+    "validate": "directus-extension validate",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "ioredis": "^5.8.2"
+  },
+  "devDependencies": {
+    "@directus/extensions-sdk": "18.0.5"
+  }
+}

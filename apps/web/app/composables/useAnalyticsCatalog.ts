@@ -1,4 +1,5 @@
 import type { AnalyticsCatalog, AnalyticsTemplate } from "~/types/analytics";
+import { endpoint } from "~/lib/directus";
 
 export interface AnalyticsFieldOptions {
   fieldId: string | null;
@@ -6,6 +7,7 @@ export interface AnalyticsFieldOptions {
 }
 
 export function useAnalyticsCatalog() {
+  const directus = useDirectus();
   const catalog = useState<AnalyticsCatalog | null>(
     "analytics:catalog",
     () => null,
@@ -23,17 +25,10 @@ export function useAnalyticsCatalog() {
     pending.value = true;
     error.value = null;
     try {
-      const ssrHeaders = import.meta.server
-        ? useRequestHeaders(["cookie"])
-        : undefined;
       const [meta, templateResponse] = await Promise.all([
-        $fetch<AnalyticsCatalog>("/panel/analitik/metadata", {
-          credentials: "include",
-          headers: ssrHeaders,
-        }),
-        $fetch<{ schemaVersion: number; templates: AnalyticsTemplate[] }>(
-          "/panel/analitik/templates",
-          { credentials: "include", headers: ssrHeaders },
+        directus.request(endpoint<AnalyticsCatalog>("/v1/analytics/analysis/metadata")),
+        directus.request(
+          endpoint<{ schemaVersion: number; templates: AnalyticsTemplate[] }>("/v1/analytics/analysis/templates"),
         ),
       ]);
       if (meta.schemaVersion !== 1)
@@ -59,17 +54,13 @@ export function useAnalyticsCatalog() {
     search = "",
     parent?: string,
   ): Promise<AnalyticsFieldOptions> {
-    const ssrHeaders = import.meta.server
-      ? useRequestHeaders(["cookie"])
-      : undefined;
     // Endpoint menerima parameter opsional parent untuk cascade wilayah/KBLI;
     // parameter hanya dikirim bila benar-benar ada nilainya.
-    const query = { fieldId, search, parent: parent || "" };
-    return $fetch<AnalyticsFieldOptions>("/panel/analitik/metadata/options", {
-      query: parent ? query : { fieldId, search },
-      credentials: "include",
-      headers: ssrHeaders,
-    });
+    return directus.request(
+      endpoint<AnalyticsFieldOptions>("/v1/analytics/analysis/metadata/options", {
+        query: { fieldId, search, parent: parent || undefined },
+      }),
+    );
   }
 
   return { catalog, templates, pending, error, load, options };

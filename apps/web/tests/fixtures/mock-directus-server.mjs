@@ -179,6 +179,8 @@ const server = createServer(async (request, response) => {
         email: "analyst@example.invalid",
         first_name: "Analis",
         role: "7d6d493c-1a6d-4c59-9e74-40d42a7862eb",
+        // `app_role` mengikuti role mock aktif: guard route web memakai kunci ini, bukan UUID role.
+        app_role: roleFromCookies(request.headers.cookie),
       },
     }));
     return;

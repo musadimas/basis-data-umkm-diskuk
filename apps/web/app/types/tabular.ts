@@ -2,7 +2,7 @@
 
 export type TabularSkalaApi = "micro" | "small" | "medium"
 
-/** Satu baris usaha dari endpoint /panel/tabular/. */
+/** Satu baris usaha dari endpoint /panel/v1/analytics/tabular/. */
 export interface TabularRowItem {
   id: string
   nama: string
@@ -16,8 +16,9 @@ export interface TabularRowItem {
   kelurahan: string
 }
 
+/** Rows page from `/v1/analytics/tabular/` (the SDK-unwrapped `data`). */
 export interface TabularRowsResponse {
-  data: TabularRowItem[]
+  rows: TabularRowItem[]
   meta: {
     filterCount: number
     page: number
@@ -32,7 +33,7 @@ export interface TabularRowsResponse {
   }
 }
 
-/** Satu titik spasial dari endpoint /panel/tabular/spasial. */
+/** Satu titik spasial dari endpoint /panel/v1/analytics/tabular/spasial. */
 export interface TabularSpasialPoint {
   id: string
   nama: string
@@ -48,7 +49,7 @@ export interface TabularSpasialPoint {
 }
 
 export interface TabularSpasialResponse {
-  data: TabularSpasialPoint[]
+  points: TabularSpasialPoint[]
   meta: {
     filterCount: number
     mikro: number
@@ -58,7 +59,7 @@ export interface TabularSpasialResponse {
   }
 }
 
-/** Satu titik spasial dari endpoint /panel/tabular/spasial. */
+/** Satu titik spasial dari endpoint /panel/v1/analytics/tabular/spasial. */
 export interface TabularSpasialPoint {
   id: string
   nama: string
@@ -74,7 +75,7 @@ export interface TabularSpasialPoint {
 }
 
 export interface TabularSpasialResponse {
-  data: TabularSpasialPoint[]
+  points: TabularSpasialPoint[]
   meta: {
     filterCount: number
     mikro: number
@@ -112,7 +113,7 @@ export interface TabularKelurahanItem {
   nama: string
 }
 
-/** Metadata arsip PMTiles titik UMKM dari /panel/tabular/spasial/tileset. */
+/** Metadata arsip PMTiles titik UMKM dari /panel/v1/analytics/tabular/spasial/tileset. */
 export interface TabularSpatialTileset {
   url: string
   updatedAt: string

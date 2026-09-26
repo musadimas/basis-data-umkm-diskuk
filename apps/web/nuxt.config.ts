@@ -8,11 +8,16 @@ export default defineNuxtConfig({
   css: ["~/assets/css/tailwind.css"],
   modules: ["@nuxt/eslint", "@nuxtjs/tailwindcss", "shadcn-nuxt", "@nuxt/image", "@pinia/nuxt", "@vite-pwa/nuxt", "nuxt-svgo"],
   runtimeConfig: {
-    directusInternalUrl: process.env.NUXT_DIRECTUS_INTERNAL_URL || "http://directus:8055",
-    sessionPolicySecret: process.env.NUXT_SESSION_POLICY_SECRET || "",
     public: {
-      panelUrl: process.env.NUXT_PUBLIC_PANEL_URL || "/panel",
       enableWorkforce: process.env.ANALYTICS_ENABLE_WORKFORCE === "true",
+    },
+  },
+  routeRules: {
+    // Same-origin gateway to Directus for the SDK plugin (app/plugins/directus.ts):
+    // /panel/<path> -> PANEL_URL/<path>. Read at build time, so set PANEL_URL before `nuxt build`.
+    "/panel/**": {
+      proxy: `${(process.env.PANEL_URL || "http://directus:8055").replace(/\/$/, "")}/**`,
+      headers: { "cache-control": "private, no-store" },
     },
   },
   pwa: {
@@ -47,6 +52,12 @@ export default defineNuxtConfig({
           },
         },
       ],
+    },
+  },
+  vue: {
+    compilerOptions: {
+      // ALTCHA web component (login and forgot-password captcha).
+      isCustomElement: (tag: string) => tag === "altcha-widget",
     },
   },
   vite: {

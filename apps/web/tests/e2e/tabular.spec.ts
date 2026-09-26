@@ -14,7 +14,7 @@ test("tabular renders rows and supports forward and backward pagination", async 
 
   const secondPageRequest = page.waitForRequest((request) => {
     const url = new URL(request.url());
-    return url.pathname === "/panel/tabular/" && url.searchParams.get("page") === "2";
+    return url.pathname === "/panel/v1/analytics/tabular/" && url.searchParams.get("page") === "2";
   });
   await page.getByRole("button", { name: "Halaman berikutnya" }).click();
   await secondPageRequest;
@@ -23,7 +23,7 @@ test("tabular renders rows and supports forward and backward pagination", async 
 
   const firstPageRequest = page.waitForRequest((request) => {
     const url = new URL(request.url());
-    return url.pathname === "/panel/tabular/" && url.searchParams.get("page") === "1";
+    return url.pathname === "/panel/v1/analytics/tabular/" && url.searchParams.get("page") === "1";
   });
   await page.getByRole("button", { name: "Halaman sebelumnya" }).click();
   await firstPageRequest;
@@ -39,7 +39,7 @@ test("tabular applies filters and links each row to its UMKM profile", async ({ 
 
   const filteredRequest = page.waitForRequest((request) => {
     const url = new URL(request.url());
-    return url.pathname === "/panel/tabular/" && url.searchParams.get("skala") === "micro";
+    return url.pathname === "/panel/v1/analytics/tabular/" && url.searchParams.get("skala") === "micro";
   });
   await page.getByRole("button", { name: "Terapkan" }).click();
   await filteredRequest;

@@ -4,7 +4,7 @@ const cookie = process.env.ANALYTICS_SESSION_COOKIE || ""
 if (!cookie) throw new Error("ANALYTICS_SESSION_COOKIE is required")
 const wrong = process.env.ANALYTICS_WRONG_ROLE_COOKIE || ""
 const docsPath = process.env.ANALYTICS_DOCS_PATH || "/panel/v1/docs"
-const privatePaths = ["/panel/infografis/", "/panel/tabular/status", "/panel/analitik/status", "/panel/analitik/metadata", docsPath, `${docsPath}/oas`]
+const privatePaths = ["/panel/v1/analytics/infographic/", "/panel/v1/analytics/tabular/status", "/panel/v1/analytics/analysis/status", "/panel/v1/analytics/analysis/metadata", docsPath, `${docsPath}/oas`]
 async function probe(path, headers = {}) {
   try {
     const response = await fetch(base + path, { redirect: "manual", headers, signal: AbortSignal.timeout(10_000) })

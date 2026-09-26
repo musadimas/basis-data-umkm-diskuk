@@ -1,0 +1,63 @@
+{
+  "name": "@diskuk/authentication",
+  "description": "Guards for the native Directus auth routes (ALTCHA captcha, NIB login, verified password change, login audit) plus /v1/auth endpoints for the captcha challenge and activity log",
+  "icon": "lock",
+  "version": "1.0.0",
+  "private": true,
+  "keywords": [
+    "directus",
+    "directus-extension",
+    "directus-extension-bundle"
+  ],
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "directus:extension": {
+    "type": "bundle",
+    "path": {
+      "app": "dist/app.js",
+      "api": "dist/api.js"
+    },
+    "entries": [
+      {
+        "type": "endpoint",
+        "name": "v1/auth/captcha",
+        "source": "src/endpoints/captcha/index.js"
+      },
+      {
+        "type": "endpoint",
+        "name": "v1/auth/activity",
+        "source": "src/endpoints/activity/index.js"
+      },
+      {
+        "type": "hook",
+        "name": "auth/login-guard",
+        "source": "src/hooks/login-guard.js"
+      },
+      {
+        "type": "hook",
+        "name": "auth/password-guard",
+        "source": "src/hooks/password-guard.js"
+      },
+      {
+        "type": "hook",
+        "name": "auth/session-guard",
+        "source": "src/hooks/session-guard.js"
+      }
+    ],
+    "host": "^11.0.0"
+  },
+  "scripts": {
+    "build": "directus-extension build",
+    "dev": "directus-extension build -w --no-minify",
+    "validate": "directus-extension validate",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "altcha": "3.2.3"
+  },
+  "devDependencies": {
+    "@directus/extensions-sdk": "18.0.5"
+  }
+}

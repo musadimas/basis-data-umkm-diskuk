@@ -2,8 +2,8 @@
  * State filter tabular bersama untuk halaman dashboard (Infografis, Spasial).
  * Nilai "semua" berarti tanpa filter; draft `filters` baru dipindahkan ke
  * `appliedFilters` saat pengguna menekan "Terapkan" pada dialog FilterFab.
- * Opsi dropdown diambil dari endpoint `/panel/tabular/options`, dengan daftar
- * desa/kelurahan dimuat lazily per kecamatan dari `/panel/tabular/kelurahan`.
+ * Opsi dropdown diambil dari endpoint `/v1/analytics/tabular/options`, dengan daftar
+ * desa/kelurahan dimuat lazily per kecamatan dari `/v1/analytics/tabular/kelurahan`.
  */
 import type {
   TabularFilters,
@@ -11,8 +11,7 @@ import type {
   TabularKelurahanItem,
   TabularOptions,
 } from "~/types/tabular";
-import { lockedKotaId } from "~/constants/ROLES";
-import { useAuth } from "~/composables/useAuth";
+import { endpoint } from "~/lib/directus";
 
 /** Konversi nilai skala UI (Indonesia) ke nilai enum API snapshot. */
 export const TABULAR_SKALA_TO_API = new Map<string, string>([
@@ -43,25 +42,19 @@ export function tabularFilterQuery(applied: TabularFilters) {
 }
 
 export function useTabularFilters() {
-  const auth = useAuth();
-  // Admin kab/kota terkunci pada kotaannya: filter kota diisi sejak awal dan
-  // tidak dapat diubah (dropdown kabupaten/kota dinonaktifkan).
-  const lockedKota = computed(() => lockedKotaId(auth.user.value));
-  const defaultFiltersWithLock = (): TabularFilters => ({
-    ...defaultTabularFilters(),
-    kabupatenKota: lockedKota.value ?? "semua",
-  });
-  const filters = reactive(defaultFiltersWithLock());
-  const appliedFilters = reactive(defaultFiltersWithLock());
+  const filters = reactive(defaultTabularFilters());
+  const appliedFilters = reactive(defaultTabularFilters());
   const filterOpen = ref(false);
 
-  const { data: optionsData, error: optionsError } = useFetch<{ data: TabularOptions }>(
-    "/panel/tabular/options",
+  const directus = useDirectus();
+  // Shared key: every dashboard component that needs these options reuses one request.
+  const { data: optionsData, error: optionsError } = useAsyncData("tabular:options", () =>
+    directus.request(endpoint<TabularOptions>("/v1/analytics/tabular/options")),
   );
 
   const kabupatenOptions = computed(() => [
     { value: "semua", label: "Semua Kabupaten/Kota" },
-    ...(optionsData.value?.data?.kota ?? []).map((item) => ({
+    ...(optionsData.value?.kota ?? []).map((item) => ({
       value: String(item.id),
       label: item.nama,
     })),
@@ -69,7 +62,7 @@ export function useTabularFilters() {
 
   const kecamatanOptions = computed(() => {
     const kotaId = Number(filters.kabupatenKota);
-    const items = optionsData.value?.data?.kecamatan ?? [];
+    const items = optionsData.value?.kecamatan ?? [];
     const scoped = Number.isInteger(kotaId) && kotaId > 0
       ? items.filter((item) => item.kotaId === kotaId)
       : items;
@@ -81,11 +74,11 @@ export function useTabularFilters() {
 
   const kegiatanOptions = computed(() => [
     { value: "semua", label: "Semua Kegiatan Usaha" },
-    ...(optionsData.value?.data?.kategori ?? []).map((item) => ({ value: item, label: item })),
+    ...(optionsData.value?.kategori ?? []).map((item) => ({ value: item, label: item })),
   ]);
 
   const kbliOptions = computed(() => {
-    const items: TabularKbliOption[] = optionsData.value?.data?.kbli ?? [];
+    const items: TabularKbliOption[] = optionsData.value?.kbli ?? [];
     const scoped = filters.kegiatanUsaha === "semua"
       ? items
       : items.filter((item) => item.kategori === filters.kegiatanUsaha);
@@ -108,10 +101,10 @@ export function useTabularFilters() {
 
   const loadKelurahan = async (kecamatanId: string) => {
     try {
-      const response = await $fetch<{ data: TabularKelurahanItem[] }>("/panel/tabular/kelurahan", {
-        query: { kecamatan: kecamatanId },
-      });
-      kelurahanCache.set(kecamatanId, response.data ?? []);
+      const items = await directus.request(
+        endpoint<TabularKelurahanItem[]>("/v1/analytics/tabular/kelurahan", { query: { kecamatan: kecamatanId } }),
+      );
+      kelurahanCache.set(kecamatanId, items ?? []);
     } catch {
       kelurahanCache.set(kecamatanId, []);
     } finally {
@@ -133,7 +126,7 @@ export function useTabularFilters() {
 
   watch(() => filters.kegiatanUsaha, (value) => {
     if (value === "semua" || filters.kodeKbli === "semua") return;
-    const items = optionsData.value?.data?.kbli ?? [];
+    const items = optionsData.value?.kbli ?? [];
     if (!items.some((item) => item.kategori === value && item.kode === filters.kodeKbli)) {
       filters.kodeKbli = "semua";
     }
@@ -145,8 +138,8 @@ export function useTabularFilters() {
 
   const applyFilters = () => Object.assign(appliedFilters, filters);
   const resetFilters = () => {
-    Object.assign(filters, defaultFiltersWithLock());
-    Object.assign(appliedFilters, defaultFiltersWithLock());
+    Object.assign(filters, defaultTabularFilters());
+    Object.assign(appliedFilters, defaultTabularFilters());
   };
 
   return {
@@ -154,7 +147,6 @@ export function useTabularFilters() {
     appliedFilters,
     filterOpen,
     optionsError,
-    lockedKota,
     kabupatenOptions,
     kecamatanOptions,
     desaKelurahanOptions,

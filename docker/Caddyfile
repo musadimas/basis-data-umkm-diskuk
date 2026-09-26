@@ -3,15 +3,9 @@ diskuk.tangkassiskamling.com {
 	# melalui guard dashboard, lalu biarkan MinIO melayani byte range-nya.
 	handle_path /tiles/* {
 		route {
-			# Jangan percaya header internal dari klien. Salin pembaruan cookie
-			# aktivitas auth ke respons agar request tile menjaga idle session.
-			request_header -X-Auth-Set-Cookie
 			forward_auth web:3000 {
-				uri /panel/tabular/spasial/authorize
-				copy_headers Set-Cookie>X-Auth-Set-Cookie
+				uri /panel/v1/analytics/tabular/spasial/authorize
 			}
-			header Set-Cookie {http.request.header.X-Auth-Set-Cookie}
-			request_header -X-Auth-Set-Cookie
 			header -Access-Control-Allow-Origin
 			header Cache-Control "private, no-store"
 			rewrite * /{$ANALYTICS_EXPORT_BUCKET}/spatial-tiles{path}

@@ -7,7 +7,8 @@ import { useLaporanOutbox } from "~/composables/useLaporanOutbox";
 
 const auth = useAuth();
 const route = useRoute();
-const usahaNama = computed(() => auth.user.value?.usaha?.nama ?? "Usaha Saya");
+// `directus_users.instansi` menyimpan nama instansi untuk operator dan nama usaha untuk akun UMKM.
+const usahaNama = computed(() => auth.user.value?.instansi || "Usaha Saya");
 const umkmItems = NAVIGATION_LINKS.umkm[0]?.items ?? [];
 const { online } = useKoneksi();
 const outbox = useLaporanOutbox();
@@ -34,7 +35,8 @@ async function keluar() {
       <header class="flex h-14 shrink-0 items-center justify-between gap-2 border-b bg-background px-4">
         <div class="flex min-w-0 items-center gap-2">
           <span class="truncate text-sm font-bold tracking-tight text-foreground">{{ usahaNama }}</span>
-          <NavRoleBadge v-if="auth.user.value" :role="auth.user.value.role" />
+          <!-- Kunci role ada di `app_role`; `user.role` adalah UUID role Directus. -->
+          <NavRoleBadge v-if="auth.user.value" :role="auth.user.value.app_role ?? 'umkm'" />
         </div>
         <UiDropdownMenu>
           <UiDropdownMenuTrigger as-child>

@@ -9,6 +9,7 @@ import {
   canonicalRecordsKey,
   REQUESTED_GROUPS,
 } from "~/lib/analytics-query";
+import { endpoint, fromEnvelope, type Enveloped } from "~/lib/directus";
 import { isAbortError, isUnauthorized } from "~/lib/request-error";
 
 // Aggregate/record responses are immutable per read-model generation, so they
@@ -20,11 +21,17 @@ const ANALYTICS_STALE_MS = 60_000;
 const ANALYTICS_GC_MS = 15 * 60_000;
 
 export function useAnalyticsQuery(config: Readonly<{ value: AnalysisConfig }>) {
-  // Captured synchronously during setup so SSR cookie forwarding stays inside
-  // the Nuxt context even though queryFn runs asynchronously.
-  const ssrHeaders = import.meta.server
-    ? useRequestHeaders(["cookie"])
-    : undefined;
+  // Captured synchronously during setup: queryFn runs outside the Nuxt context.
+  // The client forwards the session cookie itself during SSR.
+  const directus = useDirectus();
+  const postQuery = (body: object, signal: AbortSignal) =>
+    directus
+      .request(endpoint<Enveloped<AnalyticsQueryResponse>, object>("/v1/analytics/analysis/query", { method: "POST", body, signal }))
+      .then((payload) => fromEnvelope<AnalyticsQueryResponse>(payload));
+  const postRecords = (body: object, signal: AbortSignal) =>
+    directus
+      .request(endpoint<Enveloped<AnalyticsRecordsResponse>, object>("/v1/analytics/analysis/records", { method: "POST", body, signal }))
+      .then((payload) => fromEnvelope<AnalyticsRecordsResponse>(payload));
 
   // The signal lets vue-query cancel in-flight requests when the applied
   // config changes mid-flight; the Nuxt proxy forwards the abort upstream, so
@@ -38,15 +45,9 @@ export function useAnalyticsQuery(config: Readonly<{ value: AnalysisConfig }>) {
     // SAFETY: vue-query always supplies QueryFunctionContext with a live
     // AbortSignal; the assertion only narrows the generic context type.
     queryFn: (ctx) =>
-      $fetch<AnalyticsQueryResponse>("/panel/analitik/query", {
-        method: "POST",
-        // limit konstan tidak ikut canonicalAggregateKey; server memangkasnya ke
-        // QUERY_BUDGET.maxGroups sehingga payload tetap terjangkau.
-        body: { ...config.value, limit: REQUESTED_GROUPS },
-        credentials: "include",
-        headers: ssrHeaders,
-        signal: ctx.signal as AbortSignal,
-      }),
+      // limit konstan tidak ikut canonicalAggregateKey; server memangkasnya ke
+      // QUERY_BUDGET.maxGroups sehingga payload tetap terjangkau.
+      postQuery({ ...config.value, limit: REQUESTED_GROUPS }, ctx.signal as AbortSignal),
     staleTime: ANALYTICS_STALE_MS,
     gcTime: ANALYTICS_GC_MS,
   });
@@ -61,18 +62,10 @@ export function useAnalyticsQuery(config: Readonly<{ value: AnalysisConfig }>) {
     ],
     // SAFETY: same vue-query context contract as the aggregate query above.
     queryFn: (ctx) =>
-      $fetch<AnalyticsRecordsResponse>("/panel/analitik/records", {
-        method: "POST",
-        body: {
-          schemaVersion: 1,
-          filters: config.value.filters,
-          pageSize: 20,
-          sort: config.value.sort,
-        },
-        credentials: "include",
-        headers: ssrHeaders,
-        signal: ctx.signal as AbortSignal,
-      }),
+      postRecords(
+        { schemaVersion: 1, filters: config.value.filters, pageSize: 20, sort: config.value.sort },
+        ctx.signal as AbortSignal,
+      ),
     staleTime: ANALYTICS_STALE_MS,
     gcTime: ANALYTICS_GC_MS,
   });
@@ -90,22 +83,15 @@ export function useAnalyticsQuery(config: Readonly<{ value: AnalysisConfig }>) {
     controller = new AbortController();
     pagedPending.value = true;
     try {
-      const result = await $fetch<AnalyticsRecordsResponse>(
-        "/panel/analitik/records",
+      const result = await postRecords(
         {
-          method: "POST",
-          body: {
-            schemaVersion: 1,
-            filters: config.value.filters,
-            pageSize: 20,
-            sort: config.value.sort,
-            cursor:
-              cursor === undefined ? config.value.cursor : cursor || undefined,
-          },
-          credentials: "include",
-          headers: ssrHeaders,
-          signal: controller.signal,
+          schemaVersion: 1,
+          filters: config.value.filters,
+          pageSize: 20,
+          sort: config.value.sort,
+          cursor: cursor === undefined ? config.value.cursor : cursor || undefined,
         },
+        controller.signal,
       );
       if (requestId === sequence) pagedRecords.value = result;
     } catch (cause: unknown) {

@@ -7,7 +7,7 @@ test.describe("canvas analitik", () => {
     await installMockDirectus(page, { authenticated: true });
     const queryRequests: string[] = [];
     page.on("request", (request) => {
-      if (request.url().includes("/panel/analitik/query"))
+      if (request.url().includes("/panel/v1/analytics/analysis/query"))
         queryRequests.push(request.postData() || "");
     });
     await loginMock(page, "/dashboard/analitik");

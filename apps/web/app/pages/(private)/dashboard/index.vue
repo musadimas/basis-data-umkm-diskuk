@@ -16,10 +16,9 @@ import type {
   TabularSpasialResponse,
 } from "~/types/tabular";
 import { DASHBOARD_SECTIONS } from "~/constants/DASHBOARD";
-import { lockedKotaId } from "~/constants/ROLES";
 import { defaultAnalysis, serializeAnalysisUrl } from "~/lib/analytics-query";
 import { sectorForKbli } from "~/lib/kbli-sectors";
-import { useAuth } from "~/composables/useAuth";
+import { endpoint } from "~/lib/directus";
 definePageMeta({
   layout: "dashboard",
 });
@@ -44,13 +43,8 @@ const workforceEnabled = computed(
   () => runtimeConfig.public.enableWorkforce === true,
 );
 
-const auth = useAuth();
-// Admin kab/kota terkunci pada kotaannya: filter kota diisi sejak awal dan
-// dropdown kabupaten/kota dinonaktifkan.
-const lockedKota = computed(() => lockedKotaId(auth.user.value));
-
 const defaultFilters = (): TabularFilters => ({
-  kabupatenKota: lockedKota.value ?? "semua",
+  kabupatenKota: "semua",
   kecamatan: "semua",
   desaKelurahan: "semua",
   skala: "semua",
@@ -62,13 +56,15 @@ const filters = reactive(defaultFilters());
 const appliedFilters = reactive(defaultFilters());
 const filterOpen = ref(false);
 
-const { data: optionsData, error: optionsError } = useFetch<{
-  data: TabularOptions;
-}>("/panel/tabular/options");
+const directus = useDirectus();
+// Shared key with useTabularFilters/TabularData: one request for every dashboard component.
+const { data: optionsData, error: optionsError } = useAsyncData("tabular:options", () =>
+  directus.request(endpoint<TabularOptions>("/v1/analytics/tabular/options")),
+);
 
 const kabupatenOptions = computed(() => [
   { value: "semua", label: "Semua Kabupaten/Kota" },
-  ...(optionsData.value?.data?.kota ?? []).map((item) => ({
+  ...(optionsData.value?.kota ?? []).map((item) => ({
     value: String(item.id),
     label: item.nama,
   })),
@@ -76,7 +72,7 @@ const kabupatenOptions = computed(() => [
 
 const kecamatanOptions = computed(() => {
   const kotaId = Number(filters.kabupatenKota);
-  const items = optionsData.value?.data?.kecamatan ?? [];
+  const items = optionsData.value?.kecamatan ?? [];
   const scoped =
     Number.isInteger(kotaId) && kotaId > 0
       ? items.filter((item) => item.kotaId === kotaId)
@@ -89,14 +85,14 @@ const kecamatanOptions = computed(() => {
 
 const kegiatanOptions = computed(() => [
   { value: "semua", label: "Semua Kegiatan Usaha" },
-  ...(optionsData.value?.data?.kategori ?? []).map((item) => ({
+  ...(optionsData.value?.kategori ?? []).map((item) => ({
     value: item,
     label: item,
   })),
 ]);
 
 const kbliOptions = computed(() => {
-  const items: TabularKbliOption[] = optionsData.value?.data?.kbli ?? [];
+  const items: TabularKbliOption[] = optionsData.value?.kbli ?? [];
   const scoped =
     filters.kegiatanUsaha === "semua"
       ? items
@@ -123,13 +119,10 @@ const syncKelurahanOptions = (kecamatanId: string) => {
 
 const loadKelurahan = async (kecamatanId: string) => {
   try {
-    const response = await $fetch<{ data: TabularKelurahanItem[] }>(
-      "/panel/tabular/kelurahan",
-      {
-        query: { kecamatan: kecamatanId },
-      },
+    const items = await directus.request(
+      endpoint<TabularKelurahanItem[]>("/v1/analytics/tabular/kelurahan", { query: { kecamatan: kecamatanId } }),
     );
-    kelurahanCache.set(kecamatanId, response.data ?? []);
+    kelurahanCache.set(kecamatanId, items ?? []);
   } catch {
     kelurahanCache.set(kecamatanId, []);
   } finally {
@@ -159,7 +152,7 @@ watch(
   () => filters.kegiatanUsaha,
   (value) => {
     if (value === "semua" || filters.kodeKbli === "semua") return;
-    const items = optionsData.value?.data?.kbli ?? [];
+    const items = optionsData.value?.kbli ?? [];
     if (
       !items.some(
         (item) => item.kategori === value && item.kode === filters.kodeKbli,
@@ -199,9 +192,10 @@ const infografisQuery = computed(() => ({
     appliedFilters.kodeKbli !== "semua" ? appliedFilters.kodeKbli : undefined,
 }));
 
-const { data, error, pending } = await useFetch<{ data: InfografisData }>(
-  "/panel/infografis/",
-  { query: infografisQuery },
+const { data, error, pending } = await useAsyncData(
+  "infographic:summary",
+  () => directus.request(endpoint<InfografisData>("/v1/analytics/infographic/", { query: { ...infografisQuery.value } })),
+  { watch: [infografisQuery] },
 );
 
 type InfografisMapData = Pick<
@@ -221,7 +215,7 @@ const mapKecamatanName = ref("");
 /** Cari nama kab/kota dari data dasar (daftar 27 kota Jabar). */
 function kotaNameById(id: string): string {
   return (
-    data.value?.data?.regions.find((region) => region.id === id)?.name ?? ""
+    data.value?.regions.find((region) => region.id === id)?.name ?? ""
   );
 }
 
@@ -256,9 +250,11 @@ const mapQuery = computed(() => ({
   kbli:
     appliedFilters.kodeKbli !== "semua" ? appliedFilters.kodeKbli : undefined,
 }));
-const { data: mapData, error: mapError } = await useFetch<{
-  data: InfografisMapData;
-}>("/panel/infografis/map", { query: mapQuery });
+const { data: mapData, error: mapError } = await useAsyncData(
+  "infographic:map",
+  () => directus.request(endpoint<InfografisMapData>("/v1/analytics/infographic/map", { query: { ...mapQuery.value } })),
+  { watch: [mapQuery] },
+);
 
 // ── Titik UMKM (diambil lazily saat saklar titik diaktifkan) ────────────────
 const showRegions = ref(true);
@@ -288,11 +284,12 @@ const pointsQuery = computed(() => ({
   limit: POINT_LIMIT,
 }));
 
-const { data: pointsData, execute: fetchPoints } =
-  await useFetch<TabularSpasialResponse>("/panel/tabular/spasial", {
-    query: pointsQuery,
-    immediate: false,
-  });
+// Loaded on demand: the watchers below refetch only while the points layer is on.
+const { data: pointsData, execute: fetchPoints } = await useAsyncData(
+  "infographic:points",
+  () => directus.request(endpoint<TabularSpasialResponse>("/v1/analytics/tabular/spasial", { query: { ...pointsQuery.value } })),
+  { immediate: false },
+);
 
 let pointsLoaded = false;
 watch(showPoints, async (enabled) => {
@@ -306,7 +303,7 @@ watch(pointsQuery, () => {
 });
 
 const mapPointItems = computed<SpasialUmkmItem[]>(() =>
-  (pointsData.value?.data ?? []).map((point) => ({
+  (pointsData.value?.points ?? []).map((point) => ({
     id: point.id,
     namaUsaha: point.nama,
     skala: apiToSkala[point.skala] ?? "mikro",
@@ -331,25 +328,13 @@ const resetFilters = () => {
   Object.assign(appliedFilters, defaultFilters());
 };
 
-const infografis = computed(() => data.value?.data);
-const mapInfografis = computed(() => mapData.value?.data ?? infografis.value);
-const canMapGoBack = computed(() => {
-  if (
-    [mapKota.value, mapKecamatan.value, mapKelurahan.value].every(
-      (value) => value === "semua",
-    )
-  )
-    return false;
-  // Kabkota tanpa drill-down tambahan sudah berada di level terdalam miliknya.
-  if (
-    lockedKota.value &&
-    mapKota.value === lockedKota.value &&
-    mapKecamatan.value === "semua" &&
-    mapKelurahan.value === "semua"
-  )
-    return false;
-  return true;
-});
+const infografis = computed(() => data.value ?? undefined);
+const mapInfografis = computed(() => mapData.value ?? infografis.value);
+const canMapGoBack = computed(() =>
+  [mapKota.value, mapKecamatan.value, mapKelurahan.value].some(
+    (value) => value !== "semua",
+  ),
+);
 
 function openRegion(region: { id: string; name?: string }) {
   const level = mapInfografis.value?.regionLevel ?? "kota";
@@ -372,7 +357,7 @@ function mapBack() {
     mapKecamatan.value = "semua";
     mapKecamatanName.value = "";
   } else {
-    mapKota.value = lockedKota.value ?? "semua";
+    mapKota.value = "semua";
     mapKotaName.value = "";
   }
 }
@@ -656,7 +641,7 @@ const kbliCodesBySector = computed<Record<string, KbliCodeItem[]>>(() => {
             >Kabupaten/Kota</label
           >
           <UiSelect v-model="filters.kabupatenKota">
-            <UiSelectTrigger id="infografis-kabupaten" size="sm" class="w-full" :disabled="Boolean(lockedKota)">
+            <UiSelectTrigger id="infografis-kabupaten" size="sm" class="w-full">
               <UiSelectValue placeholder="Semua Kabupaten/Kota" />
             </UiSelectTrigger>
             <UiSelectContent>
