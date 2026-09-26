@@ -11,7 +11,17 @@ test.describe("private dashboard boundary", () => {
   });
   test("login reaches the requested dashboard path", async ({ page }) => {
     await installMockDirectus(page); await page.goto("/sign-in?returnTo=/dashboard");
-    await page.getByLabel("Email").fill("analyst@example.invalid"); await page.getByRole("textbox", { name: "Kata sandi" }).fill("not-a-real-secret"); await page.getByRole("button", { name: "Masuk" }).click();
+    await page.getByLabel("Email / NIB").fill("analyst@example.invalid"); await page.getByRole("textbox", { name: "Kata sandi" }).fill("not-a-real-secret"); await page.getByRole("button", { name: "Masuk ke Dashboard", exact: true }).click();
     await expect(page).toHaveURL(/\/dashboard$/);
+  });
+  test("sign-in shows the captcha simulation and a working forgot-password link", async ({ page }) => {
+    await installMockDirectus(page);
+    await page.goto("/sign-in");
+    await expect(page.getByText("Simulasi CAPTCHA")).toBeVisible();
+    const forgotLink = page.getByRole("button", { name: "Lupa Kata Sandi?" });
+    await expect(forgotLink).toBeVisible();
+    await forgotLink.click();
+    await expect(page).toHaveURL(/\/forgot-password/);
+    await expect(page.getByRole("heading", { name: "Lupa Kata Sandi?" })).toBeVisible();
   });
 });
