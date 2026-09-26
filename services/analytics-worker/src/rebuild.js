@@ -395,7 +395,7 @@ async function refreshLegacySnapshots(client, dataAsOf) {
 }
 
 // Dimension rollup expressions – MUST stay aligned with DIMENSIONS in
-// directus-extension-analitik/src/query-compiler.js so the API fast path can
+// services/directus/extensions/analytics/src/endpoints/analysis/query-compiler.js so the API fast path can
 // trust dimension_value/label semantics without re-deriving them.
 const ROLLUP_DIMENSIONS = Object.freeze([
   [

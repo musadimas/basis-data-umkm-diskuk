@@ -10,9 +10,7 @@ import {
 } from "./utils";
 import { createReadStream, existsSync } from "fs";
 import { join, extname } from "path";
-// Shared CommonJS helper keeps the anonymous boundary identical to custom endpoints.
-// @ts-ignore no declaration file is needed for the bundled runtime helper.
-const { routeGuard } = require("../../shared/auth.cjs");
+import { routeGuard } from "./auth";
 
 const config = getConfig();
 
