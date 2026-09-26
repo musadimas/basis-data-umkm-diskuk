@@ -239,11 +239,12 @@ const statCards = reactive(
   })),
 );
 
-interface ChartRow {
-  [key: string]: unknown;
+// Type aliases (not interfaces) satisfy the charts' Record<string, unknown>
+// constraint without an unknown-valued dictionary on every row.
+type ChartRow = {
   label: string;
   value: number;
-}
+};
 
 interface ChartCardConfig {
   title: string;
@@ -290,19 +291,18 @@ const kelembagaanData: ChartRow[] = [
 
 const CHART_CATEGORIES: Extract<keyof ChartRow, string>[] = ["value"];
 
-interface GenderRow {
-  [key: string]: unknown;
+type GenderRow = {
   gender: string;
   tetap: number;
   tidakTetap: number;
-}
+};
 
 const tenagaKerjaGenderData: GenderRow[] = [
   { gender: "Laki-laki", tetap: 21989, tidakTetap: 9692 },
   { gender: "Perempuan", tetap: 22650, tidakTetap: 9802 },
 ];
 
-const GENDER_SERIES: { key: string; label: string; color: string }[] = [
+const GENDER_SERIES: { key: keyof GenderRow; label: string; color: string }[] = [
   { key: "tetap", label: "Tetap", color: "#38BDF8" },
   { key: "tidakTetap", label: "Tidak Tetap", color: "#EC4899" },
 ];

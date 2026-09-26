@@ -48,9 +48,10 @@ const props = withDefaults(
   },
 );
 
-// SAFETY: `categories`/`index` are declared as KeyOfT-typed in BaseChartProps<T>;
-// these assertions only restore the generic key type erased by defineProps' runtime extraction.
+// SAFETY: BaseChartProps<T> declares `categories` as KeyOfT-typed, but defineProps'
+// runtime extraction erases the generic parameter; restore it for the accessors.
 const valueKey = computed(() => props.categories[0] as KeyOfT);
+// SAFETY: same defineProps generic erasure as `valueKey` above.
 const index = computed(() => props.index as KeyOfT);
 
 const isMounted = useMounted();
@@ -65,7 +66,9 @@ const valueFormatter = props.valueFormatter ?? ((v: number) => `${v}`);
  * row is stamped with its own color up front — matching unovis's own default
  * color accessor convention (`d => d.color`) — and read back off the datum.
  */
-const chartData = computed(() =>
+/** Each rendered row carries its stamped color so accessors read it back off the datum. */
+type ChartRow = T & { __color: string };
+const chartData = computed<ChartRow[]>(() =>
   props.data.map((row, i) => ({
     ...row,
     __color: colors.value[i % colors.value.length] ?? "currentColor",
@@ -80,10 +83,9 @@ const chartData = computed(() =>
 function positionFor(i: number) {
   return isHorizontal.value ? props.data.length - 1 - i : i;
 }
-const barX = (_: T, i: number) => positionFor(i);
-const barY = [(row: T) => Number(row[valueKey.value] ?? 0)];
-const barColor = (row: T) =>
-  (row as T & { __color?: string }).__color ?? "currentColor";
+const barX = (_: ChartRow, i: number) => positionFor(i);
+const barY = [(row: ChartRow) => Number(row[valueKey.value] ?? 0)];
+const barColor = (row: ChartRow) => row.__color;
 
 const categoryTicks = computed(() => props.data.map((_, i) => positionFor(i)));
 const categoryLabel = (tick: number) => {
@@ -106,14 +108,16 @@ const labelText = (row: T) => valueFormatter(Number(row[valueKey.value] ?? 0));
 /**
  * VisTooltip binds to StackedBar's internal per-rect record, not the plain row —
  * unwrap `.datum` (confirmed via runtime inspection: `{ datum, index, stacked,
- * stackIndex, isEnding }`) before reading label/value/color off it.
+ * stackIndex, isEnding }`) before reading label/value/color off it. The optional
+ * `datum` on the parameter type models that wrapper without an assertion.
  */
-function tooltipTemplate(row: T): string {
-  const datum = ((row as unknown as { datum?: T })?.datum ?? row) as T;
+type TooltipRow = T & Partial<{ datum?: ChartRow }>;
+function tooltipTemplate(row: TooltipRow): string {
+  const datum = row.datum ?? row;
   if (!datum) return "";
   const label = String(datum[index.value] ?? "");
   const value = Number(datum[valueKey.value] ?? 0);
-  const color = (datum as T & { __color?: string }).__color ?? "currentColor";
+  const color = datum.__color ?? "currentColor";
   return `<div class="flex items-center gap-2 text-xs"><span class="h-2.5 w-2.5 shrink-0 rounded-full" style="background:${color}"></span><span class="font-medium text-foreground">${label}</span><span class="ml-auto font-semibold tabular-nums text-foreground">${valueFormatter(value)}</span></div>`;
 }
 </script>

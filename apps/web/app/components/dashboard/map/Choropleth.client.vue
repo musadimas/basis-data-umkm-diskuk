@@ -487,8 +487,8 @@ onMounted(() => {
     }
   });
   map.on("error", (event) => {
-    // MapLibre adds sourceId while bubbling source errors, but omits it from
-    // the public ErrorEvent type.
+    // SAFETY: MapLibre adds sourceId while bubbling source errors, but omits it
+    // from the public ErrorEvent type; the property is only read, never written.
     const sourceId = (event as typeof event & { sourceId?: string }).sourceId;
     if (sourceId === TILE_POINTS_SOURCE) reportTilesError();
   });

@@ -14,7 +14,8 @@ import ChartContainer from "@/components/ui/chart/ChartContainer.vue";
 type KeyOfT = Extract<keyof T, string>;
 
 interface SeriesConfig {
-  key: string;
+  /** Must name a column of the `data` rows so the accessors stay type-safe. */
+  key: KeyOfT;
   label: string;
   color: string;
 }
@@ -48,7 +49,7 @@ const valueFormatter = props.valueFormatter ?? ((v: number) => `${v}`);
 
 const barColors = computed(() => props.series.map((s) => s.color));
 const barY = computed(() =>
-  props.series.map((s) => (row: T) => Number(row[s.key as KeyOfT] ?? 0)),
+  props.series.map((s) => (row: T) => Number(row[s.key] ?? 0)),
 );
 const barX = (_: T, i: number) => i;
 
@@ -66,14 +67,17 @@ const categoryLabel = (tick: number) =>
 /**
  * VisTooltip binds to GroupedBar's internal per-rect record, not the plain row
  * (same `.datum` wrapper quirk StackedBar's tooltip needs — see BarChart.vue).
+ * The optional `datum` on the parameter type models that wrapper without an
+ * assertion.
  */
-function tooltipTemplate(row: T): string {
-  const datum = ((row as unknown as { datum?: T })?.datum ?? row) as T;
+type TooltipRow = T & Partial<{ datum?: T }>;
+function tooltipTemplate(row: TooltipRow): string {
+  const datum = row.datum ?? row;
   if (!datum) return "";
   const label = String(datum[props.index] ?? "");
   const rows = props.series
     .map((s) => {
-      const value = Number(datum[s.key as KeyOfT] ?? 0);
+      const value = Number(datum[s.key] ?? 0);
       return `<div class="flex items-center gap-2"><span class="h-2.5 w-2.5 shrink-0 rounded-full" style="background:${s.color}"></span><span class="font-medium text-foreground">${s.label}</span><span class="ml-auto font-semibold tabular-nums text-foreground">${valueFormatter(value)}</span></div>`;
     })
     .join("");
