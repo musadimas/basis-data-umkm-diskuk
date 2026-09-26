@@ -1,0 +1,1284 @@
+{
+  "version": 1,
+  "plan": "dashboard-operasional-e2e",
+  "phases": {
+    "1": {
+      "title": "Fondasi identitas multi-role (backend)",
+      "files": [
+        {
+          "path": "docs/architecture/decisions/0007-operational-multi-role-dashboard.md",
+          "action": "create"
+        },
+        {
+          "path": "docs/architecture/decisions/README.md",
+          "action": "modify"
+        },
+        {
+          "path": "docs/operasional/dummy-data-runbook.md",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/migrations/20260926A-operational-roles.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/shared/auth.cjs",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/shared/operator.cjs",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/package.json",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/src/index.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/src/errors.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/src/me-service.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/test/index.test.cjs",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/test/operasional-schema.contract.test.mjs",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-tabular/test/index.test.cjs",
+          "action": "modify"
+        },
+        {
+          "path": "scripts/seed-dummy-operasional.mjs",
+          "action": "create"
+        },
+        {
+          "path": "scripts/seed-dummy-operasional.sql",
+          "action": "create"
+        },
+        {
+          "path": "scripts/cleanup-dummy-operasional.sql",
+          "action": "create"
+        },
+        {
+          "path": "docker/Dockerfile.directus",
+          "action": "modify"
+        },
+        {
+          "path": "docker-compose.yml",
+          "action": "modify"
+        },
+        {
+          "path": ".env.example",
+          "action": "modify"
+        }
+      ]
+    },
+    "2": {
+      "title": "Identitas, login, dan navigasi per role (web)",
+      "files": [
+        {
+          "path": "apps/web/app/constants/ROLES.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/types/operasional.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/layouts/umkm.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/components/nav/ProfileHeader.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/components/nav/RoleBadge.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/components/demo/DemoRoleSwitcher.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/akun.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/binaan/index.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/usaha/index.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/server/utils/directus-session-login.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/server/api/auth/login-nib.post.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/server/api/demo/switch.post.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/tests/unit/roles.test.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/tests/unit/directus-session-login.test.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/tests/e2e/roles.spec.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/tests/e2e/operasional.directus.spec.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/nuxt.config.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/playwright.config.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/composables/useAuth.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/middleware/auth.global.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/constants/NAVIGATION.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/constants/index.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/components/nav/AppSidebar.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/components/nav/Header.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/layouts/dashboard.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/components/auth/SignInForm.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/pages/(auth)/sign-in.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/spasial.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/server/utils/directus-proxy.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/unit/directus-proxy.test.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/fixtures/mock-directus.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/fixtures/mock-directus-server.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/e2e/auth.spec.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/e2e/auth.directus.spec.ts",
+          "action": "modify"
+        },
+        {
+          "path": "docker-compose.yml",
+          "action": "modify"
+        }
+      ]
+    },
+    "3": {
+      "title": "Scoping wilayah Admin Kab/Kota di seluruh endpoint data",
+      "files": [
+        {
+          "path": "services/directus/migrations/20260926B-kabkota-analytics-access.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/shared/operator.cjs",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-tabular/src/index.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-tabular/test/index.test.cjs",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-infografis/src/index.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-infografis/test/index.test.cjs",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-analitik/src/scope.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-analitik/src/index.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-analitik/src/metadata.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-analitik/src/profile-service.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-analitik/test/index.test.cjs",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-analitik/test/scope.test.cjs",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/test/operasional-schema.contract.test.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/constants/ROLES.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/constants/NAVIGATION.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/composables/useTabularFilters.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/index.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/spasial.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/components/dashboard/TabularData.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/unit/roles.test.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/e2e/roles.spec.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/e2e/kabkota-scope.spec.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/tests/e2e/operasional.directus.spec.ts",
+          "action": "modify"
+        }
+      ]
+    },
+    "4": {
+      "title": "15 Atribut Jabar, data lapangan, dan verifikasi legalitas",
+      "files": [
+        {
+          "path": "services/directus/migrations/20260926C-create-usaha-atribut-jabar.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/src/usaha-service.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/src/index.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/test/usaha-service.test.cjs",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-analitik/src/profile-service.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-analitik/test/index.test.cjs",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/test/operasional-schema.contract.test.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "services/analytics-worker/src/legacy-tabular.js",
+          "action": "create"
+        },
+        {
+          "path": "services/analytics-worker/src/rebuild.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/analytics-worker/src/projector.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/analytics-worker/test/legacy-tabular.test.js",
+          "action": "create"
+        },
+        {
+          "path": "scripts/seed-dummy-operasional.sql",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/constants/OPERASIONAL.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/constants/index.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/types/operasional.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/constants/ROLES.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/data-lapangan/[id].vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/components/dashboard/TabularData.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/components/umkm/UmkmProfileActions.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/fixtures/mock-directus.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/unit/roles.test.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/e2e/data-lapangan.spec.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/tests/e2e/operasional.directus.spec.ts",
+          "action": "modify"
+        }
+      ]
+    },
+    "5": {
+      "title": "Executive Summary: 5 aspek Permen UMKM No. 2/2026 dan kuota pendataan",
+      "files": [
+        {
+          "path": "services/directus/migrations/20260926D-create-kuota-pendataan.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/src/permen-aspek.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/src/ringkasan-service.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/src/index.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/test/permen-aspek.test.cjs",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/test/ringkasan-service.test.cjs",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/test/operasional-schema.contract.test.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "scripts/seed-dummy-operasional.sql",
+          "action": "modify"
+        },
+        {
+          "path": "scripts/cleanup-dummy-operasional.sql",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/components/dashboard/card/PermenAspek.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/components/dashboard/card/KuotaPendataan.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/index.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/types/operasional.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/constants/NAVIGATION.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/fixtures/mock-directus.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/e2e/executive-summary.spec.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/tests/e2e/operasional.directus.spec.ts",
+          "action": "modify"
+        }
+      ]
+    },
+    "6": {
+      "title": "Talent Scouting: pengajuan, kalkulator Talent Index, nominasi, dan Berita Acara",
+      "files": [
+        {
+          "path": "services/directus/migrations/20260926E-create-talenta.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/src/talent-index.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/src/talenta-service.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/src/berkas-service.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/src/index.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/test/talent-index.test.cjs",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/test/talenta-service.test.cjs",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/test/berkas-service.test.cjs",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/test/operasional-schema.contract.test.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "docker-compose.yml",
+          "action": "modify"
+        },
+        {
+          "path": "scripts/seed-dummy-operasional.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "scripts/seed-dummy-operasional.sql",
+          "action": "modify"
+        },
+        {
+          "path": "scripts/cleanup-dummy-operasional.sql",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/server/utils/directus-proxy.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/unit/directus-proxy.test.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/composables/useBerkasUpload.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/constants/OPERASIONAL.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/types/operasional.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/constants/ROLES.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/constants/NAVIGATION.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/components/operasional/TalentaStatusBadge.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/components/operasional/TalentIndexResult.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/talenta/index.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/talenta/[id].vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/talenta/ajukan/[usahaId].vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/components/dashboard/TabularData.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/fixtures/mock-directus.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/unit/roles.test.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/e2e/talent-scouting.spec.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/tests/e2e/operasional.directus.spec.ts",
+          "action": "modify"
+        }
+      ]
+    },
+    "7": {
+      "title": "Program Akselerasi dan laporan KPI mingguan UMKM (offline-first)",
+      "files": [
+        {
+          "path": "services/directus/migrations/20260926F-create-program-akselerasi.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/src/program-week.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/src/program-service.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/src/berkas-service.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/src/index.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/test/program-week.test.cjs",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/test/program-service.test.cjs",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/test/berkas-service.test.cjs",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/test/operasional-schema.contract.test.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "scripts/seed-dummy-operasional.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "scripts/seed-dummy-operasional.sql",
+          "action": "modify"
+        },
+        {
+          "path": "scripts/cleanup-dummy-operasional.sql",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/lib/program-week.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/lib/idb.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/composables/useKoneksi.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/composables/useLaporanOutbox.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/components/demo/DemoKoneksiToggle.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/components/operasional/ProgresMingguan.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/layouts/umkm.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/usaha/index.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/usaha/laporan.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/akselerasi/index.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/constants/OPERASIONAL.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/types/operasional.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/constants/ROLES.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/constants/NAVIGATION.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/unit/program-week.test.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/tests/unit/roles.test.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/fixtures/mock-directus.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/e2e/umkm-laporan.spec.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/tests/e2e/akselerasi.spec.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/tests/e2e/operasional.directus.spec.ts",
+          "action": "modify"
+        }
+      ]
+    },
+    "8": {
+      "title": "Dasbor pendamping: binaan aktif, verifikasi laporan KPI, tren, dan rekomendasi pitching",
+      "files": [
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/src/kpi-evaluasi.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/src/binaan-service.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/src/index.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/test/kpi-evaluasi.test.cjs",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/test/binaan-service.test.cjs",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/components/ui/chart-line/LineChart.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/components/ui/chart-line/index.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/components/operasional/BuktiZoomPreview.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/components/operasional/TrenTargetRealisasi.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/binaan/index.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/binaan/verifikasi.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/binaan/[talentaId].vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/types/operasional.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/constants/NAVIGATION.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/fixtures/mock-directus.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/e2e/pendamping.spec.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/tests/e2e/operasional.directus.spec.ts",
+          "action": "modify"
+        }
+      ]
+    },
+    "9": {
+      "title": "Monitoring eksekutif Program Akselerasi (provinsi & kab/kota)",
+      "files": [
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/src/monitoring-service.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/src/ringkasan-service.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/src/index.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/test/monitoring-service.test.cjs",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/test/ringkasan-service.test.cjs",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/components/operasional/AtRiskMap.client.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/components/dashboard/card/KpiProgram.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/akselerasi/index.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/index.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/types/operasional.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/fixtures/mock-directus.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/e2e/akselerasi.spec.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/e2e/monitoring.spec.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/tests/e2e/operasional.directus.spec.ts",
+          "action": "modify"
+        }
+      ]
+    },
+    "10": {
+      "title": "Portofolio produk Digital Twin (UMKM) dan kurasi produk (provinsi)",
+      "files": [
+        {
+          "path": "services/directus/migrations/20260926G-create-produk.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/src/produk-service.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/src/berkas-service.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/src/index.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/test/produk-service.test.cjs",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/test/berkas-service.test.cjs",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/test/operasional-schema.contract.test.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "scripts/seed-dummy-operasional.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "scripts/seed-dummy-operasional.sql",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/lib/video-embed.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/components/operasional/ProdukForm.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/components/operasional/ProdukFotoManager.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/usaha/produk.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/kurasi-produk.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/constants/OPERASIONAL.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/types/operasional.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/constants/ROLES.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/constants/NAVIGATION.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/unit/video-embed.test.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/tests/unit/roles.test.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/fixtures/mock-directus.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/e2e/produk.spec.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/tests/e2e/operasional.directus.spec.ts",
+          "action": "modify"
+        }
+      ]
+    },
+    "11": {
+      "title": "Talent Passport, QR bertanda tangan Ed25519, radar scorecard, badge, showroom, dan verifikasi publik",
+      "files": [
+        {
+          "path": "services/directus/migrations/20260926H-add-passport-kode.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/src/passport-signature.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/src/passport-scorecard.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/src/passport-service.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/src/talenta-service.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/src/index.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/test/passport-signature.test.cjs",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/test/passport-scorecard.test.cjs",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/test/passport-service.test.cjs",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/test/talenta-service.test.cjs",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/test/operasional-schema.contract.test.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "docker-compose.yml",
+          "action": "modify"
+        },
+        {
+          "path": ".env.example",
+          "action": "modify"
+        },
+        {
+          "path": "scripts/seed-dummy-operasional.sql",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/package.json",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/pnpm-lock.yaml",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/server/api/publik/passport/[kode].get.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/components/operasional/PassportQr.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/components/operasional/RadarScorecard.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/components/operasional/TalentPassportView.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/usaha/passport.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/talenta/passport/[talentaId].vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/talenta/[id].vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/pages/(public)/verifikasi/[kode].vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/types/operasional.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/constants/NAVIGATION.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/fixtures/mock-directus.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/fixtures/mock-directus-server.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/e2e/passport.spec.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/tests/e2e/operasional.directus.spec.ts",
+          "action": "modify"
+        }
+      ]
+    },
+    "12": {
+      "title": "Ekspor dokumen: PDF Executive Summary & Scorecard, PDF Katalog Ekspor, dan Slide PPT Canvas",
+      "files": [
+        {
+          "path": "services/analytics-worker/package.json",
+          "action": "modify"
+        },
+        {
+          "path": "services/analytics-worker/pnpm-lock.yaml",
+          "action": "modify"
+        },
+        {
+          "path": "services/analytics-worker/src/export-renderer.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/analytics-worker/src/exporter.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/analytics-worker/test/export-dokumen.test.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-analitik/src/exports-service.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-analitik/src/index.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-analitik/test/index.test.cjs",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/src/ekspor-service.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/src/passport-service.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/src/index.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/test/ekspor-service.test.cjs",
+          "action": "create"
+        },
+        {
+          "path": "docker-compose.yml",
+          "action": "modify"
+        },
+        {
+          "path": ".env.example",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/types/analytics.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/components/analytics/ExportDialog.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/composables/useAnalyticsExports.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/components/operasional/TalentPassportView.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/fixtures/mock-directus.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/e2e/ekspor-dokumen.spec.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/tests/e2e/operasional.directus.spec.ts",
+          "action": "modify"
+        }
+      ]
+    },
+    "13": {
+      "title": "Pencarian global Tabular (trigram), popup titik peta diperkaya, dan basemap satelit",
+      "files": [
+        {
+          "path": "services/directus/migrations/20260926I-enable-pg-trgm.js",
+          "action": "create"
+        },
+        {
+          "path": "scripts/create-operasional-search-indexes.sql",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/shared/tabular-filter.cjs",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-tabular/test/index.test.cjs",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/src/usaha-service.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/src/index.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/test/usaha-service.test.cjs",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/test/operasional-schema.contract.test.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "docs/operasional/dummy-data-runbook.md",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/components/dashboard/TabularData.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/components/dashboard/map/Choropleth.client.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/types/operasional.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/fixtures/mock-directus.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/e2e/tabular-search-peta.spec.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/tests/e2e/operasional.directus.spec.ts",
+          "action": "modify"
+        }
+      ]
+    },
+    "14": {
+      "title": "Penutupan: tandai requirement, dokumentasi, dan validasi penuh",
+      "files": [
+        {
+          "path": "docs/new_requirements.md",
+          "action": "modify"
+        },
+        {
+          "path": "README.md",
+          "action": "modify"
+        },
+        {
+          "path": "docs/architecture/decisions/0007-operational-multi-role-dashboard.md",
+          "action": "modify"
+        }
+      ]
+    }
+  }
+}

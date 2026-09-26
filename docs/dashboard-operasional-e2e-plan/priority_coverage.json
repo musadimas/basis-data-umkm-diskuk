@@ -1,0 +1,251 @@
+{
+  "version": 2,
+  "source": "requirements.md",
+  "entries": [
+    {
+      "id": "M1-01",
+      "stage": "must_have",
+      "phase": "Y01"
+    },
+    {
+      "id": "M1-02",
+      "stage": "must_have",
+      "phase": "Y01"
+    },
+    {
+      "id": "M1-03",
+      "stage": "must_have",
+      "phase": "Y01"
+    },
+    {
+      "id": "M1-04",
+      "stage": "must_have",
+      "phase": "Y01"
+    },
+    {
+      "id": "M2-01",
+      "stage": "must_have",
+      "phase": "Y05"
+    },
+    {
+      "id": "M3-01",
+      "stage": "must_have",
+      "phase": "Y05"
+    },
+    {
+      "id": "M4-01",
+      "stage": "must_have",
+      "phase": "Y02"
+    },
+    {
+      "id": "M4-02",
+      "stage": "must_have",
+      "phase": "Y02"
+    },
+    {
+      "id": "M4-03",
+      "stage": "must_have",
+      "phase": "Y02"
+    },
+    {
+      "id": "M4-04",
+      "stage": "must_have",
+      "phase": "Y02"
+    },
+    {
+      "id": "M5-01",
+      "stage": "must_have",
+      "phase": "Y03"
+    },
+    {
+      "id": "M5-02",
+      "stage": "must_have",
+      "phase": "Y03"
+    },
+    {
+      "id": "M5-03",
+      "stage": "must_have",
+      "phase": "Y03"
+    },
+    {
+      "id": "M5-04",
+      "stage": "must_have",
+      "phase": "Y03"
+    },
+    {
+      "id": "M5-05",
+      "stage": "must_have",
+      "phase": "Y03"
+    },
+    {
+      "id": "M5-06",
+      "stage": "must_have",
+      "phase": "Y03"
+    },
+    {
+      "id": "M6-01",
+      "stage": "must_have",
+      "phase": "Y04"
+    },
+    {
+      "id": "M6-02",
+      "stage": "must_have",
+      "phase": "Y04"
+    },
+    {
+      "id": "M6-03",
+      "stage": "must_have",
+      "phase": "Y04"
+    },
+    {
+      "id": "M6-04",
+      "stage": "must_have",
+      "phase": "Y04"
+    },
+    {
+      "id": "M6-05",
+      "stage": "must_have",
+      "phase": "Y05"
+    },
+    {
+      "id": "M7-01",
+      "stage": "must_have",
+      "phase": "Y06"
+    },
+    {
+      "id": "M7-02",
+      "stage": "must_have",
+      "phase": "Y06"
+    },
+    {
+      "id": "M7-03",
+      "stage": "must_have",
+      "phase": "Y06"
+    },
+    {
+      "id": "M7-04",
+      "stage": "must_have",
+      "phase": "Y06"
+    },
+    {
+      "id": "M7-05",
+      "stage": "must_have",
+      "phase": "Y06"
+    },
+    {
+      "id": "M7-06",
+      "stage": "must_have",
+      "phase": "Y04"
+    },
+    {
+      "id": "M7-07",
+      "stage": "must_have",
+      "phase": "Y07"
+    },
+    {
+      "id": "M7-08",
+      "stage": "must_have",
+      "phase": "Y07"
+    },
+    {
+      "id": "M7-09",
+      "stage": "must_have",
+      "phase": "Y07"
+    },
+    {
+      "id": "M7-10",
+      "stage": "must_have",
+      "phase": "Y07"
+    },
+    {
+      "id": "M7-11",
+      "stage": "must_have",
+      "phase": "Y08"
+    },
+    {
+      "id": "M7-12",
+      "stage": "must_have",
+      "phase": "Y08"
+    },
+    {
+      "id": "M7-13",
+      "stage": "must_have",
+      "phase": "Y09"
+    },
+    {
+      "id": "M7-14",
+      "stage": "must_have",
+      "phase": "Y09"
+    },
+    {
+      "id": "N1-01",
+      "stage": "next_dev",
+      "phase": "R01"
+    },
+    {
+      "id": "N1-02",
+      "stage": "next_dev",
+      "phase": "R01"
+    },
+    {
+      "id": "N1-03",
+      "stage": "next_dev",
+      "phase": "R01"
+    },
+    {
+      "id": "N2-01",
+      "stage": "next_dev",
+      "phase": "R01"
+    },
+    {
+      "id": "N5-01",
+      "stage": "next_dev",
+      "phase": "R01"
+    },
+    {
+      "id": "N5-02",
+      "stage": "next_dev",
+      "phase": "R02"
+    },
+    {
+      "id": "N5-03",
+      "stage": "next_dev",
+      "phase": "R02"
+    },
+    {
+      "id": "N6-01",
+      "stage": "next_dev",
+      "phase": "R02"
+    },
+    {
+      "id": "N6-02",
+      "stage": "next_dev",
+      "phase": "R02"
+    },
+    {
+      "id": "N7-01",
+      "stage": "next_dev",
+      "phase": "R03"
+    },
+    {
+      "id": "N7-02",
+      "stage": "next_dev",
+      "phase": "R03"
+    },
+    {
+      "id": "N7-03",
+      "stage": "next_dev",
+      "phase": "R03"
+    },
+    {
+      "id": "N7-04",
+      "stage": "next_dev",
+      "phase": "R04"
+    },
+    {
+      "id": "N7-05",
+      "stage": "next_dev",
+      "phase": "R04"
+    }
+  ]
+}

@@ -9,6 +9,7 @@ Dokumen di direktori ini adalah target architecture yang telah disetujui, bukan 
 | [ADR-003](./0003-dynamic-semantic-field-registry.md) | Dynamic semantic field registry |
 | [ADR-004](./0004-server-side-privacy-masking.md) | Server-side privacy dan masking |
 | [ADR-005](./0005-internal-health-rto-rpo.md) | Internal health collection serta RTO/RPO |
+| [ADR-007](./0007-operational-multi-role-dashboard.md) | Dashboard operasional multi-role dengan scoping server-side |
 
 ## Status vocabulary
 
