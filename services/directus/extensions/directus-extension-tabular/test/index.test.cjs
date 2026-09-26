@@ -453,6 +453,260 @@ test("tabular: admin publish enqueues a rebuild without running legacy SQL", asy
   assert.doesNotMatch(rawCalls[0], /TRUNCATE|publish\.sql/i);
 });
 
+// ---- Y01 multi-role scoping (kabkota / pendamping) ----
+
+const KABKOTA_ROLE = "ade3c009-8725-46ba-a7a0-904eeba89d01";
+const PENDAMPING_ROLE = "d824230f-46db-407d-b8ea-fb2ed58c6c4f";
+const KABKOTA_USER = "22222222-2222-4222-8222-222222222222";
+
+const kabkotaOperatorRows = (kota = 7) => [
+  {
+    id: KABKOTA_USER,
+    kota,
+    kota_nama: kota == null ? null : "KABUPATEN SUBANG",
+    usaha: null,
+    usaha_nama: null,
+    usaha_nib: null,
+  },
+];
+
+test("tabular: kabkota is scoped to its own kota regardless of client filters", async () => {
+  const router = captureRouter();
+  const rawCalls = [];
+  const raw = async (sql, params = []) => {
+    rawCalls.push({ sql, params });
+    if (sql.includes("FROM directus_users u")) return rows(kabkotaOperatorRows());
+    if (sql.includes("COUNT(*)"))
+      return rows([{ filterCount: "42", mikro: "10", kecil: "5", menengah: "2" }]);
+    if (sql.includes("payload -> 'scales'")) return rows([]);
+    return rows([
+      {
+        id: "u1",
+        nama: "Toko Sembako",
+        skala: "micro",
+        kota: "KABUPATEN SUBANG",
+      },
+    ]);
+  };
+  extension.handler(router, {
+    database: { raw },
+    logger: { error: () => assert.fail("no errors expected") },
+  });
+
+  const res = await run(
+    router.routes,
+    "/",
+    { page: "1", page_size: "5", kota: "99" },
+    { accountability: { user: KABKOTA_USER, role: KABKOTA_ROLE } },
+  );
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.meta.filterCount, 42);
+  const operatorCalls = rawCalls.filter((c) =>
+    c.sql.includes("FROM directus_users u"),
+  );
+  assert.equal(operatorCalls.length, 1);
+  assert.deepEqual(operatorCalls[0].params, [KABKOTA_USER]);
+  const countCall = rawCalls.find((c) => c.sql.includes("COUNT(*)"));
+  const selectCall = rawCalls.find(
+    (c) => /ORDER BY t\.nama, t\.id/.test(c.sql) && c.sql.includes("LIMIT"),
+  );
+  assert.ok(countCall, "count query found");
+  assert.ok(selectCall, "select query found");
+  assert.ok(
+    countCall.params.includes(7),
+    "count query must be bound to the operator kota",
+  );
+  assert.deepEqual(
+    selectCall.params,
+    [7, 5, 0],
+    "select query must ignore the client kota and use the operator kota",
+  );
+  for (const call of rawCalls) {
+    assert.ok(
+      !call.params.includes(99) && !call.params.includes("99"),
+      "the client-provided kota=99 must never reach SQL bindings",
+    );
+  }
+});
+
+test("tabular: kabkota tileset is null without touching the snapshot", async () => {
+  const router = captureRouter();
+  const rawCalls = [];
+  const raw = async (sql, params = []) => {
+    rawCalls.push({ sql, params });
+    if (sql.includes("FROM directus_users u")) return rows(kabkotaOperatorRows());
+    return rows([]);
+  };
+  extension.handler(router, {
+    database: { raw },
+    logger: { error: () => assert.fail("no errors expected") },
+  });
+
+  const res = await run(
+    router.routes,
+    "/spasial/tileset",
+    {},
+    { accountability: { user: KABKOTA_USER, role: KABKOTA_ROLE } },
+  );
+
+  assert.deepEqual(res.body, { data: null });
+  assert.ok(
+    rawCalls.every((c) => !c.sql.includes("payload -> 'spatialTiles'")),
+    "provincial tileset snapshot must not be queried for kabkota",
+  );
+  assert.ok(
+    rawCalls.every((c) => !c.sql.includes("infografis_snapshot")),
+    "no snapshot table access expected for kabkota tileset",
+  );
+});
+
+test("tabular: kabkota cannot authorize provincial spatial tiles", async () => {
+  const router = captureRouter();
+  let calls = 0;
+  extension.handler(router, {
+    database: {
+      raw: async () => {
+        calls += 1;
+      },
+    },
+    logger: { error() {} },
+  });
+
+  const { error } = await runWithError(
+    router.routes,
+    "/spasial/authorize",
+    {},
+    { accountability: { user: KABKOTA_USER, role: KABKOTA_ROLE } },
+  );
+
+  assert.equal(error.statusCode, 403);
+  assert.equal(calls, 0);
+});
+
+test("tabular: kabkota filter options are scoped to the assigned kota", async () => {
+  const router = captureRouter();
+  const options = {
+    kota: [
+      { id: 7, nama: "KABUPATEN SUBANG" },
+      { id: 9, nama: "KOTA BANDUNG" },
+    ],
+    kecamatan: [
+      { id: 11, nama: "BANJARWANGI", kotaId: 7 },
+      { id: 12, nama: "CIBINONG", kotaId: 9 },
+    ],
+    kategori: ["PERDAGANGAN"],
+    kbli: [{ kode: "47112", kategori: "PERDAGANGAN" }],
+  };
+  const raw = async (sql) => {
+    if (sql.includes("FROM directus_users u")) return rows(kabkotaOperatorRows());
+    if (sql.includes("payload -> 'options'")) return rows([{ options }]);
+    return rows([]);
+  };
+  extension.handler(router, {
+    database: { raw },
+    logger: { error: () => assert.fail("no errors expected") },
+  });
+
+  const res = await run(
+    router.routes,
+    "/options",
+    {},
+    { accountability: { user: KABKOTA_USER, role: KABKOTA_ROLE } },
+  );
+
+  assert.deepEqual(res.body.data.kota, [{ id: 7, nama: "KABUPATEN SUBANG" }]);
+  assert.deepEqual(res.body.data.kecamatan, [
+    { id: 11, nama: "BANJARWANGI", kotaId: 7 },
+  ]);
+  assert.deepEqual(res.body.data.kategori, ["PERDAGANGAN"]);
+});
+
+test("tabular: kabkota without an assigned kota is rejected with KOTA_NOT_ASSIGNED", async () => {
+  const router = captureRouter();
+  const rawCalls = [];
+  const raw = async (sql) => {
+    rawCalls.push(sql);
+    if (sql.includes("FROM directus_users u")) return rows(kabkotaOperatorRows(null));
+    return rows([]);
+  };
+  extension.handler(router, {
+    database: { raw },
+    logger: { error() {} },
+  });
+
+  const { error } = await runWithError(
+    router.routes,
+    "/",
+    {},
+    { accountability: { user: KABKOTA_USER, role: KABKOTA_ROLE } },
+  );
+
+  assert.equal(error.statusCode, 403);
+  assert.equal(error.extensions.code, "KOTA_NOT_ASSIGNED");
+  assert.ok(
+    rawCalls.every((sql) => sql.includes("FROM directus_users u")),
+    "no data query may run when the kota assignment is missing",
+  );
+});
+
+test("tabular: provinsi keeps client kota filters and never resolves an operator row", async () => {
+  const router = captureRouter();
+  const rawCalls = [];
+  const raw = async (sql, params = []) => {
+    rawCalls.push({ sql, params });
+    if (sql.includes("COUNT(*)"))
+      return rows([{ filterCount: "42", mikro: "10", kecil: "5", menengah: "2" }]);
+    if (sql.includes("payload -> 'scales'")) return rows([]);
+    return rows([]);
+  };
+  extension.handler(router, {
+    database: { raw },
+    logger: { error: () => assert.fail("no errors expected") },
+  });
+
+  const res = await run(router.routes, "/", {
+    page: "1",
+    page_size: "5",
+    kota: "99",
+  });
+
+  assert.equal(res.statusCode, 200);
+  assert.ok(
+    rawCalls.every((c) => !c.sql.includes("FROM directus_users u")),
+    "provinsi resolveOperator must short-circuit without a database query",
+  );
+  const countCall = rawCalls.find((c) => c.sql.includes("COUNT(*)"));
+  assert.ok(countCall);
+  assert.ok(
+    countCall.params.includes(99),
+    "provinsi may query any kota, including 99",
+  );
+});
+
+test("tabular: pendamping is rejected before any database access", async () => {
+  const router = captureRouter();
+  let calls = 0;
+  extension.handler(router, {
+    database: {
+      raw: async () => {
+        calls += 1;
+      },
+    },
+    logger: { error() {} },
+  });
+
+  const { error } = await runWithError(
+    router.routes,
+    "/",
+    {},
+    { accountability: { user: "u1", role: PENDAMPING_ROLE } },
+  );
+
+  assert.equal(error.statusCode, 403);
+  assert.equal(calls, 0);
+});
+
 test("tabular: rejects anonymous and wrong-role requests before any query", async () => {
   const router = captureRouter();
   let calls = 0;

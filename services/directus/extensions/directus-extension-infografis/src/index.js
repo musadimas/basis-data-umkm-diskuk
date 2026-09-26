@@ -1,5 +1,6 @@
 const { routeGuard } = require("../../shared/auth.cjs");
 const { buildTabularFilter } = require("../../shared/tabular-filter.cjs");
+const { DATA_ROLES, resolveOperator, scopeTabularQuery } = require("../../shared/operator.cjs");
 const { KBLI_SECTORS } = require("../../../analytics-shared/contracts.cjs");
 
 const rows = (result) => result?.rows ?? result?.[0] ?? [];
@@ -359,20 +360,14 @@ module.exports = {
   id: "infografis",
   handler: (router, { database, logger }) => {
     router.get("/", async (req, res, next) => {
-      if (!routeGuard(req, next)) return;
+      if (!routeGuard(req, next, { roles: DATA_ROLES })) return;
       try {
-        const payload = await readPayload(
-          database,
-          req.query ?? {},
-          req.signal,
-        );
+        const operator = await resolveOperator(database, req.accountability);
+        const q = scopeTabularQuery(req.query ?? {}, operator);
+        const payload = await readPayload(database, q, req.signal);
         if (!payload)
           throw new Error("Infographic snapshot has not been refreshed");
-        const response = await attachAuthoritativeGeometry(
-          database,
-          payload,
-          req.query ?? {},
-        );
+        const response = await attachAuthoritativeGeometry(database, payload, q);
         res.setHeader("Cache-Control", "private, no-store");
         res.json({ data: response });
       } catch (error) {
@@ -381,18 +376,12 @@ module.exports = {
       }
     });
     router.get("/map", async (req, res, next) => {
-      if (!routeGuard(req, next)) return;
+      if (!routeGuard(req, next, { roles: DATA_ROLES })) return;
       try {
-        const payload = await readMapPayload(
-          database,
-          req.query ?? {},
-          req.signal,
-        );
-        const response = await attachAuthoritativeGeometry(
-          database,
-          payload,
-          req.query ?? {},
-        );
+        const operator = await resolveOperator(database, req.accountability);
+        const q = scopeTabularQuery(req.query ?? {}, operator);
+        const payload = await readMapPayload(database, q, req.signal);
+        const response = await attachAuthoritativeGeometry(database, payload, q);
         res.setHeader("Cache-Control", "private, no-store");
         res.json({ data: response });
       } catch (error) {

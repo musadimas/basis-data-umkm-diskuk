@@ -21,6 +21,7 @@ const fs = require("node:fs/promises");
 const path = require("node:path");
 const { routeGuard } = require("../../shared/auth.cjs");
 const { buildTabularFilter, positiveInt } = require("../../shared/tabular-filter.cjs");
+const { resolveOperator, scopeTabularQuery, scopeTabularOptions, DATA_ROLES } = require("../../shared/operator.cjs");
 
 const rows = (result) => result.rows ?? result[0] ?? [];
 const privateHeaders = (res) => { res.setHeader?.("Cache-Control", "private, no-store"); };
@@ -151,8 +152,9 @@ module.exports = {
 
     // Filter dropdown options (dimuat sekali oleh halaman).
     router.get("/options", async (req, res, next) => {
-      if (!routeGuard(req, next)) return; privateHeaders(res);
+      if (!routeGuard(req, next, { roles: DATA_ROLES })) return; privateHeaders(res);
       try {
+        const operator = await resolveOperator(database, req.accountability);
         const snapshotResult = await database.raw(`
           SELECT payload -> 'options' AS options
           FROM infografis_snapshot
@@ -160,7 +162,7 @@ module.exports = {
         `);
         const snapshotOptions = rows(snapshotResult)[0]?.options;
         if (snapshotOptions) {
-          res.json({ data: snapshotOptions });
+          res.json({ data: scopeTabularOptions(snapshotOptions, operator) });
           return;
         }
 
@@ -191,12 +193,15 @@ module.exports = {
         ]);
 
         res.json({
-          data: {
-            kota: rows(kotaResult),
-            kecamatan: rows(kecamatanResult),
-            kategori: rows(kategoriResult).map((item) => item.nama),
-            kbli: rows(kbliResult),
-          },
+          data: scopeTabularOptions(
+            {
+              kota: rows(kotaResult),
+              kecamatan: rows(kecamatanResult),
+              kategori: rows(kategoriResult).map((item) => item.nama),
+              kbli: rows(kbliResult),
+            },
+            operator,
+          ),
         });
       } catch (error) {
         logger.error(error, "Unable to read tabular filter options");
@@ -207,7 +212,7 @@ module.exports = {
     // Kelurahan untuk satu kecamatan (opsi kaskade filter).
     // Scalable path: read from reference table `kelurahan` (small dimension) instead of scanning 5.4M fact rows.
     router.get("/kelurahan", async (req, res, next) => {
-      if (!routeGuard(req, next)) return; privateHeaders(res);
+      if (!routeGuard(req, next, { roles: DATA_ROLES })) return; privateHeaders(res);
       const kecamatanId = positiveInt(req.query?.kecamatan, null);
       if (kecamatanId === null) {
         res
@@ -216,6 +221,7 @@ module.exports = {
         return;
       }
       try {
+        const operator = await resolveOperator(database, req.accountability);
         // Prefer reference table for scalability; fallback to fact snapshot if reference unavailable.
         let result;
         try {
@@ -228,7 +234,20 @@ module.exports = {
           `,
             [kecamatanId],
           );
-          const data = rows(result);
+          let data = rows(result);
+          if (operator.role === "kabkota" && data.length > 0) {
+            const checkResult = await database.raw(
+              `
+              SELECT k.id
+              FROM kelurahan k
+              JOIN kecamatan kc ON kc.id = k.kecamatan
+              WHERE k.kecamatan = ? AND kc.kota = ?
+              ORDER BY k.nama
+            `,
+              [kecamatanId, operator.kotaId],
+            );
+            data = rows(checkResult);
+          }
           // If reference has data, use it. If empty but fact might have legacy rows, fallback only when zero rows.
           // Keep empty as valid (kecamatan without kelurahan) – return empty.
           res.json({ data });
@@ -257,9 +276,10 @@ module.exports = {
     // Supports both OFFSET (page) and signed keyset cursor (nama, id).
     // Returns scale breakdown in same response to avoid 3 extra count requests.
     router.get("/", async (req, res, next) => {
-      if (!routeGuard(req, next)) return; privateHeaders(res);
+      if (!routeGuard(req, next, { roles: DATA_ROLES })) return; privateHeaders(res);
       try {
-        const q = req.query ?? {};
+        const operator = await resolveOperator(database, req.accountability);
+        const q = scopeTabularQuery(req.query ?? {}, operator);
         const pageSize = Math.min(Math.max(positiveInt(q.page_size, 10), 1), 1000);
         const cursorRaw = q.cursor ?? q.next_cursor ?? null;
         let cursor = null;
@@ -380,10 +400,11 @@ module.exports = {
 
     // Async CSV export – bounded background job (preferred per Phase 2)
     router.post("/export", async (req, res, next) => {
-      if (!routeGuard(req, next)) return;
+      if (!routeGuard(req, next, { roles: DATA_ROLES })) return;
       try {
+        const operator = await resolveOperator(database, req.accountability);
         const body = (req.body && typeof req.body === "object") ? req.body : {};
-        const q = { ...req.query, ...body };
+        const q = scopeTabularQuery({ ...req.query, ...body }, operator);
         const maxRows = Math.min(Math.max(positiveInt(q.max_rows ?? q.maxRows, 50000), 1), 50000);
         const { where, params } = buildTabularFilter(q);
         const owner = String(req.accountability?.user ?? "system");
@@ -448,7 +469,7 @@ module.exports = {
     });
 
     router.get("/export/:jobId", async (req, res, next) => {
-      if (!routeGuard(req, next)) return;
+      if (!routeGuard(req, next, { roles: DATA_ROLES })) return;
       try {
         const jobId = req.params?.jobId;
         const owner = String(req.accountability?.user ?? "system");
@@ -466,7 +487,7 @@ module.exports = {
     });
 
     router.get("/export/:jobId/download", async (req, res, next) => {
-      if (!routeGuard(req, next)) return;
+      if (!routeGuard(req, next, { roles: DATA_ROLES })) return;
       try {
         const jobId = req.params?.jobId;
         const owner = String(req.accountability?.user ?? "system");
@@ -491,10 +512,11 @@ module.exports = {
     // Legacy GET /export kept for backward compat – now redirects to async flow via 202 with jobId if called without explicit download
     // For direct blob download, clients should POST /export then GET /export/:jobId/download
     router.get("/export", async (req, res, next) => {
-      if (!routeGuard(req, next)) return;
+      if (!routeGuard(req, next, { roles: DATA_ROLES })) return;
       // If query has jobId param, treat as legacy sync – but we encourage async; keep sync bounded for small backward-compat callers
       try {
-        const q = req.query ?? {};
+        const operator = await resolveOperator(database, req.accountability);
+        const q = scopeTabularQuery(req.query ?? {}, operator);
         const wantsJson = (req.headers?.accept || "").includes("application/json");
         if (wantsJson) {
           // Async-style: create job and return JSON
@@ -572,8 +594,15 @@ module.exports = {
     // dan disimpan pada payload snapshot. `data: null` berarti tileset belum
     // tersedia sehingga frontend memakai fallback GeoJSON /spasial.
     router.get("/spasial/tileset", async (req, res, next) => {
-      if (!routeGuard(req, next)) return; privateHeaders(res);
+      if (!routeGuard(req, next, { roles: DATA_ROLES })) return; privateHeaders(res);
       try {
+        const operator = await resolveOperator(database, req.accountability);
+        if (operator.role === "kabkota") {
+          // Arsip PMTiles provinsi tidak diotorisasi untuk kabkota; frontend
+          // otomatis memakai fallback GeoJSON /spasial yang sudah di-scope.
+          res.json({ data: null });
+          return;
+        }
         const result = await database.raw(`
           SELECT payload -> 'spatialTiles' AS tiles
           FROM infografis_snapshot
@@ -590,9 +619,10 @@ module.exports = {
     // Count skala dihitung dari semua baris yang cocok filter (bukan hanya
     // yang berkoordinat), sehingga angka kartu skala konsisten dengan tabular.
     router.get("/spasial", async (req, res, next) => {
-      if (!routeGuard(req, next)) return; privateHeaders(res);
+      if (!routeGuard(req, next, { roles: DATA_ROLES })) return; privateHeaders(res);
       try {
-        const q = req.query ?? {};
+        const operator = await resolveOperator(database, req.accountability);
+        const q = scopeTabularQuery(req.query ?? {}, operator);
         const limit = Math.min(Math.max(positiveInt(q.limit, 1000), 1), 5000);
         const { where, params, hasFilters } = buildTabularFilter(q);
         const coordClause = "t.latitude IS NOT NULL AND t.longitude IS NOT NULL";

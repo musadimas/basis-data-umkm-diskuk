@@ -111,3 +111,110 @@ test("map drill groups indexed ids without materializing full rows", async () =>
   assert.doesNotMatch(calls[0].sql, /SELECT t\.\*/);
   assert.deepEqual(calls[0].params, [7]);
 });
+
+// ---- Y01 multi-role scoping (kabkota / pendamping) ----
+
+const KABKOTA_ROLE = "ade3c009-8725-46ba-a7a0-904eeba89d01";
+const PENDAMPING_ROLE = "d824230f-46db-407d-b8ea-fb2ed58c6c4f";
+const KABKOTA_USER = "22222222-2222-4222-8222-222222222222";
+
+function captureRoute(database) {
+  const handlers = {};
+  extension.handler(
+    { get: (path, value) => { handlers[path] = value; } },
+    { database, logger: { error() {} } },
+  );
+  return handlers;
+}
+
+const kabkotaOperatorRow = (kota = 7) => ({
+  id: KABKOTA_USER,
+  kota,
+  kota_nama: kota == null ? null : "KABUPATEN SUBANG",
+  usaha: null,
+  usaha_nama: null,
+  usaha_nib: null,
+});
+
+test("kabkota infographic is forced to the operator kota and skips the snapshot fast path", async () => {
+  const calls = [];
+  const handlers = captureRoute({
+    raw: async (sql, params = []) => {
+      calls.push({ sql, params });
+      if (sql.includes("FROM directus_users u"))
+        return { rows: [kabkotaOperatorRow()] };
+      if (sql.includes("WITH filtered AS MATERIALIZED"))
+        return { rows: [{ payload: { scales: { total: 3 }, regions: [] } }] };
+      return { rows: [] };
+    },
+  });
+
+  let body;
+  await handlers["/"](
+    {
+      accountability: { user: KABKOTA_USER, role: KABKOTA_ROLE },
+      query: { kota: "99" },
+    },
+    { setHeader() {}, json(value) { body = value; } },
+    assert.fail,
+  );
+
+  assert.equal(body.data.scales.total, 3);
+  assert.equal(
+    calls.some((c) =>
+      c.sql.includes("SELECT payload FROM infografis_snapshot WHERE id = 1"),
+    ),
+    false,
+    "the forced kota filter must bypass the unfiltered snapshot fast path",
+  );
+  const filtered = calls.find((c) =>
+    c.sql.includes("WITH filtered AS MATERIALIZED"),
+  );
+  assert.ok(filtered, "filtered aggregate SQL must run when filters are forced");
+  assert.equal(filtered.params[0], 7);
+  assert.ok(
+    filtered.params.every((param) => param !== 99 && param !== "99"),
+    "the client-provided kota=99 must never reach SQL bindings",
+  );
+});
+
+test("kabkota without an assigned kota is rejected with KOTA_NOT_ASSIGNED", async () => {
+  let calls = 0;
+  const handlers = captureRoute({
+    raw: async () => {
+      calls += 1;
+      if (calls === 1) return { rows: [kabkotaOperatorRow(null)] };
+      return { rows: [] };
+    },
+  });
+
+  let nextError;
+  await handlers["/"](
+    { accountability: { user: KABKOTA_USER, role: KABKOTA_ROLE }, query: {} },
+    {},
+    (error) => { nextError = error; },
+  );
+
+  assert.equal(nextError.statusCode, 403);
+  assert.equal(nextError.extensions.code, "KOTA_NOT_ASSIGNED");
+  assert.equal(calls, 1, "only the operator lookup may run");
+});
+
+test("infografis rejects pendamping before database access", async () => {
+  let calls = 0;
+  const handlers = captureRoute({
+    raw: async () => {
+      calls += 1;
+    },
+  });
+
+  let nextError;
+  await handlers["/"](
+    { accountability: { user: "u1", role: PENDAMPING_ROLE }, query: {} },
+    {},
+    (error) => { nextError = error; },
+  );
+
+  assert.equal(nextError.statusCode, 403);
+  assert.equal(calls, 0);
+});

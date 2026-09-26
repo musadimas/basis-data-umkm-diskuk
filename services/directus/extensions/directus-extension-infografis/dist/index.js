@@ -1,5 +1,6 @@
 const { routeGuard } = require("../../shared/auth.cjs");
 const { buildTabularFilter } = require("../../shared/tabular-filter.cjs");
+const { DATA_ROLES, resolveOperator, scopeTabularQuery } = require("../../shared/operator.cjs");
 const { KBLI_SECTORS } = require("../../../analytics-shared/contracts.cjs");
 
 const rows = (result) => result?.rows ?? result?.[0] ?? [];
@@ -39,12 +40,16 @@ const positiveId = (value) => {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 };
 
-const regionLevelFor = (query = {}) => positiveId(query.kecamatan) || positiveId(query.kelurahan)
-  ? "kelurahan"
-  : positiveId(query.kota) ? "kecamatan" : "kota";
+const regionLevelFor = (query = {}) =>
+  positiveId(query.kecamatan) || positiveId(query.kelurahan)
+    ? "kelurahan"
+    : positiveId(query.kota)
+      ? "kecamatan"
+      : "kota";
 
 const filteredPayloadSql = (where, regionLevel = "kota") => {
-  const [regionId, regionName] = REGION_COLUMNS[regionLevel] ?? REGION_COLUMNS.kota;
+  const [regionId, regionName] =
+    REGION_COLUMNS[regionLevel] ?? REGION_COLUMNS.kota;
   return `
   WITH filtered AS MATERIALIZED (
     SELECT t.* FROM usaha_tabular t ${where}
@@ -163,7 +168,9 @@ const filteredPayloadSql = (where, regionLevel = "kota") => {
 async function withReadBudget(database, fn, signal) {
   if (signal?.aborted) {
     const e = new Error("Request aborted");
-    e.code = "57014"; e.statusCode = 499; throw e;
+    e.code = "57014";
+    e.statusCode = 499;
+    throw e;
   }
   if (typeof database.transaction === "function") {
     return database.transaction(async (trx) => {
@@ -171,9 +178,15 @@ async function withReadBudget(database, fn, signal) {
       await trx.raw("SET LOCAL lock_timeout = '500ms'");
       await trx.raw("SET TRANSACTION READ ONLY");
       if (signal) {
-        const onAbort = () => { trx.raw("SELECT pg_cancel_backend(pg_backend_pid())").catch(()=>{}); };
+        const onAbort = () => {
+          trx.raw("SELECT pg_cancel_backend(pg_backend_pid())").catch(() => {});
+        };
         signal.addEventListener?.("abort", onAbort, { once: true });
-        try { return await fn(trx); } finally { signal.removeEventListener?.("abort", onAbort); }
+        try {
+          return await fn(trx);
+        } finally {
+          signal.removeEventListener?.("abort", onAbort);
+        }
       }
       return fn(trx);
     });
@@ -184,14 +197,20 @@ async function withReadBudget(database, fn, signal) {
 async function readMapPayload(database, query, signal) {
   const filter = buildTabularFilter(query);
   if (!filter.hasFilters) {
-    const result = await database.raw("SELECT payload->'regions' AS regions FROM infografis_snapshot WHERE id = 1");
+    const result = await database.raw(
+      "SELECT payload->'regions' AS regions FROM infografis_snapshot WHERE id = 1",
+    );
     return { regions: rows(result)[0]?.regions ?? [] };
   }
 
   const level = regionLevelFor(query);
   const [regionId] = REGION_COLUMNS[level] ?? REGION_COLUMNS.kota;
   const table = REGION_TABLES[level] ?? REGION_TABLES.kota;
-  const result = await withReadBudget(database, (trx) => trx.raw(`
+  const result = await withReadBudget(
+    database,
+    (trx) =>
+      trx.raw(
+        `
     WITH counts AS (
       SELECT t.${regionId} AS id, COUNT(*)::integer AS value
       FROM usaha_tabular t ${filter.where}
@@ -203,32 +222,53 @@ async function readMapPayload(database, query, signal) {
     FROM counts
     LEFT JOIN ${table} region ON region.id = counts.id
     ORDER BY counts.value DESC, name ASC
-  `, filter.params), signal);
+  `,
+        filter.params,
+      ),
+    signal,
+  );
   return { regions: rows(result) };
 }
 
 async function readPayload(database, query, signal) {
   const filter = buildTabularFilter(query);
   if (!filter.hasFilters) {
-    const result = await database.raw("SELECT payload FROM infografis_snapshot WHERE id = 1");
+    const result = await database.raw(
+      "SELECT payload FROM infografis_snapshot WHERE id = 1",
+    );
     return rows(result)[0]?.payload;
   }
-  const sectors = KBLI_SECTORS.map(([code, name, division_start, division_end]) => ({
-    code, name, division_start, division_end,
-  }));
+  const sectors = KBLI_SECTORS.map(
+    ([code, name, division_start, division_end]) => ({
+      code,
+      name,
+      division_start,
+      division_end,
+    }),
+  );
   try {
-    const result = await withReadBudget(database, (trx) => trx.raw(filteredPayloadSql(
-      filter.where,
-      regionLevelFor(query),
-    ), [
-      ...filter.params,
-      JSON.stringify(sectors),
-    ]), signal);
+    const result = await withReadBudget(
+      database,
+      (trx) =>
+        trx.raw(filteredPayloadSql(filter.where, regionLevelFor(query)), [
+          ...filter.params,
+          JSON.stringify(sectors),
+        ]),
+      signal,
+    );
     return rows(result)[0]?.payload;
   } catch (error) {
-    if (error?.code === "57014" || error?.code === "55P03" || /statement timeout/i.test(String(error?.message))) {
-      const e = new Error("Query timeout – filter terlalu luas, coba persempit");
-      e.statusCode = 504; e.code = "QUERY_TIMEOUT"; throw e;
+    if (
+      error?.code === "57014" ||
+      error?.code === "55P03" ||
+      /statement timeout/i.test(String(error?.message))
+    ) {
+      const e = new Error(
+        "Query timeout – filter terlalu luas, coba persempit",
+      );
+      e.statusCode = 504;
+      e.code = "QUERY_TIMEOUT";
+      throw e;
     }
     throw error;
   }
@@ -281,19 +321,33 @@ async function attachAuthoritativeGeometry(database, payload, query = {}) {
       ...payload,
       regionLevel: boundaryQuery.level,
       geometryReady: false,
-      geometryMissing: (payload.regions ?? []).filter((item) => item.id !== "unknown" && item.value > 0).length,
+      geometryMissing: (payload.regions ?? []).filter(
+        (item) => item.id !== "unknown" && item.value > 0,
+      ).length,
       geometrySource: { ...geometrySource, regions: 0 },
     };
   }
 
-  const counts = new Map((payload.regions ?? []).map((item) => [String(item.id), Number(item.value) || 0]));
-  const unknown = (payload.regions ?? []).filter((item) => !boundaries.some((boundary) => boundary.id === String(item.id)));
-  const geometryMissing = unknown.filter((item) => item.id !== "unknown" && item.value > 0).length;
+  const counts = new Map(
+    (payload.regions ?? []).map((item) => [
+      String(item.id),
+      Number(item.value) || 0,
+    ]),
+  );
+  const unknown = (payload.regions ?? []).filter(
+    (item) => !boundaries.some((boundary) => boundary.id === String(item.id)),
+  );
+  const geometryMissing = unknown.filter(
+    (item) => item.id !== "unknown" && item.value > 0,
+  ).length;
   return {
     ...payload,
     regionLevel: boundaryQuery.level,
     regions: [
-      ...boundaries.map((boundary) => ({ ...boundary, value: counts.get(boundary.id) ?? 0 })),
+      ...boundaries.map((boundary) => ({
+        ...boundary,
+        value: counts.get(boundary.id) ?? 0,
+      })),
       ...unknown,
     ],
     geometryReady: true,
@@ -306,11 +360,14 @@ module.exports = {
   id: "infografis",
   handler: (router, { database, logger }) => {
     router.get("/", async (req, res, next) => {
-      if (!routeGuard(req, next)) return;
+      if (!routeGuard(req, next, { roles: DATA_ROLES })) return;
       try {
-        const payload = await readPayload(database, req.query ?? {}, req.signal);
-        if (!payload) throw new Error("Infographic snapshot has not been refreshed");
-        const response = await attachAuthoritativeGeometry(database, payload, req.query ?? {});
+        const operator = await resolveOperator(database, req.accountability);
+        const q = scopeTabularQuery(req.query ?? {}, operator);
+        const payload = await readPayload(database, q, req.signal);
+        if (!payload)
+          throw new Error("Infographic snapshot has not been refreshed");
+        const response = await attachAuthoritativeGeometry(database, payload, q);
         res.setHeader("Cache-Control", "private, no-store");
         res.json({ data: response });
       } catch (error) {
@@ -319,10 +376,12 @@ module.exports = {
       }
     });
     router.get("/map", async (req, res, next) => {
-      if (!routeGuard(req, next)) return;
+      if (!routeGuard(req, next, { roles: DATA_ROLES })) return;
       try {
-        const payload = await readMapPayload(database, req.query ?? {}, req.signal);
-        const response = await attachAuthoritativeGeometry(database, payload, req.query ?? {});
+        const operator = await resolveOperator(database, req.accountability);
+        const q = scopeTabularQuery(req.query ?? {}, operator);
+        const payload = await readMapPayload(database, q, req.signal);
+        const response = await attachAuthoritativeGeometry(database, payload, q);
         res.setHeader("Cache-Control", "private, no-store");
         res.json({ data: response });
       } catch (error) {
