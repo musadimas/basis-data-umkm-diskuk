@@ -1,0 +1,19 @@
+{
+  "name": "directus-extension-operasional",
+  "version": "1.0.0",
+  "private": true,
+  "main": "dist/index.js",
+  "directus:extension": {
+    "type": "endpoint",
+    "path": "dist/index.js",
+    "source": "src/index.js",
+    "host": "^11.0.0"
+  },
+  "scripts": {
+    "build": "rm -rf dist && mkdir -p dist && cp -R src/* dist/",
+    "test": "node --test test/*.test.cjs"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}
