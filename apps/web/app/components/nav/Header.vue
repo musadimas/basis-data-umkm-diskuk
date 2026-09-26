@@ -10,7 +10,12 @@ const navLinks: NavItem[] = [
 const route = useRoute();
 const mobileOpen = ref(false);
 const auth = useAuth();
-const displayName = computed(() => auth.user.value?.first_name || auth.user.value?.email || "Pengguna DisKUK");
+const displayName = computed(() =>
+  [auth.user.value?.firstName, auth.user.value?.lastName]
+    .filter(Boolean)
+    .join(" ")
+  || auth.user.value?.email
+  || "Pengguna DisKUK");
 const initials = computed(() => displayName.value.slice(0, 1).toUpperCase());
 const isActive = (to: string) => to === "/dashboard" ? route.path.startsWith("/dashboard") : route.path === to;
 </script>

@@ -1,13 +1,7 @@
 import { clearPrivateClientState } from "~/lib";
+import type { OperatorProfile } from "~/types/operasional";
 
-export type AuthUser = {
-  id: string;
-  email?: string;
-  first_name?: string;
-  last_name?: string;
-  role?: string;
-  avatar?: string | null;
-};
+export type AuthUser = OperatorProfile;
 
 type QueryClientLike = { clear: () => void };
 type DirectusLike = {
@@ -72,7 +66,7 @@ export function useAuth() {
 
   async function currentUser() {
     try {
-      const response = await $fetch<{ data: AuthUser }>("/panel/users/me", {
+      const response = await $fetch<{ data: AuthUser }>("/panel/operasional/me", {
         credentials: "include",
         headers: import.meta.server ? useRequestHeaders(["cookie"]) : undefined,
       });
@@ -118,6 +112,23 @@ export function useAuth() {
     }
   }
 
+  async function loginWithNib(nib: string, password: string) {
+    pending.value = true;
+    try {
+      await $fetch("/api/auth/login-nib", {
+        method: "POST",
+        body: { nib, password },
+        credentials: "include",
+      });
+      const loggedInUser = await currentUser();
+      if (!loggedInUser)
+        throw new Error("Authentication could not be verified");
+      return true;
+    } finally {
+      pending.value = false;
+    }
+  }
+
   async function logout() {
     pending.value = true;
     try {
@@ -132,5 +143,5 @@ export function useAuth() {
     if (import.meta.client) await navigateTo("/sign-in");
   }
 
-  return { user, status, pending, currentUser, login, logout };
+  return { user, status, pending, currentUser, login, loginWithNib, logout };
 }

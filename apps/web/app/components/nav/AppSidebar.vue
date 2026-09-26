@@ -11,8 +11,14 @@ const props = withDefaults(defineProps<SidebarProps>(), {
 
 const auth = useAuth();
 const { toggleSidebar } = useSidebar();
-const displayName = computed(() => auth.user.value?.first_name || auth.user.value?.email || "Pengguna DisKUK");
+const displayName = computed(() =>
+  [auth.user.value?.firstName, auth.user.value?.lastName]
+    .filter(Boolean)
+    .join(" ")
+  || auth.user.value?.email
+  || "Pengguna DisKUK");
 const initials = computed(() => displayName.value.slice(0, 1).toUpperCase());
+const sections = computed(() => NAVIGATION_LINKS[auth.user.value?.role ?? "provinsi"]);
 </script>
 
 <template>
@@ -29,14 +35,10 @@ const initials = computed(() => displayName.value.slice(0, 1).toUpperCase());
     </UiSidebarHeader>
     <UiSidebarContent>
       <NavGroup
-        v-for="[title, items] of Object.entries(NAVIGATION_LINKS)"
-        :key="title"
-        :title="title"
-        :items="
-          title === 'website'
-            ? items.filter((item) => item.to !== '/dashboard')
-            : items
-        "
+        v-for="section in sections"
+        :key="section.title"
+        :title="section.title"
+        :items="section.items"
       />
     </UiSidebarContent>
     <UiSidebarFooter>
