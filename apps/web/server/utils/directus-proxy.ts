@@ -1,4 +1,7 @@
 import { randomUUID } from "node:crypto";
+import { pipeline } from "node:stream/promises";
+import { Readable } from "node:stream";
+import type { ReadableStream as NodeWebReadableStream } from "node:stream/web";
 import {
   getRequestHeader,
   getRequestURL,
@@ -231,6 +234,24 @@ export async function proxyToDirectus(event: H3Event) {
     res.end();
     return;
   }
-  const data = Buffer.from(await response.arrayBuffer());
-  res.end(data);
+  // SAFETY: undici's response.body is the WHATWG ReadableStream shape that
+  // Readable.fromWeb consumes at runtime; only the DOM/node type declarations
+  // disagree, so the stream is narrowed once here, never through the body.
+  const upstreamBody = response.body as NodeWebReadableStream<Uint8Array> | null;
+  if (!upstreamBody) {
+    res.end();
+    return;
+  }
+  try {
+    await pipeline(Readable.fromWeb(upstreamBody), res);
+  } catch {
+    if (res.writableEnded || res.destroyed) return;
+    if (res.headersSent) {
+      // A torn response must not look complete; destroy instead of ending so
+      // the client sees a broken transfer rather than a truncated 200.
+      res.destroy();
+      return;
+    }
+    setJsonError(event, 502, "UPSTREAM_UNAVAILABLE", requestId);
+  }
 }
