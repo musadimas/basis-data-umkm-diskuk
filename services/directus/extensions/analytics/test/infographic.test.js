@@ -112,3 +112,16 @@ test("map drill groups indexed ids without materializing full rows", async () =>
   assert.doesNotMatch(calls[0].sql, /SELECT t\.\*/);
   assert.deepEqual(calls[0].params, [7]);
 });
+
+test("infografis serves an empty payload before the first snapshot refresh", async () => {
+  let handler;
+  registerRoutes({ get: (path, value) => { if (path === "/") handler = value; } }, {
+    database: { raw: async () => ({ rows: [] }) },
+    logger: { error: () => assert.fail("empty database is not an error") },
+  });
+  let body;
+  await handler({ accountability: { user: "u1", role: APPLICATION_ROLE_ID } }, { setHeader() {}, json(value) { body = value; } }, assert.fail);
+  assert.deepEqual(body.data.scales, { total: 0, mikro: 0, kecil: 0, menengah: 0 });
+  assert.deepEqual(body.data.regions, []);
+  assert.deepEqual(body.data.kbli, []);
+});

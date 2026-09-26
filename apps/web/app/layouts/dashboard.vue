@@ -17,6 +17,7 @@ onUnmounted(() => document.documentElement.classList.remove("no-scrollbar"));
   >
     <NavAppSidebar />
     <UiSidebarInset class="dashboard-surface">
+      <NavTopbar />
       <div class="flex min-h-0 flex-1 flex-col gap-4" :class="fullBleed ? '' : 'p-4'">
         <slot />
       </div>

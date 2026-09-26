@@ -104,11 +104,11 @@ test("tabular: returns paginated rows with filter count", async () => {
     kbli: "47112",
   });
 
-  assert.equal(res.body.meta.filterCount, 42);
-  assert.equal(res.body.meta.page, 2);
-  assert.equal(res.body.meta.pageSize, 5);
-  assert.equal(res.body.meta.mikro, 10);
-  assert.equal(res.body.data[0].nama, "Toko Sembako");
+  assert.equal(res.body.data.meta.filterCount, 42);
+  assert.equal(res.body.data.meta.page, 2);
+  assert.equal(res.body.data.meta.pageSize, 5);
+  assert.equal(res.body.data.meta.mikro, 10);
+  assert.equal(res.body.data.rows[0].nama, "Toko Sembako");
 
   const selectCall = rawCalls.find(
     (c) => /ORDER BY t\.nama, t\.id/.test(c.sql) && c.sql.includes("LIMIT"),
@@ -155,9 +155,9 @@ test("tabular: ignores invalid filter params and clamps page_size", async () => 
     kelurahan: "-1",
   });
 
-  assert.equal(res.body.meta.filterCount, 7);
-  assert.equal(res.body.meta.page, 1);
-  assert.equal(res.body.meta.pageSize, 1000);
+  assert.equal(res.body.data.meta.filterCount, 7);
+  assert.equal(res.body.data.meta.page, 1);
+  assert.equal(res.body.data.meta.pageSize, 1000);
   const selectCall = rawCalls.find((c) =>
     /ORDER BY t\.nama, t\.id/.test(c.sql),
   );
@@ -203,14 +203,14 @@ test("tabular: returns coordinate points with scale recap", async () => {
     limit: "50",
   });
 
-  assert.deepEqual(res.body.meta, {
+  assert.deepEqual(res.body.data.meta, {
     filterCount: 42,
     mikro: 30,
     kecil: 8,
     menengah: 4,
     limit: 50,
   });
-  assert.equal(res.body.data[0].latitude, -7.0123);
+  assert.equal(res.body.data.points[0].latitude, -7.0123);
 
   const pointCall = rawCalls.find((c) =>
     /t\.latitude IS NOT NULL AND t\.longitude IS NOT NULL/.test(c.sql),
@@ -249,7 +249,7 @@ test("tabular: spasial ignores invalid filters and clamps limit", async () => {
     limit: "99999",
   });
 
-  assert.deepEqual(res.body.meta, {
+  assert.deepEqual(res.body.data.meta, {
     filterCount: 0,
     mikro: 0,
     kecil: 0,

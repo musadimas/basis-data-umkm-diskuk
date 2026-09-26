@@ -28,7 +28,8 @@ export const list =
       );
       const items = rows(result);
       noStore(res);
-      res.json({ data: items.slice(0, limit), meta: { page, limit, hasMore: items.length > limit } });
+      // `meta` lives inside `data` because the Directus SDK unwraps the top-level `data` key.
+      res.json({ data: { items: items.slice(0, limit), meta: { page, limit, hasMore: items.length > limit } } });
     } catch (error) {
       sendError(res, logger, error);
     }

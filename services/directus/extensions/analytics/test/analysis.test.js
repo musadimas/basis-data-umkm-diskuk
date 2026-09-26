@@ -154,6 +154,9 @@ test("profile validates UUID and returns only masked semantic sections", async (
   assert.equal(text.includes("987654321"), false);
   assert.equal(text.includes("raw"), false);
   assert.equal(out.res.body.data.actions.canArchive, true);
+  // SDK-safe envelope: meta travels inside data, nothing is left beside it.
+  assert.deepEqual(Object.keys(out.res.body), ["data"]);
+  assert.equal(out.res.body.data.meta.schemaVersion, 1);
 });
 
 test("download signatures are expiring and tamper resistant", async () => {

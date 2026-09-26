@@ -2,7 +2,6 @@ import { defineConfig, devices } from "@playwright/test";
 
 const baseURL = process.env.PLAYWRIGHT_BASE_URL || "http://127.0.0.1:3100";
 const mockDirectusURL = "http://127.0.0.1:3101";
-const sessionPolicySecret = process.env.NUXT_SESSION_POLICY_SECRET || "playwright-session-policy-secret";
 export default defineConfig({
   testDir: "tests/e2e",
   timeout: 30_000,
@@ -29,10 +28,8 @@ export default defineConfig({
       timeout: 120_000,
       env: {
         ...process.env,
-        NUXT_DIRECTUS_INTERNAL_URL: mockDirectusURL,
-        NUXT_DIRECTUS_PROXY_TARGET: "",
-        NUXT_SESSION_POLICY_SECRET: sessionPolicySecret,
-        SESSION_COOKIE_SECURE: "false",
+        // SSR requests follow the /panel/** route rule to the mock Directus server.
+        PANEL_URL: mockDirectusURL,
       },
     },
   ],

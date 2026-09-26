@@ -1,25 +1,17 @@
+import { readMe } from "@directus/sdk";
 import { clearPrivateClientState } from "~/lib";
+
+export type AppRole = "provinsi" | "kabkota" | "pendamping" | "umkm";
 
 export type AuthUser = {
   id: string;
   email?: string;
-  first_name?: string;
-  last_name?: string;
+  first_name?: string | null;
+  last_name?: string | null;
   role?: string;
   avatar?: string | null;
-};
-
-type QueryClientLike = { clear: () => void };
-type DirectusLike = {
-  login: (
-    credentials: { email: string; password: string },
-    options: { mode: "session" },
-  ) => Promise<void>;
-  logout: () => Promise<void>;
-};
-type InjectedServices = {
-  $directus?: DirectusLike;
-  $queryClient?: QueryClientLike;
+  app_role?: AppRole | null;
+  instansi?: string | null;
 };
 
 /** Nilai mentah `returnTo` dari route query vue-router sebelum divalidasi. */
@@ -57,12 +49,17 @@ export function safeDashboardReturnTo(value: ReturnToInput) {
   return validReturnTo(value);
 }
 
+function isRelationId<T>(value: T | string | null | undefined): value is string {
+  return typeof value === "string";
+}
+
+/** Relation fields come back as ids unless expanded; keep only the id. */
+function relationId<T>(value: T | string | null | undefined): string | null {
+  return isRelationId(value) ? value : null;
+}
+
 export function useAuth() {
-  const nuxt = useNuxtApp();
-  const host: object = nuxt;
-  // SAFETY: $directus & $queryClient disuntik plugin runtime (app/plugins/directus.client.ts, app/plugins/query.ts)
-  // dan belum diekspos pada tipe #app; properti yang diakses memang disediakan saat runtime.
-  const services = host as InjectedServices;
+  const { $directus: directus, $queryClient: queryClient } = useNuxtApp();
   const user = useState<AuthUser | null>("auth:user", () => null);
   const status = useState<"unknown" | "authenticated" | "anonymous">(
     "auth:status",
@@ -72,43 +69,42 @@ export function useAuth() {
 
   async function currentUser() {
     try {
-      const response = await $fetch<{ data: AuthUser }>("/panel/users/me", {
-        credentials: "include",
-        headers: import.meta.server ? useRequestHeaders(["cookie"]) : undefined,
-      });
-      if (
-        import.meta.client &&
-        user.value?.id &&
-        user.value.id !== response.data.id
-      )
-        await clearPrivateClientState(services.$queryClient);
-      user.value = response.data;
+      // No explicit field list: Directus returns exactly the fields this role may read.
+      const me = await directus.request(readMe());
+      const current: AuthUser = {
+        id: me.id,
+        email: me.email ?? undefined,
+        first_name: me.first_name,
+        last_name: me.last_name,
+        role: relationId(me.role) ?? undefined,
+        avatar: relationId(me.avatar),
+        app_role: me.app_role,
+        instansi: me.instansi,
+      };
+      if (import.meta.client && user.value?.id && user.value.id !== current.id)
+        await clearPrivateClientState(queryClient);
+      user.value = current;
       status.value = "authenticated";
-      return response.data;
+      return current;
     } catch {
-      if (import.meta.client)
-        await clearPrivateClientState(services.$queryClient);
+      if (import.meta.client) await clearPrivateClientState(queryClient);
       user.value = null;
       status.value = "anonymous";
       return null;
     }
   }
 
-  async function login(email: string, password: string) {
+  /**
+   * Logs in through the native Directus /auth/login with an official email or a 13-digit
+   * NIB in `email`. `captcha` is the single-use captcha payload; the authentication
+   * extension's login guard resolves the NIB and verifies the captcha.
+   */
+  async function login(identifier: string, password: string, captcha: string) {
     pending.value = true;
     try {
-      const directus = services.$directus;
-      if (directus)
-        await directus.login(
-          { email: email.trim(), password },
-          { mode: "session" },
-        );
-      else
-        await $fetch("/panel/auth/login", {
-          method: "POST",
-          body: { email: email.trim(), password, mode: "session" },
-          credentials: "include",
-        });
+      // `captcha` rides along in the login payload for the extension's auth.login guard.
+      const credentials = { email: identifier.trim(), password, captcha };
+      await directus.login(credentials, { mode: "session" });
       const loggedInUser = await currentUser();
       if (!loggedInUser)
         throw new Error("Authentication could not be verified");
@@ -121,11 +117,11 @@ export function useAuth() {
   async function logout() {
     pending.value = true;
     try {
-      await services.$directus?.logout();
+      await directus.logout();
     } catch {
       /* local clearing is mandatory */
     }
-    await clearPrivateClientState(services.$queryClient);
+    await clearPrivateClientState(queryClient);
     user.value = null;
     status.value = "anonymous";
     pending.value = false;

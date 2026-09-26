@@ -1,7 +1,7 @@
 import { AUDIT_RETENTION } from "../lib/constants.js";
 import { consumeCaptcha, purgeExpiredCaptcha } from "../lib/utils/captcha.js";
 import { clip, stall } from "../lib/utils/common.js";
-import { captchaEnforced, loginStallMs } from "../lib/utils/env.js";
+import { captchaEnforced, isCaptchaExemptOrigin, loginStallMs } from "../lib/utils/env.js";
 import { invalidCredentials } from "../lib/utils/errors.js";
 import { sanitizeError } from "../lib/utils/http.js";
 import { resolveLoginEmail } from "../lib/utils/identity.js";
@@ -25,7 +25,8 @@ async function recordLogin(database, { status, user, reason, accountability }) {
  * Guards the native POST /auth/login:
  * - `routes.before` middleware: lets users sign in with a NIB in the `email` field by
  *   resolving it to the linked account's email before Directus validates the body.
- * - `auth.login` filter: requires a single-use ALTCHA payload before the password is checked;
+ * - `auth.login` filter: requires a single-use ALTCHA payload before the password is checked
+ *   (except from AUTH_CAPTCHA_EXEMPT_ORIGINS, e.g. the Data Studio);
  *   captcha failures are reported as INVALID_CREDENTIALS so they never reveal whether an
  *   account exists.
  * - `auth.login` action: success/failure audit trail for the session activity log.
@@ -45,6 +46,8 @@ export default ({ init, filter, action, schedule }, { database, env, logger }) =
   filter("auth.login", async (payload, meta, context) => {
     const { captcha, ...rest } = payload || {};
     if (!captchaEnforced(env) || meta?.provider !== "default") return rest;
+    // Same-site clients without a captcha widget (Data Studio); see captchaExemptOrigins().
+    if (isCaptchaExemptOrigin(env, context?.accountability?.origin)) return rest;
     const db = context?.database || database;
     const result = await consumeCaptcha(db, env, captcha);
     if (result.ok) return rest;

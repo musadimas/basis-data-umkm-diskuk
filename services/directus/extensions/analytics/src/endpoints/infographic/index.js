@@ -356,18 +356,28 @@ async function attachAuthoritativeGeometry(database, payload, query = {}) {
   };
 }
 
+/**
+ * Payload served before the first snapshot refresh (e.g. a fresh database with no UMKM data):
+ * the snapshot shape with zero counts, so the dashboard renders empty instead of erroring.
+ */
+function emptyPayload() {
+  return {
+    scales: { total: 0, mikro: 0, kecil: 0, menengah: 0 },
+    sectorCoverage: { mapped: 0, unclassified: 0 },
+    regions: [],
+    sectors: [],
+    topKbli: [],
+    kbli: [],
+  };
+}
+
 // Mounted by the bundle entry "v1/analytics/infographic" (see package.json).
 export default function registerInfographicRoutes(router, { database, logger }) {
   router.get("/", async (req, res, next) => {
     if (!routeGuard(req, next)) return;
     try {
-      const payload = await readPayload(
-        database,
-        req.query ?? {},
-        req.signal,
-      );
-      if (!payload)
-        throw new Error("Infographic snapshot has not been refreshed");
+      const payload =
+        (await readPayload(database, req.query ?? {}, req.signal)) ?? emptyPayload();
       const response = await attachAuthoritativeGeometry(
         database,
         payload,

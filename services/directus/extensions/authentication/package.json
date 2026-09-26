@@ -39,6 +39,11 @@
         "type": "hook",
         "name": "auth/password-guard",
         "source": "src/hooks/password-guard.js"
+      },
+      {
+        "type": "hook",
+        "name": "auth/session-guard",
+        "source": "src/hooks/session-guard.js"
       }
     ],
     "host": "^11.0.0"

@@ -12,13 +12,12 @@ COPY services/directus/extensions /directus/extensions
 COPY services/directus/migrations /directus/migrations
 COPY services/directus/package.json services/directus/pnpm-lock.yaml /directus/service-package/
 COPY scripts/refresh-dashboard-snapshots.sql /directus/scripts/refresh-dashboard-snapshots.sql
-RUN cd /directus/extensions/directus-extension-infografis && pnpm run build
-RUN cd /directus/extensions/directus-extension-tabular && pnpm run build \
-    && cp /directus/scripts/refresh-dashboard-snapshots.sql dist/publish.sql
 # The docs extension has its own lockfile and TypeScript build.
 RUN cd /directus/extensions/docs && pnpm install --frozen-lockfile && pnpm run build
-RUN cd /directus/extensions/directus-extension-analytics-watchdog && pnpm run build
-RUN cd /directus/extensions/directus-extension-analitik && pnpm install --frozen-lockfile && pnpm run build
+# Analytics bundle (/v1/analytics endpoints + watchdog hook), built with the extensions SDK.
+RUN cd /directus/extensions/analytics && pnpm install --frozen-lockfile && pnpm run build
+# Authentication bundle (/v1/auth endpoints + auth.login hook), built with the extensions SDK.
+RUN cd /directus/extensions/authentication && pnpm install --frozen-lockfile && pnpm run build
 
 FROM directus/directus:11.17.4
 USER root

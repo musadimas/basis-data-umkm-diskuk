@@ -3,6 +3,7 @@ import type {
   AnalyticsExportStatus,
   AnalyticsExportType,
 } from "~/types/analytics";
+import { endpoint, fromEnvelope, type Enveloped } from "~/lib/directus";
 import { isUnauthorized } from "~/lib/request-error";
 
 interface ExportRequestBody {
@@ -12,6 +13,7 @@ interface ExportRequestBody {
 }
 
 export function useAnalyticsExports() {
+  const directus = useDirectus();
   const status = shallowRef<AnalyticsExportStatus | null>(null);
   const pending = ref(false);
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -24,9 +26,13 @@ export function useAnalyticsExports() {
     try {
       const body: ExportRequestBody = { exportType: type, config };
       if (profileId) body.profileId = profileId;
-      status.value = await $fetch<AnalyticsExportStatus>(
-        "/panel/analitik/exports",
-        { method: "POST", body, credentials: "include" },
+      status.value = fromEnvelope<AnalyticsExportStatus>(
+        await directus.request(
+          endpoint<Enveloped<AnalyticsExportStatus>, ExportRequestBody>("/v1/analytics/analysis/exports", {
+            method: "POST",
+            body,
+          }),
+        ),
       );
       if (["queued", "processing"].includes(status.value.data.status))
         poll(status.value.data.jobId);
@@ -41,9 +47,10 @@ export function useAnalyticsExports() {
   async function poll(jobId: string) {
     clearTimeout(timer);
     try {
-      const next = await $fetch<AnalyticsExportStatus>(
-        `/panel/analitik/exports/${encodeURIComponent(jobId)}`,
-        { credentials: "include" },
+      const next = fromEnvelope<AnalyticsExportStatus>(
+        await directus.request(
+          endpoint<Enveloped<AnalyticsExportStatus>>(`/v1/analytics/analysis/exports/${encodeURIComponent(jobId)}`),
+        ),
       );
       status.value = next;
       if (["queued", "processing"].includes(next.data.status))

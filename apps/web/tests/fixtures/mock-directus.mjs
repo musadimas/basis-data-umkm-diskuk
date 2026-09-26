@@ -1,7 +1,5 @@
-import { createHmac } from "node:crypto";
+import { createChallenge, pbkdf2 } from "altcha/lib";
 
-const SESSION_POLICY_SECRET = process.env.NUXT_SESSION_POLICY_SECRET || "playwright-session-policy-secret";
-const SESSION_POLICY_COOKIES = ["diskuk_session_started", "diskuk_session_last_activity"];
 const SPATIAL_TILE_ARCHIVE = Buffer.from(
   "UE1UaWxlcwN/AAAAAAAAABkAAAAAAAAAmAAAAAAAAAClAQAAAAAAAD0CAAAAAAAAAAAAAAAAAAA9AgAAAAAAAFoAAAAAAAAAAQAAAAAAAAABAAAAAAAAAAEAAAAAAAAAAQICAQMDAHUiQMAk4/sAdSJAwCTj+wMAdSJAwCTj+x+LCAAAAAAAABNjdGaMYgQAAcZyRAUAAAAfiwgAAAAAAAATtZLPTsMwDMbve4opFy79tw06bRInXgAJbghVWeOO0CauUreiTHt34naMDTjsAOsl/mJ//sXzbiKsNCDWUxF30sUFVgpcEy8p7vr3lyztX1NjVyqbF9dlmqySm5fE/7Y2foyxBpujghgthDVqS1FtSFfQiGAiCnRGEhvXm4IF6uuhD3bgKtmzpKDJna5Jo/0HAt+nOTjPOd6CBScJHSuk6xpyaRGm3TxarqLkLCXDgar5lhri9A8hp1dh6CcB7rY1pbni0GirTWvCd0Rzuxgl+XYmhaEfbQ6MKy1pA04rLW0m1WvbEKhsg61VA/ksWUYpgyRBmEar8fSbOI4r54cPQFz9tBNaibVgNhGc/1fCCx6VkcR64c/y7XguNFTc/lD+QE7brc/3eyZP46aU1Ymw3z/zkvBcSBID7MTAcuef4/doFohPtKfDzRdcfszZAhog1/u7e561v5TkO2xagoPT4kQa3Y6hr/LQp37j1ormk7qTVTtUiZl43gfntcMTL6t+1KTLnw7jUC6zMLp06C34m+wnHw16bxrLAwAAH4sIAAAAAAAAE5Nyq2DiYinNzc7VaFCQYspMkWLJS8xNlGItzk7MSVRi5mI0VGLnYg3JLMnMBjFyM7OL8oUEJRiF2BgYGBmZmJRYOVsk33ACANNfA/1IAAAA",
   "base64",
@@ -36,28 +34,111 @@ async function installSpatialTileArchive(page) {
   });
 }
 
+// A real ALTCHA challenge at minimal cost so the widget solves quickly in the test browser.
+async function mockCaptchaChallenge() {
+  return createChallenge({
+    algorithm: "PBKDF2/SHA-256",
+    cost: 1,
+    deriveKey: pbkdf2.deriveKey,
+    hmacSignatureSecret: "playwright-altcha-secret",
+    expiresAt: new Date(Date.now() + 300_000),
+  });
+}
+
+/**
+ * Mirrors the server response envelope for SDK clients: `meta` travels inside `data`
+ * (analytics bundle `envelope()`, tabular rows/points, auth activity). Handlers below keep
+ * building the legacy `{ data, meta }` shape; `withEnvelope` rewrites it on the way out.
+ */
+const ENVELOPED_PATHS = [
+  [/^\/panel\/v1\/analytics\/analysis\/(query|records|umkm\/|exports)/, "items"],
+  [/^\/panel\/v1\/analytics\/tabular\/$/, "rows"],
+  [/^\/panel\/v1\/analytics\/tabular\/spasial$/, "points"],
+  [/^\/panel\/v1\/auth\/activity$/, "items"],
+];
+
+function envelope(payload, listKey) {
+  if (!payload || typeof payload !== "object" || !("meta" in payload) || !("data" in payload)) return payload;
+  const { data, meta, ...rest } = payload;
+  return { ...rest, data: Array.isArray(data) ? { [listKey]: data, meta } : { ...data, meta } };
+}
+
+function withEnvelope(route, path) {
+  const match = ENVELOPED_PATHS.find(([pattern]) => pattern.test(path));
+  if (!match) return route;
+  return {
+    request: () => route.request(),
+    fulfill: (options) =>
+      route.fulfill(
+        typeof options.body === "string" && options.contentType === "application/json"
+          ? { ...options, body: JSON.stringify(envelope(JSON.parse(options.body), match[1])) }
+          : options,
+      ),
+  };
+}
+
+export const MOCK_USER = {
+  id: "user-1",
+  email: "analyst@example.invalid",
+  first_name: "Analis",
+  last_name: "Provinsi",
+  role: "7d6d493c-1a6d-4c59-9e74-40d42a7862eb",
+  app_role: "provinsi",
+  instansi: "DISKUK Provinsi Jawa Barat",
+};
+
 export async function installMockDirectus(
   page,
-  { authenticated = false, renderMap = false, spatialTileset = null, serveSpatialTiles = false } = {},
+  { authenticated = false, renderMap = false, spatialTileset = null, serveSpatialTiles = false, requests = [] } = {},
 ) {
   let loggedIn = authenticated;
   if (serveSpatialTiles) await installSpatialTileArchive(page);
-  await page.route("**/panel/**", async (route) => {
-    const request = route.request();
+  await page.route("**/panel/**", async (playwrightRoute) => {
+    const request = playwrightRoute.request();
     const url = new URL(request.url());
     const path = url.pathname;
+    const route = withEnvelope(playwrightRoute, path);
+    if (path.startsWith("/panel/v1/auth/") || path.startsWith("/panel/auth/") || path === "/panel/users/me") {
+      requests.push({ method: request.method(), path, body: request.postDataJSON?.() ?? null });
+    }
+    if (path === "/panel/v1/auth/captcha/challenge") {
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(await mockCaptchaChallenge()) });
+      return;
+    }
     if (path === "/panel/auth/login") {
+      const body = request.postDataJSON();
+      if (!body?.captcha || !body?.email || body?.password === "wrong-password") {
+        await route.fulfill({
+          status: 401,
+          contentType: "application/json",
+          body: JSON.stringify({ errors: [{ message: "Invalid user credentials.", extensions: { code: "INVALID_CREDENTIALS" } }] }),
+        });
+        return;
+      }
       loggedIn = true;
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ data: { expires: "2099-01-01T00:00:00Z" } }),
-      });
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: { expires: 28_800_000 } }) });
+      return;
+    }
+    if (path === "/panel/auth/password/request" || path === "/panel/auth/password/reset") {
+      await route.fulfill({ status: 204, body: "" });
       return;
     }
     if (path === "/panel/auth/logout") {
       loggedIn = false;
       await route.fulfill({ status: 204, body: "" });
+      return;
+    }
+    if (path === "/panel/users/me" && request.method() === "PATCH" && loggedIn) {
+      const body = request.postDataJSON();
+      if (body?.password !== undefined && body?.current_password !== "current-password") {
+        await route.fulfill({
+          status: 400,
+          contentType: "application/json",
+          body: JSON.stringify({ errors: [{ message: "The current password is incorrect.", extensions: { code: "CURRENT_PASSWORD_INVALID" } }] }),
+        });
+        return;
+      }
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: MOCK_USER }) });
       return;
     }
     if (path === "/panel/users/me") {
@@ -69,18 +150,7 @@ export async function installMockDirectus(
         });
         return;
       }
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          data: {
-            id: "user-1",
-            email: "analyst@example.invalid",
-            first_name: "Analis",
-            role: "7d6d493c-1a6d-4c59-9e74-40d42a7862eb",
-          },
-        }),
-      });
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: MOCK_USER }) });
       return;
     }
     if (!loggedIn) {
@@ -91,7 +161,21 @@ export async function installMockDirectus(
       });
       return;
     }
-    if (path === "/panel/tabular/options") {
+    if (path === "/panel/v1/auth/activity") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: [
+            { kind: "session", action: "login", collection: null, item: null, ip: "10.0.0.7", user_agent: "Mozilla/5.0 (Windows NT 10.0) Chrome/140.0", reason: null, timestamp: "2026-09-26T08:00:00Z" },
+            { kind: "session", action: "login_failed", collection: null, item: null, ip: "10.0.0.9", user_agent: "curl/8.0", reason: "INVALID_CREDENTIALS", timestamp: "2026-09-25T22:00:00Z" },
+          ],
+          meta: { page: 1, limit: 20, hasMore: false },
+        }),
+      });
+      return;
+    }
+    if (path === "/panel/v1/analytics/tabular/options") {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -106,11 +190,11 @@ export async function installMockDirectus(
       });
       return;
     }
-    if (path === "/panel/tabular/spasial/tileset") {
+    if (path === "/panel/v1/analytics/tabular/spasial/tileset") {
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: spatialTileset }) });
       return;
     }
-    if (path === "/panel/tabular/spasial") {
+    if (path === "/panel/v1/analytics/tabular/spasial") {
       const skala = url.searchParams.get("skala");
       const allPoints = Array.from({ length: 4 }, (_, index) => ({
         id: `22222222-2222-4222-8222-${String(index + 1).padStart(12, "0")}`,
@@ -129,7 +213,7 @@ export async function installMockDirectus(
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: points, meta: { filterCount: skala ? points.length : 12, mikro: points.filter((item) => item.skala === "micro").length, kecil: points.filter((item) => item.skala === "small").length, menengah: 0 } }) });
       return;
     }
-    if (path === "/panel/tabular/kelurahan") {
+    if (path === "/panel/v1/analytics/tabular/kelurahan") {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -137,7 +221,7 @@ export async function installMockDirectus(
       });
       return;
     }
-    if (path === "/panel/tabular/") {
+    if (path === "/panel/v1/analytics/tabular/") {
       const allRows = Array.from({ length: 12 }, (_, index) => ({
         id: `11111111-1111-4111-8111-${String(index + 1).padStart(12, "0")}`,
         nama: `Usaha ${String(index + 1).padStart(2, "0")}`,
@@ -180,7 +264,7 @@ export async function installMockDirectus(
       });
       return;
     }
-    if (path === "/panel/infografis/") {
+    if (path === "/panel/v1/analytics/infographic/") {
       const filtered = url.searchParams.has("skala");
       const regions = renderMap
         ? Array.from({ length: 27 }, (_, index) => {
@@ -307,7 +391,7 @@ export async function installMockDirectus(
       });
       return;
     }
-    if (path === "/panel/analitik/metadata") {
+    if (path === "/panel/v1/analytics/analysis/metadata") {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -372,7 +456,7 @@ export async function installMockDirectus(
       });
       return;
     }
-    if (path === "/panel/analitik/templates") {
+    if (path === "/panel/v1/analytics/analysis/templates") {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -398,7 +482,7 @@ export async function installMockDirectus(
       });
       return;
     }
-    if (path === "/panel/analitik/query") {
+    if (path === "/panel/v1/analytics/analysis/query") {
       const config = request.postDataJSON() || {};
       const financial = config.metric === "omzet_tahunan";
       await route.fulfill({
@@ -488,7 +572,7 @@ export async function installMockDirectus(
       });
       return;
     }
-    if (path === "/panel/analitik/records") {
+    if (path === "/panel/v1/analytics/analysis/records") {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -509,7 +593,7 @@ export async function installMockDirectus(
       });
       return;
     }
-    if (path.startsWith("/panel/analitik/umkm/")) {
+    if (path.startsWith("/panel/v1/analytics/analysis/umkm/")) {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -559,7 +643,7 @@ export async function installMockDirectus(
       });
       return;
     }
-    if (path === "/panel/analitik/metadata/options") {
+    if (path === "/panel/v1/analytics/analysis/metadata/options") {
       // Mock opsi filter: skala statis, wilayah dari daftar pendek.
       const fieldId = url.searchParams.get("fieldId") || "";
       const search = (url.searchParams.get("search") || "").toLowerCase();
@@ -591,7 +675,7 @@ export async function installMockDirectus(
       });
       return;
     }
-    if (path === "/panel/infografis/map") {
+    if (path === "/panel/v1/analytics/infographic/map") {
       const regions = Array.from({ length: 27 }, (_, index) => {
         const longitude = 106 + (index % 9) * 0.25;
         const latitude = -7.5 + Math.floor(index / 9) * 0.25;
@@ -651,6 +735,11 @@ export async function installMockDirectus(
   });
 }
 
+/** The captcha widget mounts client-side only, so its presence means the form has hydrated. */
+export async function waitForCaptchaForm(page) {
+  await page.locator("altcha-widget").waitFor({ state: "attached", timeout: 15000 });
+}
+
 export async function loginMock(page, returnTo = "/dashboard") {
   await page.goto(`/sign-in?returnTo=${encodeURIComponent(returnTo)}`);
   await page.getByLabel("Email").waitFor({ state: "visible", timeout: 15000 });
@@ -671,15 +760,6 @@ export async function loginMock(page, returnTo = "/dashboard") {
   await page
     .getByRole("textbox", { name: "Kata sandi" })
     .fill("not-a-real-secret");
-  const issuedAt = Math.floor(Date.now() / 1000);
-  await page.context().addCookies(SESSION_POLICY_COOKIES.map((name) => ({
-    name,
-    value: `${issuedAt}.${createHmac("sha256", SESSION_POLICY_SECRET).update(`${name}.${issuedAt}`).digest("base64url")}`,
-    url: new URL(page.url()).origin,
-    httpOnly: true,
-    sameSite: "Lax",
-    secure: false,
-  })));
   await page.getByRole("button", { name: "Masuk" }).click();
   await page.waitForURL((url) => url.pathname === returnTo, { timeout: 10000 });
 }

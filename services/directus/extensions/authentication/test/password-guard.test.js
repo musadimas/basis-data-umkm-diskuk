@@ -74,3 +74,10 @@ test("updates that are not your own password pass through unchanged", async () =
   assert.deepEqual(await filter({ password: "reset-by-admin-1" }, otherUser, self(true)), { password: "reset-by-admin-1" });
   assert.equal(verified.length, 0);
 });
+
+test("reset requests from the Data Studio origin skip the captcha", async () => {
+  const { middlewares } = setup({ env: { ...TEST_ENV, PUBLIC_URL: "http://localhost:8055" } });
+  const req = { headers: { origin: "http://localhost:8055" }, body: { email: "a@b.id" } };
+  assert.equal(await runMiddleware(middlewares["POST /auth/password/request"], req), undefined);
+  assert.equal(req.body.email, "a@b.id");
+});

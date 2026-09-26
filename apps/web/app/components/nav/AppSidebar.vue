@@ -1,18 +1,14 @@
 <script setup lang="ts">
 import type { SidebarProps } from "../ui/sidebar/index";
 import { useSidebar } from "../ui/sidebar/utils";
-import { LogOut, PanelLeft } from "@lucide/vue";
-import { useAuth } from "~/composables/useAuth";
+import { PanelLeft } from "@lucide/vue";
 import { NAVIGATION_LINKS } from "~/constants";
 
 const props = withDefaults(defineProps<SidebarProps>(), {
   collapsible: "icon",
 });
 
-const auth = useAuth();
 const { toggleSidebar } = useSidebar();
-const displayName = computed(() => auth.user.value?.first_name || auth.user.value?.email || "Pengguna DisKUK");
-const initials = computed(() => displayName.value.slice(0, 1).toUpperCase());
 </script>
 
 <template>
@@ -40,14 +36,8 @@ const initials = computed(() => displayName.value.slice(0, 1).toUpperCase());
       />
     </UiSidebarContent>
     <UiSidebarFooter>
-      <div class="flex items-center gap-2 px-3 py-2 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-2">
-        <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-400 text-xs font-bold text-amber-950">
-          {{ initials }}
-        </div>
-        <div class="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
-          <div class="truncate text-sm font-medium text-sidebar-foreground">{{ displayName }}</div>
-          <div class="truncate text-xs text-sidebar-foreground/60">{{ auth.user.value?.email || "Akun Pengelola" }}</div>
-        </div>
+      <!-- Identity and the account menu live in NavTopbar (top right). -->
+      <div class="flex justify-end px-3 py-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-2">
         <button
           type="button"
           class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/60 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
@@ -55,15 +45,6 @@ const initials = computed(() => displayName.value.slice(0, 1).toUpperCase());
           @click="toggleSidebar"
         >
           <PanelLeft class="h-4 w-4" />
-        </button>
-        <button
-          type="button"
-          class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/60 transition-colors hover:bg-sidebar-accent hover:text-destructive"
-          aria-label="Keluar"
-          :disabled="auth.pending.value"
-          @click="auth.logout"
-        >
-          <LogOut class="h-4 w-4" />
         </button>
       </div>
     </UiSidebarFooter>

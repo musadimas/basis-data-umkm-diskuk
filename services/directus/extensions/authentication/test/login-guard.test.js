@@ -93,3 +93,20 @@ test("login outcomes are recorded by the auth.login action", async () => {
     ],
   );
 });
+
+test("the Data Studio origin (PUBLIC_URL) may log in without a captcha", async () => {
+  const env = { ...TEST_ENV, PUBLIC_URL: "http://localhost:8055/" };
+  const { handlers } = setup({ env });
+  const studio = { accountability: { ...CONTEXT.accountability, origin: "http://localhost:8055" } };
+  assert.deepEqual(await handlers["filter:auth.login"](credentials, META, studio), credentials);
+  await assert.rejects(handlers["filter:auth.login"](credentials, META, CONTEXT), { code: "INVALID_CREDENTIALS" });
+});
+
+test("captcha exemption follows AUTH_CAPTCHA_EXEMPT_ORIGINS and can be disabled", async () => {
+  const studio = { accountability: { ...CONTEXT.accountability, origin: "http://localhost:8055" } };
+  const disabled = setup({ env: { ...TEST_ENV, PUBLIC_URL: "http://localhost:8055", AUTH_CAPTCHA_EXEMPT_ORIGINS: "none" } });
+  await assert.rejects(disabled.handlers["filter:auth.login"](credentials, META, studio), { code: "INVALID_CREDENTIALS" });
+
+  const listed = setup({ env: { ...TEST_ENV, AUTH_CAPTCHA_EXEMPT_ORIGINS: "https://admin.example.test, http://localhost:8055" } });
+  assert.deepEqual(await listed.handlers["filter:auth.login"](credentials, META, studio), credentials);
+});

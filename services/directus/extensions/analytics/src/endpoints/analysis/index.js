@@ -12,10 +12,21 @@ const signals = { requests: 0, errors: 0, timeouts: 0, durations: [] };
 function jsonBody(req) {
   return req.body && typeof req.body === "object" ? req.body : {};
 }
+/**
+ * Response envelope: `data` is always the whole payload and `meta` travels inside it
+ * (`{ meta, data: {...} }` -> `{ data: { ...data, meta } }`). The Directus SDK unwraps the
+ * top-level `data` key, so anything left beside it would be lost to SDK clients.
+ */
+function envelope(payload) {
+  if (!payload || typeof payload !== "object" || !("meta" in payload) || !("data" in payload)) return payload;
+  const { data, meta, ...rest } = payload;
+  const inner = data && typeof data === "object" && !Array.isArray(data) ? { ...data, meta } : { items: data, meta };
+  return { ...rest, data: inner };
+}
 function finish(res, payload, requestId, status = 200) {
   res.setHeader?.("Cache-Control", "private, no-store");
   res.setHeader?.("X-Request-Id", requestId);
-  res.status(status).json(payload);
+  res.status(status).json(envelope(payload));
 }
 function wrap(req, res, next, task) {
   if (!routeGuard(req, next)) return;

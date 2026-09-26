@@ -356,17 +356,20 @@ export default function registerTabularRoutes(router, { database, logger }) {
       const last = dataRows.at(-1);
       const nextCursor = hasNext && last ? signCursor({ nama: last.nama, id: last.id }) : null;
 
+      // `meta` lives inside `data` because the Directus SDK unwraps the top-level `data` key.
       res.json({
-        data: dataRows,
-        meta: {
-          filterCount,
-          mikro: Number(countRow?.mikro ?? 0),
-          kecil: Number(countRow?.kecil ?? 0),
-          menengah: Number(countRow?.menengah ?? 0),
-          page: page ?? undefined,
-          pageSize,
-          nextCursor,
-          hasNext,
+        data: {
+          rows: dataRows,
+          meta: {
+            filterCount,
+            mikro: Number(countRow?.mikro ?? 0),
+            kecil: Number(countRow?.kecil ?? 0),
+            menengah: Number(countRow?.menengah ?? 0),
+            page: page ?? undefined,
+            pageSize,
+            nextCursor,
+            hasNext,
+          },
         },
       });
     } catch (error) {
@@ -645,14 +648,17 @@ export default function registerTabularRoutes(router, { database, logger }) {
         ), req.signal);
       } catch (e) { mapTimeoutError(e); }
 
+      // `meta` lives inside `data` because the Directus SDK unwraps the top-level `data` key.
       res.json({
-        data: rows(pointResult),
-        meta: {
-          filterCount: Number(countRow?.filterCount ?? 0),
-          mikro: Number(countRow?.mikro ?? 0),
-          kecil: Number(countRow?.kecil ?? 0),
-          menengah: Number(countRow?.menengah ?? 0),
-          limit,
+        data: {
+          points: rows(pointResult),
+          meta: {
+            filterCount: Number(countRow?.filterCount ?? 0),
+            mikro: Number(countRow?.mikro ?? 0),
+            kecil: Number(countRow?.kecil ?? 0),
+            menengah: Number(countRow?.menengah ?? 0),
+            limit,
+          },
         },
       });
     } catch (error) {

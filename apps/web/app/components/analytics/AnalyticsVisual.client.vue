@@ -15,6 +15,7 @@ import {
   formatAnalyticsMetricValue,
   formatAnalyticsPercent,
 } from "~/lib/analytics-format";
+import { endpoint } from "~/lib/directus";
 
 const props = defineProps<{
   groups: AnalyticsGroup[];
@@ -219,16 +220,16 @@ interface RegionGeometry {
   code?: string;
   geometry?: unknown;
 }
+const directus = useDirectus();
 let geometryCache: RegionGeometry[] | null = null;
 let geometryPromise: Promise<RegionGeometry[]> | null = null;
 
 async function loadGeometry(): Promise<RegionGeometry[]> {
   if (geometryCache) return geometryCache;
-  geometryPromise ||= $fetch<{ data: { regions: RegionGeometry[] } }>(
-    "/panel/infografis/map",
-  )
+  geometryPromise ||= directus
+    .request(endpoint<{ regions: RegionGeometry[] }>("/v1/analytics/infographic/map"))
     .then((response) => {
-      geometryCache = response.data.regions || [];
+      geometryCache = response.regions || [];
       return geometryCache;
     })
     .catch(() => {

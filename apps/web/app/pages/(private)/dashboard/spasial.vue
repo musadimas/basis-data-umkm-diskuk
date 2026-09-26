@@ -2,8 +2,8 @@
   Halaman Peta Spasial UMKM (`/dashboard/spasial`).
   Workspace eksplorasi lokasi usaha full screen: koropleth jumlah UMKM per
   wilayah dengan drill-down (kabupaten/kota → kecamatan → desa/kelurahan) dari
-  `/panel/infografis/map`, layer titik usaha berkoordinat (clustered) dari
-  `/panel/tabular/spasial`, dan filter tabular bersama.
+  `/v1/analytics/infographic/map`, layer titik usaha berkoordinat (clustered) dari
+  `/v1/analytics/tabular/spasial`, dan filter tabular bersama.
 -->
 <script setup lang="ts">
 import type {
@@ -15,6 +15,7 @@ import type { TabularSpasialResponse, TabularSpatialTileset } from "~/types/tabu
 import { DASHBOARD_SECTIONS } from "~/constants/DASHBOARD";
 import { defaultAnalysis, serializeAnalysisUrl } from "~/lib/analytics-query";
 import { formatAnalyticsNumber } from "~/lib/analytics-format";
+import { endpoint } from "~/lib/directus";
 import {
   TABULAR_SKALA_TO_API,
   tabularFilterQuery,
@@ -76,9 +77,11 @@ const mapQuery = computed(() => ({
   kecamatan: mapKecamatan.value !== "semua" ? mapKecamatan.value : undefined,
   kelurahan: mapKelurahan.value !== "semua" ? mapKelurahan.value : undefined,
 }));
-const { data: mapData, error: mapError, status: mapStatus } = await useFetch<{ data: InfografisMapData }>(
-  "/panel/infografis/map",
-  { query: mapQuery },
+const directus = useDirectus();
+const { data: mapData, error: mapError, status: mapStatus } = await useAsyncData(
+  "spasial:map",
+  () => directus.request(endpoint<InfografisMapData>("/v1/analytics/infographic/map", { query: { ...mapQuery.value } })),
+  { watch: [mapQuery] },
 );
 
 // ── Titik UMKM (layer utama halaman spasial, aktif sejak awal) ─────────────
@@ -104,11 +107,12 @@ const pointsQuery = computed(() => ({
 }));
 
 // ── Tileset PMTiles (mode titik tanpa batas saat tidak ada filter aktif) ────
-const { data: tilesetResponse } = await useFetch<{ data: TabularSpatialTileset | null }>(
-  "/panel/tabular/spasial/tileset",
-  { default: () => ({ data: null }) },
+const { data: tilesetResponse } = await useAsyncData(
+  "spasial:tileset",
+  () => directus.request(endpoint<TabularSpatialTileset | null>("/v1/analytics/tabular/spasial/tileset")),
+  { default: () => null },
 );
-const tileset = computed<TabularSpatialTileset | null>(() => tilesetResponse.value?.data ?? null);
+const tileset = computed<TabularSpatialTileset | null>(() => tilesetResponse.value ?? null);
 const tileReady = ref(false);
 const tileFailed = ref(false);
 
@@ -146,7 +150,7 @@ const {
   "spasial-points",
   () => tileMode.value
     ? Promise.resolve(null)
-    : $fetch<TabularSpasialResponse>("/panel/tabular/spasial", { query: pointsQuery.value }),
+    : directus.request(endpoint<TabularSpasialResponse>("/v1/analytics/tabular/spasial", { query: { ...pointsQuery.value } })),
 );
 
 watch([pointsQuery, tileMode], () => {
@@ -159,7 +163,7 @@ watch([pointsQuery, tileMode], () => {
 });
 
 const mapPointItems = computed<SpasialUmkmItem[]>(() =>
-  (pointsData.value?.data ?? []).map((point) => ({
+  (pointsData.value?.points ?? []).map((point) => ({
     id: point.id,
     namaUsaha: point.nama,
     skala: apiToSkala[point.skala] ?? "mikro",
@@ -183,7 +187,7 @@ const pointSummary = computed(() => {
   }
   const meta = pointsData.value?.meta;
   if (!meta) return "";
-  const plotted = pointsData.value?.data.length ?? 0;
+  const plotted = pointsData.value?.points.length ?? 0;
   return `Menampilkan ${formatAnalyticsNumber(plotted)} titik dari ${formatAnalyticsNumber(meta.filterCount)} UMKM pada filter aktif.`;
 });
 
@@ -198,7 +202,7 @@ function fallbackFromTiles() {
 }
 
 // ── Interaksi peta ──────────────────────────────────────────────────────────
-const mapInfografis = computed(() => mapData.value?.data);
+const mapInfografis = computed(() => mapData.value ?? undefined);
 const canMapGoBack = computed(() =>
   mapKota.value !== appliedFilters.kabupatenKota
   || mapKecamatan.value !== appliedFilters.kecamatan
@@ -249,7 +253,8 @@ const mapSelectionLabel = computed(() => {
 </script>
 
 <template>
-  <div class="flex h-dvh flex-col gap-3">
+  <!-- Viewport height minus the dashboard top bar (h-14). -->
+  <div class="flex h-[calc(100dvh-3.5rem)] flex-col gap-3">
     <p
       v-if="mapError || pointsError"
       class="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"

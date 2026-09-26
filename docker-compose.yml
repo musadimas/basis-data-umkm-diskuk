@@ -132,6 +132,9 @@ services:
       DB_DATABASE: ${DB_DATABASE}
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
+      # Directus defaults plus the partitioned analytics read model, which cannot have the
+      # single-column primary key Directus requires (see migration 20260926B).
+      DB_EXCLUDE_TABLES: spatial_ref_sys,sysdiagrams,analitik_usaha_current
       STORAGE_LOCATIONS: s3
       STORAGE_S3_DRIVER: s3
       STORAGE_S3_KEY: ${DIRECTUS_STORAGE_ACCESS_KEY}
@@ -153,6 +156,28 @@ services:
       ANALYTICS_EXPORT_DIR: ${ANALYTICS_EXPORT_DIR:-/var/lib/directus/analytics-exports}
       ANALYTICS_REDIS_URL: ${ANALYTICS_REDIS_URL:-redis://redis:6379/0}
       ANALYTICS_REDIS_TTL_SECONDS: ${ANALYTICS_REDIS_TTL_SECONDS:-300}
+      # Authentication: ALTCHA captcha on every local login + password reset.
+      AUTH_CAPTCHA_ENFORCE: ${AUTH_CAPTCHA_ENFORCE:-true}
+      AUTH_CAPTCHA_COST: ${AUTH_CAPTCHA_COST:-5000}
+      # Origins that may log in without a captcha (the Data Studio). "none" here because the web
+      # and Directus share an origin behind Caddy, so exempting it would disable the web captcha.
+      AUTH_CAPTCHA_EXEMPT_ORIGINS: ${AUTH_CAPTCHA_EXEMPT_ORIGINS:-none}
+      # ADR-001 session policy: sign out after this long without requests / this long after login.
+      AUTH_SESSION_IDLE_TIMEOUT: ${AUTH_SESSION_IDLE_TIMEOUT:-30m}
+      AUTH_SESSION_MAX_AGE: ${AUTH_SESSION_MAX_AGE:-8h}
+      # CSRF (ADR-001 #9): origins whose pages may change data with the session cookie.
+      # Empty = PUBLIC_URL's origin, which is also the web's origin behind Caddy.
+      AUTH_ALLOWED_ORIGINS: ${AUTH_ALLOWED_ORIGINS:-}
+      ALTCHA_HMAC_SECRET: ${ALTCHA_HMAC_SECRET:-}
+      AUTH_PASSWORD_RESET_URL: ${AUTH_PASSWORD_RESET_URL:-}
+      PASSWORD_RESET_URL_ALLOW_LIST: ${AUTH_PASSWORD_RESET_URL:-}
+      EMAIL_FROM: ${EMAIL_FROM:-no-reply@diskuk.jabarprov.go.id}
+      EMAIL_TRANSPORT: ${EMAIL_TRANSPORT:-sendmail}
+      EMAIL_SMTP_HOST: ${EMAIL_SMTP_HOST:-}
+      EMAIL_SMTP_PORT: ${EMAIL_SMTP_PORT:-587}
+      EMAIL_SMTP_USER: ${EMAIL_SMTP_USER:-}
+      EMAIL_SMTP_PASSWORD: ${EMAIL_SMTP_PASSWORD:-}
+      EMAIL_SMTP_SECURE: ${EMAIL_SMTP_SECURE:-false}
     networks: [diskuk_net]
 
   web:
@@ -160,7 +185,8 @@ services:
       context: .
       dockerfile: docker/Dockerfile.web
       args:
-        NUXT_PUBLIC_PANEL_URL: ${NUXT_PUBLIC_PANEL_URL}
+        # Directus address baked into the /panel/** route rule at build time.
+        PANEL_URL: ${PANEL_URL:-http://directus:8055}
     restart: unless-stopped
     logging: *default-logging
     ports:
@@ -168,10 +194,6 @@ services:
     depends_on:
       - directus
     environment:
-      NUXT_PUBLIC_PANEL_URL: ${NUXT_PUBLIC_PANEL_URL}
-      NUXT_DIRECTUS_INTERNAL_URL: ${NUXT_DIRECTUS_INTERNAL_URL:-http://directus:8055}
-      NUXT_SESSION_POLICY_SECRET: ${NUXT_SESSION_POLICY_SECRET}
-      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-true}
       ANALYTICS_ENABLE_WORKFORCE: ${ANALYTICS_ENABLE_WORKFORCE:-false}
     networks: [diskuk_net]
 

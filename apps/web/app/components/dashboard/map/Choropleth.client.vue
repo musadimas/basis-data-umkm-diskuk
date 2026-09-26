@@ -282,7 +282,7 @@ function featureCollection(): GeoJSON.FeatureCollection<
             // Label siap pakai untuk simbol counter di atas poligon.
             label: formatAnalyticsNumber(region.value),
           },
-          // SAFETY: endpoint /panel/infografis/map hanya mengirim geometry Polygon/MultiPolygon
+          // SAFETY: endpoint /panel/v1/analytics/infographic/map hanya mengirim geometry Polygon/MultiPolygon
           // (lihat InfografisRegion.geometry), sehingga bentuk GeoJSON ini valid.
           geometry: region.geometry as GeoJSON.Polygon | GeoJSON.MultiPolygon,
         },

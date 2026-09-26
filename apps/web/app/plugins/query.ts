@@ -18,6 +18,8 @@ import { AUTH_ERROR_CODES } from "~/constants";
 interface AuthErrorLike {
   status?: unknown;
   statusCode?: unknown;
+  /** Directus SDK RequestError carries the HTTP response. */
+  response?: { status?: unknown } | null;
   errors?: Array<{ extensions?: { code?: unknown } }>;
 }
 
@@ -31,6 +33,7 @@ function isAuthError<E>(error: E): error is E & AuthErrorLike {
   const candidate = error as AuthErrorLike;
   const errorCode = candidate.errors?.[0]?.extensions?.code;
   return (
+    candidate.response?.status === 401 ||
     candidate.status === 401 ||
     candidate.statusCode === 401 ||
     (isAuthErrorCode(errorCode) && AUTH_ERROR_CODES.has(errorCode))
@@ -55,7 +58,6 @@ export default defineNuxtPlugin((nuxt) => {
   });
   const options: VueQueryPluginOptions = { queryClient };
   nuxt.vueApp.use(VueQueryPlugin, options);
-  nuxt.provide("queryClient", queryClient);
   if (import.meta.server)
     nuxt.hooks.hook("app:rendered", () => {
       vueQueryState.value = dehydrate(queryClient);
@@ -73,4 +75,5 @@ export default defineNuxtPlugin((nuxt) => {
       },
     });
   }
+  return { provide: { queryClient } };
 });

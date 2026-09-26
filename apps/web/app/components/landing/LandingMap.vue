@@ -1,7 +1,7 @@
 <!--
   Peta sebaran UMKM Jawa Barat di landing page.
   Memakai ulang komponen peta yang sama persis dengan dashboard
-  (DashboardMapChoropleth) plus endpoint data yang sama (/panel/infografis/map),
+  (DashboardMapChoropleth) plus endpoint data yang sama (/v1/analytics/infographic/map),
   agar representasi sebaran konsisten di kedua tempat. Poligon bisa diklik untuk
   drill-down wilayah (kab/kota → kecamatan → kelurahan) dengan breadcrumb
   kembali, mengikuti pola yang sama dengan dashboard; saklar "Titik UMKM"
@@ -13,6 +13,7 @@
 import gsap from "gsap";
 import { MapPin } from "@lucide/vue";
 import type { InfografisRegion } from "~/types/infografis";
+import { endpoint } from "~/lib/directus";
 
 const rootRef = useTemplateRef<HTMLElement>("root");
 const headerRef = useTemplateRef<HTMLElement>("header");
@@ -35,14 +36,16 @@ const mapQuery = computed(() => ({
   kecamatan: drillKecamatan.value || undefined,
 }));
 
-const { data: mapData, status } = await useFetch<{ data: LandingMapData }>(
-  "/panel/infografis/map",
-  { query: mapQuery, server: false },
+const directus = useDirectus();
+const { data: mapData, status } = await useAsyncData(
+  "landing:map",
+  () => directus.request(endpoint<LandingMapData>("/v1/analytics/infographic/map", { query: { ...mapQuery.value } })),
+  { watch: [mapQuery], server: false },
 );
 
-const regions = computed<InfografisRegion[]>(() => mapData.value?.data?.regions ?? []);
+const regions = computed<InfografisRegion[]>(() => mapData.value?.regions ?? []);
 const level = computed<"kota" | "kecamatan" | "kelurahan">(() =>
-  mapData.value?.data?.regionLevel ?? "kota",
+  mapData.value?.regionLevel ?? "kota",
 );
 // Nuxt mempertahankan data lama saat refetch query drill-down, jadi peta tidak berkedip
 // ke state "Memuat" di antara level; fallback hanya muncul saat belum ada data sama sekali.

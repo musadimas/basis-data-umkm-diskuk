@@ -1,6 +1,6 @@
 /*
  * Halaman Data Tabular UMKM.
- * Menampilkan data usaha dari Directus (endpoint `/panel/tabular/`) lewat
+ * Menampilkan data usaha dari Directus (endpoint `/panel/v1/analytics/tabular/`) lewat
  * komponen `DashboardTabularData` (kartu skala, filter, paginasi & ekspor
  * server-side), karena jumlah baris mencapai jutaan (snapshot publik
  * `usaha_tabular` yang diterbitkan pasca-ingest SIDT).

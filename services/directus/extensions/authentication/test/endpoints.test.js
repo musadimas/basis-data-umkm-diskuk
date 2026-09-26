@@ -38,8 +38,8 @@ test("activity log requires authentication and paginates", async () => {
   assert.equal(anonymous.nextError.statusCode, 401);
 
   const first = await call(routes, "GET /v1/auth/activity", { ...signedIn, query: { limit: "2", page: "1" } });
-  assert.equal(first.res.body.data.length, 2);
-  assert.deepEqual(first.res.body.meta, { page: 1, limit: 2, hasMore: true });
+  assert.equal(first.res.body.data.items.length, 2);
+  assert.deepEqual(first.res.body.data.meta, { page: 1, limit: 2, hasMore: true });
   const second = await call(routes, "GET /v1/auth/activity", { ...signedIn, query: { limit: "2", page: "2" } });
-  assert.deepEqual(second.res.body.meta, { page: 2, limit: 2, hasMore: false });
+  assert.deepEqual(second.res.body.data.meta, { page: 2, limit: 2, hasMore: false });
 });

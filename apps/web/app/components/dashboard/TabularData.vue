@@ -29,6 +29,8 @@ import type {
   TabularSkalaApi,
 } from "~/types/tabular";
 import { DASHBOARD_SECTIONS } from "~/constants/DASHBOARD";
+import { endpoint, endpointFromPanelUrl } from "~/lib/directus";
+import { requestStatus } from "~/lib/request-error";
 
 const props = withDefaults(defineProps<{
   /** Filter eksternal yang diikuti (mis. filter aktif infografis); disinkronkan saat berubah. */
@@ -85,20 +87,24 @@ const filters = reactive<TabularFilters>({ ...defaultFilters(), ...props.syncFil
 const appliedFilters = reactive<TabularFilters>({ ...defaultFilters(), ...props.syncFilters });
 
 // ── Data opsi filter (dari Directus, dimuat sekali) ───────────────────────
+const directus = useDirectus();
+// Shared key with useTabularFilters: one request for every dashboard component.
 const {
   data: optionsData,
   error: optionsError,
   pending: optionsPending,
   refresh: refreshOptions,
-} = useFetch<{ data: TabularOptions }>("/panel/tabular/options");
+} = useAsyncData("tabular:options", () =>
+  directus.request(endpoint<TabularOptions>("/v1/analytics/tabular/options")),
+);
 
 const kabupatenOptions = computed(() => [
   { value: "semua", label: "Kabupaten/Kota" },
-  ...(optionsData.value?.data?.kota ?? []).map((k) => ({ value: String(k.id), label: k.nama })),
+  ...(optionsData.value?.kota ?? []).map((k) => ({ value: String(k.id), label: k.nama })),
 ]);
 
 const kecamatanOptions = computed(() => {
-  const list = optionsData.value?.data?.kecamatan ?? [];
+  const list = optionsData.value?.kecamatan ?? [];
   const kotaId = Number(filters.kabupatenKota);
   const scoped = Number.isInteger(kotaId) && kotaId > 0 ? list.filter((k) => k.kotaId === kotaId) : list;
   return [
@@ -109,11 +115,11 @@ const kecamatanOptions = computed(() => {
 
 const kegiatanOptions = computed(() => [
   { value: "semua", label: "Kegiatan Usaha" },
-  ...(optionsData.value?.data?.kategori ?? []).map((k) => ({ value: k, label: k })),
+  ...(optionsData.value?.kategori ?? []).map((k) => ({ value: k, label: k })),
 ]);
 
 const kbliOptions = computed(() => {
-  const list: TabularKbliOption[] = optionsData.value?.data?.kbli ?? [];
+  const list: TabularKbliOption[] = optionsData.value?.kbli ?? [];
   const scoped = filters.kegiatanUsaha === "semua" ? list : list.filter((k) => k.kategori === filters.kegiatanUsaha);
   return [
     { value: "semua", label: "Kode KBLI" },
@@ -141,10 +147,10 @@ const loadKelurahan = async (kecamatanId: string) => {
   kelurahanPending.value = true;
   kelurahanError.value = false;
   try {
-    const res = await $fetch<{ data: TabularKelurahanItem[] }>("/panel/tabular/kelurahan", {
-      query: { kecamatan: kecamatanId },
-    });
-    kelurahanCache.set(kecamatanId, res.data ?? []);
+    const items = await directus.request(
+      endpoint<TabularKelurahanItem[]>("/v1/analytics/tabular/kelurahan", { query: { kecamatan: kecamatanId } }),
+    );
+    kelurahanCache.set(kecamatanId, items ?? []);
   } catch {
     kelurahanCache.set(kecamatanId, []);
     kelurahanError.value = true;
@@ -183,7 +189,7 @@ watch(
   () => filters.kegiatanUsaha,
   (v) => {
     if (v === "semua" || filters.kodeKbli === "semua") return;
-    const list = optionsData.value?.data?.kbli ?? [];
+    const list = optionsData.value?.kbli ?? [];
     if (!list.some((k) => k.kategori === v && k.kode === filters.kodeKbli)) {
       filters.kodeKbli = "semua";
     }
@@ -240,10 +246,14 @@ const {
   pending: rowsPending,
   error: rowsError,
   refresh: refreshRows,
-} = useFetch<TabularRowsResponse>("/panel/tabular/", { query: rowsQuery, lazy: true });
+} = useAsyncData(
+  "tabular:rows",
+  () => directus.request(endpoint<TabularRowsResponse>("/v1/analytics/tabular/", { query: { ...rowsQuery.value } })),
+  { watch: [rowsQuery], lazy: true },
+);
 
 const pagedRows = computed<TabularUmkmItem[]>(() =>
-  (rowsData.value?.data ?? []).map((r) => ({
+  (rowsData.value?.rows ?? []).map((r) => ({
     id: r.id,
     namaUsaha: r.nama,
     skala: apiToSkala[r.skala] ?? "mikro",
@@ -404,26 +414,32 @@ const exportCsv = async () => {
   isExporting.value = true;
   try {
     const payload = { ...filterQuery.value, max_rows: 50000 };
-    const submit = await $fetch<{ data: { jobId: string; status: string; downloadUrl?: string } }>("/panel/tabular/export", {
-      method: "POST",
-      body: payload,
-    });
-    const jobId = submit?.data?.jobId;
-    let downloadUrl = submit?.data?.downloadUrl;
+    const submit = await directus.request(
+      endpoint<{ jobId: string; status: string; downloadUrl?: string }, typeof payload>("/v1/analytics/tabular/export", {
+        method: "POST",
+        body: payload,
+      }),
+    );
+    const jobId = submit?.jobId;
+    let downloadUrl = submit?.downloadUrl;
     // Poll if not yet completed
-    let status = submit?.data?.status;
+    let status = submit?.status;
     let attempts = 0;
     while (jobId && status !== "completed" && status !== "failed" && attempts < 30) {
       await new Promise((r) => setTimeout(r, 800));
-      const st = await $fetch<{ data: { status: string; downloadUrl?: string } }>(`/panel/tabular/export/${jobId}`);
-      status = st?.data?.status;
-      downloadUrl = st?.data?.downloadUrl || downloadUrl;
+      const st = await directus.request(
+        endpoint<{ status: string; downloadUrl?: string }>(`/v1/analytics/tabular/export/${jobId}`),
+      );
+      status = st?.status;
+      downloadUrl = st?.downloadUrl || downloadUrl;
       if (status === "failed") throw new Error("Export failed");
       if (status === "completed" && downloadUrl) break;
       attempts += 1;
     }
     if (!downloadUrl) throw new Error("Export not ready");
-    const blob = await $fetch<Blob>(downloadUrl, { responseType: "blob" });
+    // Signed download link issued by the server; the SDK hands back the raw CSV Response.
+    const download = await directus.request(endpointFromPanelUrl<Response>(downloadUrl));
+    const blob = await download.blob();
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -433,10 +449,10 @@ const exportCsv = async () => {
     a.remove();
     window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-    if (message.includes("504")) {
+    const status = requestStatus(err);
+    if (status === 504) {
       exportError.value = "Ekspor melebihi batas waktu. Coba filter yang lebih spesifik.";
-    } else if (message.includes("404") || message.includes("501") || message.includes("500")) {
+    } else if (status === 404 || status === 501 || status === 500) {
       exportError.value = "Ekspor belum tersedia. Hubungi administrator atau coba lagi nanti.";
     } else {
       exportError.value = "Gagal mengunduh CSV. Silakan coba lagi.";
