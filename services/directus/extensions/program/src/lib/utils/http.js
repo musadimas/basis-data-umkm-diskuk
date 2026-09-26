@@ -26,6 +26,11 @@ export function sendError(res, logger, error) {
     res.status(error.statusCode).json({ errors: [{ message: error.message, extensions: { code: error.code } }] });
     return;
   }
+  // foreign_key_violation: the body referenced a file, user or item that does not exist.
+  if (error?.code === "23503") {
+    res.status(400).json({ errors: [{ message: "A referenced item does not exist.", extensions: { code: "INVALID_REFERENCE" } }] });
+    return;
+  }
   logger.error(sanitizeError(error), "Program endpoint failed");
   res.status(500).json({ errors: [{ message: "The request could not be processed.", extensions: { code: "INTERNAL_SERVER_ERROR" } }] });
 }

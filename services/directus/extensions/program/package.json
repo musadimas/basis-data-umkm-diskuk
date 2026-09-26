@@ -27,6 +27,11 @@
         "type": "endpoint",
         "name": "v1/program/legalitas",
         "source": "src/endpoints/legalitas/index.js"
+      },
+      {
+        "type": "endpoint",
+        "name": "v1/program/talent",
+        "source": "src/endpoints/talent/index.js"
       }
     ],
     "host": "^11.0.0"

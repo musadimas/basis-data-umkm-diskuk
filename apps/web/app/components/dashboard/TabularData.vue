@@ -17,6 +17,7 @@ import {
   LoaderCircle,
   MoreHorizontal,
   RotateCcw,
+  Sparkles,
 } from "@lucide/vue";
 
 import type { ScaleStatItem, SkalaUsaha, TabularUmkmItem } from "~/types/dashboard";
@@ -716,11 +717,17 @@ const exportCsv = async () => {
                     <MoreHorizontal class="h-4 w-4" />
                   </button>
                 </UiDropdownMenuTrigger>
-                <UiDropdownMenuContent align="end" class="w-44">
+                <UiDropdownMenuContent align="end" class="w-56">
                   <UiDropdownMenuItem as-child>
                     <NuxtLink :to="`/dashboard/umkm/${r.id}`" class="cursor-pointer">
                       <Eye class="mr-2 h-4 w-4" />
                       Lihat Profil UMKM
+                    </NuxtLink>
+                  </UiDropdownMenuItem>
+                  <UiDropdownMenuItem as-child>
+                    <NuxtLink :to="`/dashboard/talent/ajukan/${r.id}`" class="cursor-pointer">
+                      <Sparkles class="mr-2 h-4 w-4" />
+                      Ajukan ke Talent Scouting
                     </NuxtLink>
                   </UiDropdownMenuItem>
                 </UiDropdownMenuContent>

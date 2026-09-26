@@ -1,0 +1,30 @@
+openapi: 3.0.3
+info:
+  title: Program UMKM API (Brief Fitur)
+  version: "1.0.0"
+  description: Programme modules (legalitas, Talent Scouting). Authenticated unless marked public. Owner NIK is always masked.
+servers:
+  - url: /panel/v1/program
+security:
+  - Session: []
+components:
+  securitySchemes:
+    Session:
+      type: apiKey
+      in: cookie
+      name: diskuk_session
+  parameters:
+    UsahaId: { in: path, name: usahaId, required: true, schema: { type: string, format: uuid } }
+    Id: { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+paths:
+  /legalitas/{usahaId}: { get: { tags: [Program], parameters: [{ $ref: "#/components/parameters/UsahaId" }], responses: { "200": { description: Certificates of one business }, "404": { description: Business not found } } } }
+  /talent/usaha/{usahaId}: { get: { tags: [Talent Scouting], parameters: [{ $ref: "#/components/parameters/UsahaId" }], responses: { "200": { description: SIDT summary with masked NIK, certificates and latest submission } } } }
+  /talent/pengajuan:
+    get: { tags: [Talent Scouting], parameters: [{ in: query, name: status, schema: { type: string, enum: [draft, dinilai, disetujui, ditolak] } }], responses: { "200": { description: Submissions, best score first } } }
+    post: { tags: [Talent Scouting], requestBody: { required: true, content: { application/json: { schema: { type: object, required: [usaha] } } } }, responses: { "201": { description: Draft submission }, "409": { description: PENGAJUAN_SUDAH_ADA } } }
+  /talent/pengajuan/{id}: { patch: { tags: [Talent Scouting], parameters: [{ $ref: "#/components/parameters/Id" }], responses: { "200": { description: Updated draft; previous score cleared }, "409": { description: PENGAJUAN_CLOSED } } } }
+  /talent/pengajuan/{id}/hitung-skor: { post: { tags: [Talent Scouting], parameters: [{ $ref: "#/components/parameters/Id" }], responses: { "200": { description: Scored submission (placeholder rubric until the official one arrives) } } } }
+  /talent/pengajuan/{id}/tolak: { post: { tags: [Talent Scouting], parameters: [{ $ref: "#/components/parameters/Id" }], responses: { "200": { description: Rejected submission } } } }
+  /talent/berita-acara:
+    get: { tags: [Talent Scouting], responses: { "200": { description: Issued Berita Acara } } }
+    post: { tags: [Talent Scouting], requestBody: { required: true, content: { application/json: { schema: { type: object, required: [pengajuan], properties: { pengajuan: { type: array, maxItems: 200, items: { type: string, format: uuid } }, catatan: { type: string } } } } } }, responses: { "201": { description: Berita Acara issued; businesses moved to talent_pool }, "409": { description: PENGAJUAN_BELUM_DINILAI } } }

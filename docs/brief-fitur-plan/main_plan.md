@@ -80,7 +80,14 @@ The public pages (katalog, kegiatan, FAQ, klinik, passport verification) need da
 
 ---
 
-## Phase 3: Modul 4, Talent Scouting
+## Phase 3: Modul 4, Talent Scouting — implemented
+
+> **As built:** migration `20260926E-create-talent-scouting.js`, endpoints under `/v1/program/talent`, pages `/dashboard/talent/ajukan/[usahaId]` and `/dashboard/talent/kurasi`.
+> Differences from the text below:
+> - `talent_pengajuan.berita_acara` is a many-to-one link. A submission belongs to at most one Berita Acara, so no junction table is needed.
+> - Status transitions: submitting sets `nominated`, scoring sets `scouting`, and the Berita Acara sets `talent_pool`. That matches the "Masukkan ke Talent Pool" button. Rejecting returns the business to `none`.
+> - The Berita Acara PDF (`berkas`) is empty until open decision 3 (PDF generation) is settled.
+> - Scores are stored with `rubrik_versi = 'placeholder-v0'` and the UI warns while that rubric is in use.
 
 ### Collections
 
@@ -290,7 +297,7 @@ CAPTCHA and rate limiting protect the form. The NIB/NIK lookup and ticket creati
 
 1. ~~Phase 0: Foundations~~ (done)
 2. ~~Phase 1: Login and profile~~ (already built)
-3. Phase 3: Talent Scouting
+3. ~~Phase 3: Talent Scouting~~ (done)
 4. Phase 4: Weekly KPI monitoring
 5. Phase 6.1: Katalog
 6. Phase 5: Talent Passport
