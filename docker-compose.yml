@@ -153,6 +153,18 @@ services:
       ANALYTICS_EXPORT_DIR: ${ANALYTICS_EXPORT_DIR:-/var/lib/directus/analytics-exports}
       ANALYTICS_REDIS_URL: ${ANALYTICS_REDIS_URL:-redis://redis:6379/0}
       ANALYTICS_REDIS_TTL_SECONDS: ${ANALYTICS_REDIS_TTL_SECONDS:-300}
+      OPERASIONAL_INTERNAL_SECRET: ${OPERASIONAL_INTERNAL_SECRET:-}
+      RATE_LIMITER_ENABLED: ${RATE_LIMITER_ENABLED:-true}
+      RATE_LIMITER_STORE: memory
+      RATE_LIMITER_POINTS: ${RATE_LIMITER_POINTS:-60}
+      RATE_LIMITER_DURATION: ${RATE_LIMITER_DURATION:-10s}
+      IP_TRUST_PROXY: loopback,uniquelocal
+      PASSWORD_RESET_URL_ALLOW_LIST: ${PASSWORD_RESET_URL_ALLOW_LIST:-}
+      EMAIL_TRANSPORT: ${EMAIL_TRANSPORT:-sendmail}
+      EMAIL_SMTP_HOST: ${EMAIL_SMTP_HOST:-}
+      EMAIL_SMTP_PORT: ${EMAIL_SMTP_PORT:-}
+      EMAIL_FROM: ${EMAIL_FROM:-no-reply@diskuk.jabarprov.go.id}
+      FILES_MAX_UPLOAD_SIZE: 10mb
     networks: [diskuk_net]
 
   web:
@@ -173,6 +185,7 @@ services:
       NUXT_SESSION_POLICY_SECRET: ${NUXT_SESSION_POLICY_SECRET}
       SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-true}
       ANALYTICS_ENABLE_WORKFORCE: ${ANALYTICS_ENABLE_WORKFORCE:-false}
+      OPERASIONAL_INTERNAL_SECRET: ${OPERASIONAL_INTERNAL_SECRET:-}
     networks: [diskuk_net]
 
   analytics-worker:
@@ -225,6 +238,14 @@ services:
       ANALYTICS_EXPORT_BUCKET: ${ANALYTICS_EXPORT_BUCKET}
     depends_on:
       - web
+    networks: [diskuk_net]
+
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    logging: *default-logging
+    ports:
+      - "127.0.0.1:8025:8025"
     networks: [diskuk_net]
 
 volumes:
