@@ -16,8 +16,10 @@ import type {
   TabularSpasialResponse,
 } from "~/types/tabular";
 import { DASHBOARD_SECTIONS } from "~/constants/DASHBOARD";
+import { lockedKotaId } from "~/constants/ROLES";
 import { defaultAnalysis, serializeAnalysisUrl } from "~/lib/analytics-query";
 import { sectorForKbli } from "~/lib/kbli-sectors";
+import { useAuth } from "~/composables/useAuth";
 definePageMeta({
   layout: "dashboard",
 });
@@ -42,8 +44,13 @@ const workforceEnabled = computed(
   () => runtimeConfig.public.enableWorkforce === true,
 );
 
+const auth = useAuth();
+// Admin kab/kota terkunci pada kotaannya: filter kota diisi sejak awal dan
+// dropdown kabupaten/kota dinonaktifkan.
+const lockedKota = computed(() => lockedKotaId(auth.user.value));
+
 const defaultFilters = (): TabularFilters => ({
-  kabupatenKota: "semua",
+  kabupatenKota: lockedKota.value ?? "semua",
   kecamatan: "semua",
   desaKelurahan: "semua",
   skala: "semua",
@@ -326,11 +333,23 @@ const resetFilters = () => {
 
 const infografis = computed(() => data.value?.data);
 const mapInfografis = computed(() => mapData.value?.data ?? infografis.value);
-const canMapGoBack = computed(() =>
-  [mapKota.value, mapKecamatan.value, mapKelurahan.value].some(
-    (value) => value !== "semua",
-  ),
-);
+const canMapGoBack = computed(() => {
+  if (
+    [mapKota.value, mapKecamatan.value, mapKelurahan.value].every(
+      (value) => value === "semua",
+    )
+  )
+    return false;
+  // Kabkota tanpa drill-down tambahan sudah berada di level terdalam miliknya.
+  if (
+    lockedKota.value &&
+    mapKota.value === lockedKota.value &&
+    mapKecamatan.value === "semua" &&
+    mapKelurahan.value === "semua"
+  )
+    return false;
+  return true;
+});
 
 function openRegion(region: { id: string; name?: string }) {
   const level = mapInfografis.value?.regionLevel ?? "kota";
@@ -353,7 +372,7 @@ function mapBack() {
     mapKecamatan.value = "semua";
     mapKecamatanName.value = "";
   } else {
-    mapKota.value = "semua";
+    mapKota.value = lockedKota.value ?? "semua";
     mapKotaName.value = "";
   }
 }
@@ -637,7 +656,7 @@ const kbliCodesBySector = computed<Record<string, KbliCodeItem[]>>(() => {
             >Kabupaten/Kota</label
           >
           <UiSelect v-model="filters.kabupatenKota">
-            <UiSelectTrigger id="infografis-kabupaten" size="sm" class="w-full">
+            <UiSelectTrigger id="infografis-kabupaten" size="sm" class="w-full" :disabled="Boolean(lockedKota)">
               <UiSelectValue placeholder="Semua Kabupaten/Kota" />
             </UiSelectTrigger>
             <UiSelectContent>

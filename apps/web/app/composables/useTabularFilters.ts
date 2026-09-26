@@ -11,6 +11,8 @@ import type {
   TabularKelurahanItem,
   TabularOptions,
 } from "~/types/tabular";
+import { lockedKotaId } from "~/constants/ROLES";
+import { useAuth } from "~/composables/useAuth";
 
 /** Konversi nilai skala UI (Indonesia) ke nilai enum API snapshot. */
 export const TABULAR_SKALA_TO_API = new Map<string, string>([
@@ -41,8 +43,16 @@ export function tabularFilterQuery(applied: TabularFilters) {
 }
 
 export function useTabularFilters() {
-  const filters = reactive(defaultTabularFilters());
-  const appliedFilters = reactive(defaultTabularFilters());
+  const auth = useAuth();
+  // Admin kab/kota terkunci pada kotaannya: filter kota diisi sejak awal dan
+  // tidak dapat diubah (dropdown kabupaten/kota dinonaktifkan).
+  const lockedKota = computed(() => lockedKotaId(auth.user.value));
+  const defaultFiltersWithLock = (): TabularFilters => ({
+    ...defaultTabularFilters(),
+    kabupatenKota: lockedKota.value ?? "semua",
+  });
+  const filters = reactive(defaultFiltersWithLock());
+  const appliedFilters = reactive(defaultFiltersWithLock());
   const filterOpen = ref(false);
 
   const { data: optionsData, error: optionsError } = useFetch<{ data: TabularOptions }>(
@@ -135,8 +145,8 @@ export function useTabularFilters() {
 
   const applyFilters = () => Object.assign(appliedFilters, filters);
   const resetFilters = () => {
-    Object.assign(filters, defaultTabularFilters());
-    Object.assign(appliedFilters, defaultTabularFilters());
+    Object.assign(filters, defaultFiltersWithLock());
+    Object.assign(appliedFilters, defaultFiltersWithLock());
   };
 
   return {
@@ -144,6 +154,7 @@ export function useTabularFilters() {
     appliedFilters,
     filterOpen,
     optionsError,
+    lockedKota,
     kabupatenOptions,
     kecamatanOptions,
     desaKelurahanOptions,

@@ -42,6 +42,7 @@ const {
   appliedFilters,
   filterOpen,
   optionsError,
+  lockedKota,
   kabupatenOptions,
   kecamatanOptions,
   desaKelurahanOptions,
@@ -249,7 +250,7 @@ const mapSelectionLabel = computed(() => {
 </script>
 
 <template>
-  <div class="flex h-dvh flex-col gap-3">
+  <div class="flex h-[calc(100dvh-3.5rem)] flex-col gap-3">
     <p
       v-if="mapError || pointsError"
       class="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"
@@ -335,7 +336,7 @@ const mapSelectionLabel = computed(() => {
         <div class="space-y-1.5">
           <label for="spasial-kabupaten" class="text-xs font-semibold">Kabupaten/Kota</label>
           <UiSelect v-model="filters.kabupatenKota">
-            <UiSelectTrigger id="spasial-kabupaten" size="sm" class="w-full">
+            <UiSelectTrigger id="spasial-kabupaten" size="sm" class="w-full" :disabled="Boolean(lockedKota)">
               <UiSelectValue placeholder="Semua Kabupaten/Kota" />
             </UiSelectTrigger>
             <UiSelectContent>

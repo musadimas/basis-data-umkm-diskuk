@@ -7,6 +7,7 @@
  */
 <script setup lang="ts">
 import {
+  Award,
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
@@ -16,6 +17,7 @@ import {
   Filter,
   LoaderCircle,
   MoreHorizontal,
+  Pencil,
   RotateCcw,
 } from "@lucide/vue";
 
@@ -29,6 +31,8 @@ import type {
   TabularSkalaApi,
 } from "~/types/tabular";
 import { DASHBOARD_SECTIONS } from "~/constants/DASHBOARD";
+import { lockedKotaId } from "~/constants/ROLES";
+import { useAuth } from "~/composables/useAuth";
 
 const props = withDefaults(defineProps<{
   /** Filter eksternal yang diikuti (mis. filter aktif infografis); disinkronkan saat berubah. */
@@ -72,8 +76,11 @@ const skalaOptions = [
 ];
 
 // ── Filter state (draft vs. applied on "Filter Data") ─────────────────────
+const auth = useAuth();
+// Admin kab/kota terkunci pada kotaannya: filter kota default mengikuti kunci.
+const lockedKota = computed(() => lockedKotaId(auth.user.value));
 const defaultFilters = (): TabularFilters => ({
-  kabupatenKota: "semua",
+  kabupatenKota: lockedKota.value ?? "semua",
   kecamatan: "semua",
   desaKelurahan: "semua",
   skala: "semua",
@@ -481,7 +488,7 @@ const exportCsv = async () => {
     <!-- Filter strip: langsung di atas tabel, tanpa panel/card -->
     <div class="mb-2 flex flex-wrap items-center gap-2">
       <div class="min-w-36 flex-1 basis-36">
-        <UiSelect v-model="filters.kabupatenKota" :disabled="optionsPending || Boolean(optionsError)">
+        <UiSelect v-model="filters.kabupatenKota" :disabled="optionsPending || Boolean(optionsError) || Boolean(lockedKota)">
           <UiSelectTrigger aria-label="Kabupaten/Kota" size="sm" class="w-full">
             <UiSelectValue placeholder="Semua Kabupaten/Kota" />
           </UiSelectTrigger>
@@ -700,11 +707,23 @@ const exportCsv = async () => {
                     <MoreHorizontal class="h-4 w-4" />
                   </button>
                 </UiDropdownMenuTrigger>
-                <UiDropdownMenuContent align="end" class="w-44">
+                <UiDropdownMenuContent align="end" class="w-52">
                   <UiDropdownMenuItem as-child>
                     <NuxtLink :to="`/dashboard/umkm/${r.id}`" class="cursor-pointer">
                       <Eye class="mr-2 h-4 w-4" />
                       Lihat Profil UMKM
+                    </NuxtLink>
+                  </UiDropdownMenuItem>
+                  <UiDropdownMenuItem as-child>
+                    <NuxtLink :to="`/dashboard/data-lapangan/${r.id}`" class="cursor-pointer">
+                      <Pencil class="mr-2 h-4 w-4" />
+                      Ubah Data Lapangan
+                    </NuxtLink>
+                  </UiDropdownMenuItem>
+                  <UiDropdownMenuItem as-child>
+                    <NuxtLink :to="`/dashboard/talenta/ajukan/${r.id}`" class="cursor-pointer">
+                      <Award class="mr-2 h-4 w-4" />
+                      Ajukan ke Talent Scouting
                     </NuxtLink>
                   </UiDropdownMenuItem>
                 </UiDropdownMenuContent>
