@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Tanggal:** 18 Agustus 2026
-- **Keputusan target:** belum diimplementasikan
+- **Keputusan target:** diimplementasikan pada `extensions/shared/auth.cjs`, middleware proxy panel web, dan session policy; verifikasi runtime produksi belum dilakukan
 
 ## Context
 

@@ -2,7 +2,7 @@
 
 - **Status:** Accepted dengan risiko monitoring eksternal
 - **Tanggal:** 18 Agustus 2026
-- **Keputusan target:** belum diimplementasikan
+- **Keputusan target:** sebagian diimplementasikan pada `services/analytics-worker/src/watchdog.js` dan tabel `analitik_health`; integrasi monitoring/alerting eksternal belum ada
 
 ## Context
 

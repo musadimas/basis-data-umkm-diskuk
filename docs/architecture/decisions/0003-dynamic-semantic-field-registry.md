@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Tanggal:** 18 Agustus 2026
-- **Keputusan target:** belum diimplementasikan
+- **Keputusan target:** diimplementasikan pada tabel `analitik_field`, registry sync worker, dan query-compiler; verifikasi runtime produksi belum dilakukan
 
 ## Context
 

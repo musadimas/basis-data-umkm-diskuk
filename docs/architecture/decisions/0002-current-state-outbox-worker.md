@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Tanggal:** 18 Agustus 2026
-- **Keputusan target:** belum diimplementasikan
+- **Keputusan target:** diimplementasikan pada `services/analytics-worker`, trigger outbox, dan migrasi `analitik_*`; verifikasi runtime produksi (SLO ≤60 detik) belum dilakukan
 
 ## Context
 

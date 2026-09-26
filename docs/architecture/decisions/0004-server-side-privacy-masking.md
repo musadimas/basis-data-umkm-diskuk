@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Tanggal:** 18 Agustus 2026
-- **Keputusan target:** belum diimplementasikan
+- **Keputusan target:** diimplementasikan pada projector worker (`safeProjection`) dan read model `analitik_usaha_*`; verifikasi runtime produksi belum dilakukan
 
 ## Context
 
