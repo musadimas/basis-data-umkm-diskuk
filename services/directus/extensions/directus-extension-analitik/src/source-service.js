@@ -82,11 +82,7 @@ async function resolveAnalyticsSource(database) {
 // request; a 5s TTL keeps promotion lag negligible while removing one round
 // trip per request. Callers must treat the returned object as immutable.
 async function resolveAnalyticsSourceCached(database) {
-  const cached = sourceCache.get();
-  if (cached) return cached;
-  const source = await resolveAnalyticsSource(database);
-  if (source) sourceCache.set(source);
-  return source;
+  return sourceCache.getOrLoad(() => resolveAnalyticsSource(database));
 }
 
 module.exports = {

@@ -7,10 +7,26 @@ const REGISTRY_TTL_MS = 60_000;
 
 function createTtlCache(ttlMs) {
   let entry = null;
+  let pending = null;
   return {
     get() { if (entry && Date.now() - entry.at < ttlMs) return entry.value; return null; },
     set(value) { entry = { at: Date.now(), value }; },
-    clear() { entry = null; },
+    getOrLoad(loader) {
+      const cached = this.get();
+      if (cached !== null) return Promise.resolve(cached);
+      if (!pending) {
+        const request = Promise.resolve().then(loader).then((value) => {
+          // clear() may invalidate an older lookup while it is still running.
+          if (pending === request && value != null) this.set(value);
+          return value;
+        }).finally(() => {
+          if (pending === request) pending = null;
+        });
+        pending = request;
+      }
+      return pending;
+    },
+    clear() { entry = null; pending = null; },
   };
 }
 
@@ -18,12 +34,10 @@ const sourceCache = createTtlCache(SOURCE_TTL_MS);
 const registryCache = createTtlCache(REGISTRY_TTL_MS);
 
 async function loadRegistryCached(database) {
-  const cached = registryCache.get();
-  if (cached) return cached;
-  const result = await database.raw(`SELECT id,semantic_id,lifecycle_status,semantic_role FROM analitik_field`);
-  const registry = result.rows ?? result[0] ?? [];
-  registryCache.set(registry);
-  return registry;
+  return registryCache.getOrLoad(async () => {
+    const result = await database.raw(`SELECT id,semantic_id,lifecycle_status,semantic_role FROM analitik_field`);
+    return result.rows ?? result[0] ?? [];
+  });
 }
 
 function __resetRuntimeCachesForTests() { sourceCache.clear(); registryCache.clear(); }
