@@ -1,8 +1,8 @@
+const { withBudgetTransaction } = require("./query-budget.js");
 const { AnalyticsApiError } = require("./errors.js");
 const { baseMeta } = require("./meta.js");
 const { compileQuery } = require("./query-compiler.js");
 const { resolveAnalyticsSourceCached } = require("./source-service.js");
-const { QUERY_BUDGET } = require("../../../analytics-shared/contracts.cjs");
 const {
   loadRegistryCached,
   __resetRuntimeCachesForTests,
@@ -554,24 +554,6 @@ async function queryGenerationScaleRollup(database, source, plan) {
     missing,
     needsVerification,
   });
-}
-
-async function withBudgetTransaction(database, fn) {
-  if (typeof database.transaction === "function") {
-    return database.transaction(async (trx) => {
-      // Fail-closed: if budget cannot be enforced, abort the request rather than run unbounded
-      await trx.raw(
-        `SET LOCAL statement_timeout = '${QUERY_BUDGET.statementTimeoutMs}ms'`,
-      );
-      await trx.raw(
-        `SET LOCAL lock_timeout = '${QUERY_BUDGET.lockTimeoutMs}ms'`,
-      );
-      await trx.raw(`SET TRANSACTION READ ONLY`);
-      return fn(trx);
-    });
-  }
-  // Fallback for test mocks without transaction support
-  return fn(database);
 }
 
 async function queryAnalytics(database, request, opts = {}) {

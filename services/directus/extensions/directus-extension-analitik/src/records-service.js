@@ -1,3 +1,4 @@
+const { withBudgetTransaction } = require("./query-budget.js");
 const crypto = require("node:crypto");
 const { AnalyticsApiError } = require("./errors.js");
 const { baseMeta } = require("./meta.js");
@@ -7,7 +8,6 @@ const {
   loadRegistryCached,
   __resetRuntimeCachesForTests,
 } = require("./runtime-cache.js");
-const { QUERY_BUDGET } = require("../../../analytics-shared/contracts.cjs");
 
 const rateWindowMs = 60_000;
 const maxPerMinute = 30;
@@ -83,22 +83,6 @@ function decodeCursor(value) {
   } catch {
     throw new AnalyticsApiError(400, "CURSOR_INVALID");
   }
-}
-
-async function withBudgetTransaction(database, fn) {
-  if (typeof database.transaction === "function") {
-    return database.transaction(async (trx) => {
-      await trx.raw(
-        `SET LOCAL statement_timeout = '${QUERY_BUDGET.statementTimeoutMs}ms'`,
-      );
-      await trx.raw(
-        `SET LOCAL lock_timeout = '${QUERY_BUDGET.lockTimeoutMs}ms'`,
-      );
-      await trx.raw(`SET TRANSACTION READ ONLY`);
-      return fn(trx);
-    });
-  }
-  return fn(database);
 }
 
 async function listRecords(database, request, opts = {}) {

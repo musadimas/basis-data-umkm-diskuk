@@ -1,7 +1,7 @@
+const { withBudgetTransaction } = require("./query-budget.js");
 const {
   SCHEMA_VERSION,
   FIELD_STATUSES,
-  QUERY_BUDGET,
 } = require("../../../analytics-shared/contracts.cjs");
 function safeField(row) {
   return {
@@ -30,22 +30,6 @@ async function getMetadata(database) {
       .filter((field) => FIELD_STATUSES.includes(field.status)),
     warnings: [],
   };
-}
-
-async function withBudgetTransaction(database, fn) {
-  if (typeof database.transaction === "function") {
-    return database.transaction(async (trx) => {
-      await trx.raw(
-        `SET LOCAL statement_timeout = '${QUERY_BUDGET.statementTimeoutMs}ms'`,
-      );
-      await trx.raw(
-        `SET LOCAL lock_timeout = '${QUERY_BUDGET.lockTimeoutMs}ms'`,
-      );
-      await trx.raw(`SET TRANSACTION READ ONLY`);
-      return fn(trx);
-    });
-  }
-  return fn(database);
 }
 
 async function getOptions(database, query = {}) {
