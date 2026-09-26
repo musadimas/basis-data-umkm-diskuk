@@ -42,12 +42,15 @@ function jsonBody(req) {
   return req.body && typeof req.body === "object" ? req.body : {};
 }
 
+// routeGuard hanya memastikan pengguna aplikasi terautentikasi (semua peran operasional memakai
+// satu UUID role Directus, jadi roleKeyOf selalu "provinsi"). Batas peran per route ditegakkan
+// resolveOperator dari app_role lewat `roles`.
 function wrap(req, res, next, database, task, roles = DATA_ROLES) {
-  if (!routeGuard(req, next, { roles })) return;
+  if (!routeGuard(req, next, { roles: ALL_ROLES })) return;
   const requestId = req.headers?.["x-request-id"];
   Promise.resolve()
     .then(async () => {
-      const operator = await resolveOperator(database, req.accountability);
+      const operator = await resolveOperator(database, req.accountability, { roles });
       return task(operator);
     })
     .then((result) => {
@@ -288,6 +291,8 @@ module.exports = {
         .then(async () => {
           const operator = await resolveOperator(database, req.accountability, {
             requireAssignment: false,
+            // Route berkas terbuka untuk semua peran; hak per berkas diperiksa streamBerkas.
+            roles: ALL_ROLES,
           });
           await streamBerkas(
             { database, services, getSchema },

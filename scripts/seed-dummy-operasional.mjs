@@ -3,18 +3,15 @@
 // Pemakaian: node scripts/seed-dummy-operasional.mjs seed|cleanup
 import process from "node:process";
 
-const ROLE_IDS = {
-  provinsi: "7d6d493c-1a6d-4c59-9e74-40d42a7862eb",
-  kabkota: "ade3c009-8725-46ba-a7a0-904eeba89d01",
-  pendamping: "d824230f-46db-407d-b8ea-fb2ed58c6c4f",
-  umkm: "d821d35e-62e1-4f27-a323-843845d6c965",
-};
+// Seluruh akun operasional memakai satu role Directus (role aplikasi, dibuat migrasi
+// 20260819A); identitas peran sebenarnya ada di kolom directus_users.app_role.
+const APPLICATION_ROLE = "7d6d493c-1a6d-4c59-9e74-40d42a7862eb";
 
 const ACCOUNTS = [
-  { email: "dummy_admin@diskuk.jabarprov.go.id", first_name: "Admin", last_name: "DISKUK Provinsi", role: ROLE_IDS.provinsi },
-  { email: "dummy_admin.subang@jabarprov.go.id", first_name: "Admin", last_name: "Dinas KUK Subang", role: ROLE_IDS.kabkota },
-  { email: "dummy_coach.pendamping@jabarprov.go.id", first_name: "Rina", last_name: "Pendamping Wilayah", role: ROLE_IDS.pendamping },
-  { email: "dummy_wawan.leathercraft@gmail.com", first_name: "Wawan", last_name: "Setiawan", role: ROLE_IDS.umkm },
+  { email: "dummy_admin@diskuk.jabarprov.go.id", first_name: "Admin", last_name: "DISKUK Provinsi", app_role: "provinsi" },
+  { email: "dummy_admin.subang@jabarprov.go.id", first_name: "Admin", last_name: "Dinas KUK Subang", app_role: "kabkota" },
+  { email: "dummy_coach.pendamping@jabarprov.go.id", first_name: "Rina", last_name: "Pendamping Wilayah", app_role: "pendamping" },
+  { email: "dummy_wawan.leathercraft@gmail.com", first_name: "Wawan", last_name: "Setiawan", app_role: "umkm" },
 ];
 
 const action = process.argv[2];
@@ -82,7 +79,7 @@ if (action === "cleanup") {
 
 for (const account of ACCOUNTS) {
   const existing = await request(`/users?filter[email][_eq]=${encodeURIComponent(account.email)}&limit=1`, { headers });
-  const payload = { ...account, password: demoPassword, status: "active" };
+  const payload = { ...account, role: APPLICATION_ROLE, password: demoPassword, status: "active" };
   if (existing?.data?.[0]?.id) {
     await request(`/users/${existing.data[0].id}`, { method: "PATCH", headers, body: JSON.stringify(payload) });
   } else {

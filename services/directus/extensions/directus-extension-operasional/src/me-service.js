@@ -2,7 +2,7 @@
 
 const crypto = require("node:crypto");
 
-const { ROLE_IDS, ROLE_LABELS } = require("../../shared/auth.cjs");
+const { ALL_ROLES, ROLE_LABELS } = require("../../shared/auth.cjs");
 const { resolveOperator } = require("../../shared/operator.cjs");
 const { OperasionalError, validationFailed } = require("./errors.js");
 
@@ -34,6 +34,7 @@ async function getMe(database, accountability) {
   // melihat identitas dasarnya (kota/usaha null) agar UI bisa mengarahkan.
   const operator = await resolveOperator(database, accountability, {
     requireAssignment: false,
+    roles: ALL_ROLES,
   });
   const instansi = instansiOf(operator.role, {
     kotaNama: operator.kotaNama,
@@ -88,9 +89,9 @@ async function resolveNib(database, headers, body) {
   const result = await database.raw(
     `SELECT u.email FROM directus_users u
      JOIN usaha us ON us.id = u.usaha
-     WHERE us.nib = ? AND u.role = ? AND u.status = 'active'
+     WHERE us.nib = ? AND u.app_role = ? AND u.status = 'active'
      LIMIT 1`,
-    [nib, ROLE_IDS.umkm],
+    [nib, "umkm"],
   );
   const rows = result?.rows ?? result ?? [];
   if (!rows.length) {

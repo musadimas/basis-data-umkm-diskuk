@@ -160,8 +160,8 @@ async function listPendamping(database, operator) {
   const res = await database.raw(
     `SELECT u.id, TRIM(COALESCE(u.first_name,'') || ' ' || COALESCE(u.last_name,'')) AS nama, u.email
      FROM directus_users u
-     WHERE u.role = ? AND u.status = 'active' ORDER BY nama ASC`,
-    ["d824230f-46db-407d-b8ea-fb2ed58c6c4f"],
+     WHERE u.app_role = ? AND u.status = 'active' ORDER BY nama ASC`,
+    ["pendamping"],
   );
   return {
     data: rowsOf(res).map((r) => ({
@@ -261,8 +261,8 @@ async function assertPendampingAktif(database, pendampingId) {
     throw validationFailed({ pendampingId: "Pendamping tidak valid" });
   }
   const res = await database.raw(
-    `SELECT id FROM directus_users WHERE id = ? AND role = ? AND status = 'active' LIMIT 1`,
-    [pendampingId, "d824230f-46db-407d-b8ea-fb2ed58c6c4f"],
+    `SELECT id FROM directus_users WHERE id = ? AND app_role = ? AND status = 'active' LIMIT 1`,
+    [pendampingId, "pendamping"],
   );
   if (!rowsOf(res)[0]) throw validationFailed({ pendampingId: "Pendamping tidak aktif" });
 }

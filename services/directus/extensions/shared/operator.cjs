@@ -1,20 +1,38 @@
 "use strict";
 
-const { DashboardAuthError, roleKeyOf } = require("./auth.cjs");
+// Resolver operator dashboard operasional: identitas peran dari kolom `directus_users.app_role`
+// (bukan UUID role Directus, karena semua pengguna operasional memakai satu role aplikasi) dan
+// wilayah dari kolom `kota`. Batas peran per route ditegakkan di sini, bukan di routeGuard.
+const { ALL_ROLES } = require("./auth.cjs");
 
 const DATA_ROLES = ["provinsi", "kabkota"];
 
 const OPERATOR_COLUMNS = `
-  u.id, u.email, u.first_name, u.last_name, u.avatar, u.kota, k.nama AS kota_nama,
+  u.id, u.app_role, u.email, u.first_name, u.last_name, u.avatar, u.kota, k.nama AS kota_nama,
   u.usaha, us.nama AS usaha_nama, us.nib AS usaha_nib
 `;
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+// Bentuknya mengikuti createError() dari @directus/errors: Directus hanya merender status dari
+// error ber-name "DirectusError"; tipe lain diratakan menjadi 500 sehingga 401/403 gerbang
+// wilayah hilang saat error dilewatkan ke next(error).
+class OperatorError extends Error {
+  constructor(status, code, message) {
+    super(message);
+    this.name = "DirectusError";
+    this.status = status;
+    this.statusCode = status;
+    this.code = code;
+    this.extensions = { code, status };
+  }
+}
+
 function mapOperatorRow(row) {
   if (!row) return null;
   return {
     userId: row.id,
+    role: row.app_role ?? null,
     email: row.email ?? null,
     firstName: row.first_name ?? null,
     lastName: row.last_name ?? null,
@@ -27,16 +45,20 @@ function mapOperatorRow(row) {
   };
 }
 
-async function resolveOperator(database, accountability, { requireAssignment = true } = {}) {
-  const role = roleKeyOf(accountability);
-  if (!accountability?.user || !role) {
-    throw new DashboardAuthError(401, "AUTHENTICATION_REQUIRED", "Authentication required");
+/**
+ * `app_role` dan penugasan (`kota`/`usaha`) dibaca dalam satu query ke directus_users.
+ * `roles` adalah peran yang boleh memakai route pemanggil (default DATA_ROLES).
+ */
+async function resolveOperator(database, accountability, { requireAssignment = true, roles = DATA_ROLES } = {}) {
+  if (!accountability?.user) {
+    throw new OperatorError(401, "AUTHENTICATION_REQUIRED", "Authentication required");
   }
   const admin = accountability.admin === true;
-  if (role === "provinsi" && requireAssignment) {
+  // Admin Directus tidak terikat wilayah, jadi tidak perlu baris operator di database.
+  if (admin) {
     return {
       userId: accountability.user,
-      role,
+      role: "provinsi",
       admin,
       email: null,
       firstName: null,
@@ -51,7 +73,7 @@ async function resolveOperator(database, accountability, { requireAssignment = t
   }
 
   if (!UUID_PATTERN.test(accountability.user)) {
-    throw new DashboardAuthError(401, "AUTHENTICATION_REQUIRED", "Authentication required");
+    throw new OperatorError(401, "AUTHENTICATION_REQUIRED", "Authentication required");
   }
 
   const result = await database.raw(
@@ -62,34 +84,42 @@ async function resolveOperator(database, accountability, { requireAssignment = t
      WHERE u.id = ?`,
     [accountability.user],
   );
-  const rows = result?.rows ?? result;
-  const operator = mapOperatorRow(rows?.[0]);
+  const operator = mapOperatorRow((result?.rows ?? result)?.[0]);
   if (!operator) {
-    throw new DashboardAuthError(401, "AUTHENTICATION_REQUIRED", "Authentication required");
+    throw new OperatorError(401, "AUTHENTICATION_REQUIRED", "Authentication required");
+  }
+  // app_role kosong/asing dan peran di luar daftar route ditolak sebelum aturan penugasan:
+  // nilai yang tidak dikenal tidak boleh pernah dianggap sebagai peran dengan akses penuh.
+  if (!ALL_ROLES.includes(operator.role) || !roles.includes(operator.role)) {
+    throw new OperatorError(403, "FORBIDDEN", "Dashboard access is not permitted");
   }
 
   if (requireAssignment) {
-    if (role === "kabkota" && operator.kotaId == null) {
-      throw new DashboardAuthError(403, "KOTA_NOT_ASSIGNED", "Dashboard access is not permitted");
+    if (operator.role === "kabkota" && operator.kotaId == null) {
+      throw new OperatorError(403, "KOTA_NOT_ASSIGNED", "Dashboard access is not permitted");
     }
-    if (role === "umkm" && operator.usahaId == null) {
-      throw new DashboardAuthError(403, "USAHA_NOT_ASSIGNED", "Dashboard access is not permitted");
+    if (operator.role === "umkm" && operator.usahaId == null) {
+      throw new OperatorError(403, "USAHA_NOT_ASSIGNED", "Dashboard access is not permitted");
     }
   }
 
-  return { role, admin, ...operator };
+  return { ...operator, admin };
 }
 
+// kabkota: filter `kota` dari klien dibuang dan diganti kota operator, sehingga hasil
+// tabular/infografis selalu terkunci pada wilayahnya sendiri. Role lain diteruskan apa adanya.
 function scopeTabularQuery(query, operator) {
   if (operator?.role === "kabkota") {
     if (operator.kotaId == null) {
-      throw new DashboardAuthError(403, "KOTA_NOT_ASSIGNED", "Dashboard access is not permitted");
+      throw new OperatorError(403, "KOTA_NOT_ASSIGNED", "Dashboard access is not permitted");
     }
     return { ...query, kota: String(operator.kotaId) };
   }
   return { ...query };
 }
 
+// kabkota: opsi filter kota/kecamatan dipersempit ke kota operator supaya UI tidak
+// menawarkan pilihan di luar wilayahnya.
 function scopeTabularOptions(options, operator) {
   if (operator?.role !== "kabkota" || operator.kotaId == null) {
     return options ?? {};
@@ -103,6 +133,7 @@ function scopeTabularOptions(options, operator) {
 
 module.exports = {
   DATA_ROLES,
+  OperatorError,
   resolveOperator,
   scopeTabularQuery,
   scopeTabularOptions,
