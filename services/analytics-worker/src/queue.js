@@ -60,6 +60,15 @@ export class JobQueue {
       client.release();
     }
   }
+  async release(jobIds) {
+    const ids = (Array.isArray(jobIds) ? jobIds : []).filter((id) => id != null);
+    if (!ids.length) return 0;
+    const result = await this.pool.query(
+      `UPDATE analitik_job SET status='queued', lease_until=NULL, lease_owner=NULL, attempts=GREATEST(attempts-1,0), updated_at=NOW() WHERE id = ANY($1::uuid[]) AND status='processing' AND lease_owner=$2`,
+      [ids, this.workerId],
+    );
+    return result.rowCount;
+  }
   async heartbeat(jobId) {
     await this.pool.query(
       `UPDATE analitik_job SET lease_until=NOW()+make_interval(secs=>$2), updated_at=NOW() WHERE id=$1 AND status='processing' AND lease_owner=$3`,

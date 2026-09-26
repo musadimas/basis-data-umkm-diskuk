@@ -1,6 +1,7 @@
 import { loadConfig } from "./config.js";
 import { createPool, withTransaction } from "./db.js";
 import { JobQueue } from "./queue.js";
+import { JobPoller } from "./poller.js";
 import { projectRecord } from "./projector.js";
 import {
   rebuildCurrentModel,
@@ -22,7 +23,6 @@ const queue = new JobQueue(pool, {
   batchSize: config.batchSize,
 });
 let stopping = false;
-const active = new Set();
 async function handle(job) {
   const leaseTimer = setInterval(
     () => queue.heartbeat(job.id).catch(() => {}),
@@ -53,24 +53,15 @@ async function handle(job) {
     await queue.fail(job, error, logger);
   } finally {
     clearInterval(leaseTimer);
-    active.delete(job.id);
   }
 }
-async function tick() {
-  if (stopping || active.size >= config.concurrency) return;
-  try {
-    const jobs = await queue.claim(config.concurrency - active.size);
-    for (const job of jobs) {
-      if (active.size >= config.concurrency) break;
-      active.add(job.id);
-      void handle(job);
-    }
-  } catch (error) {
-    logger.error("queue_tick_failed", {
-      errorCode: error.code || "QUEUE_FAILED",
-    });
-  }
-}
+const poller = new JobPoller({
+  queue,
+  concurrency: config.concurrency,
+  pollMs: config.pollMs,
+  handle,
+  logger,
+});
 await emitHeartbeat(pool, { service: config.serviceName });
 await syncRegistry(pool, logger).catch((error) =>
   logger.error("registry_sync_failed", {
@@ -82,7 +73,6 @@ await cleanupOldGenerations(pool, { retentionHours: 0 }).catch((error) =>
     errorCode: error.code || "CLEANUP_FAILED",
   }),
 );
-const pollTimer = setInterval(tick, config.pollMs);
 const heartbeatTimer = setInterval(
   () => emitHeartbeat(pool, { service: config.serviceName }).catch(() => {}),
   config.heartbeatSeconds * 1000,
@@ -104,21 +94,18 @@ const generationCleanupTimer = setInterval(
     ),
   24 * 60 * 60 * 1000,
 );
-void tick();
+poller.start();
 async function shutdown(signal) {
   if (stopping) return;
   stopping = true;
-  clearInterval(pollTimer);
   clearInterval(heartbeatTimer);
   clearInterval(healthTimer);
   clearInterval(exportCleanupTimer);
   clearInterval(generationCleanupTimer);
   logger.info("shutdown_requested", { signal });
-  const started = Date.now();
-  while (active.size && Date.now() - started < 110_000)
-    await new Promise((resolve) => setTimeout(resolve, 500));
+  const remaining = await poller.stop(110_000);
   await pool.end();
-  process.exit(active.size ? 1 : 0);
+  process.exit(remaining ? 1 : 0);
 }
 process.on("SIGTERM", () => void shutdown("SIGTERM"));
 process.on("SIGINT", () => void shutdown("SIGINT"));

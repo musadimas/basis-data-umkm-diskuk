@@ -37,7 +37,7 @@ test("daily reconcile checks the active generation without starting a full rebui
   );
   assert.match(
     source,
-    /job\.job_type === "reconcile"\) await reconcileActiveGeneration/,
+    /job\.job_type === "reconcile"\)\s+await reconcileActiveGeneration/,
   );
   assert.doesNotMatch(
     source,
@@ -99,7 +99,7 @@ test("generation partition names are deterministic and reject unsafe input", () 
     "analitik_usaha_g_4afa7fd5_13f2_40da_8a3f_988fc232210b",
   );
   assert.throws(
-    () => generationPartitionName('bad\";DROP TABLE usaha;--'),
+    () => generationPartitionName('bad";DROP TABLE usaha;--'),
     /INVALID_GENERATION_ID/,
   );
 });
