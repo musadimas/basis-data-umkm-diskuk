@@ -3,7 +3,12 @@ import gsap from "gsap";
 import { Minus, Plus } from "@lucide/vue";
 import type { FaqItem } from "@/types/landing";
 
-const faqItems: FaqItem[] = [
+const props = defineProps<{
+  /** FAQ entries from Directus (/bantuan); the landing page falls back to the built-in list. */
+  items?: FaqItem[];
+}>();
+
+const defaultItems: FaqItem[] = [
   {
     question: "Apa itu Program UMKM Naik Kelas?",
     answer:
@@ -35,6 +40,8 @@ const faqItems: FaqItem[] = [
     answer: "Jalan Soekarno-Hatta No. 705 Kota Bandung.",
   },
 ];
+
+const faqItems = computed(() => (props.items?.length ? props.items : defaultItems));
 
 const rootRef = useTemplateRef<HTMLElement>("root");
 const imageRef = useTemplateRef<HTMLElement>("image");

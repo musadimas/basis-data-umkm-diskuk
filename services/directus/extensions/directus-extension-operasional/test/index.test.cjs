@@ -101,31 +101,6 @@ test("semua route operasional menolak anonim dan role asing sebelum DB", async (
     ["GET", "/usaha/:id"],
     ["PATCH", "/usaha/:id"],
     ["POST", "/usaha/:id/verifikasi"],
-    ["GET", "/talenta/prefill/:usahaId"],
-    ["POST", "/talenta/skor"],
-    ["POST", "/talenta"],
-    ["GET", "/talenta"],
-    ["GET", "/talenta/:id"],
-    ["POST", "/talenta/:id/nominasi"],
-    ["POST", "/talenta/:id/tolak"],
-    ["POST", "/berita-acara"],
-    ["GET", "/berita-acara"],
-    ["GET", "/berkas/:fileId"],
-    ["GET", "/batch"],
-    ["POST", "/batch"],
-    ["GET", "/pendamping"],
-    ["GET", "/akselerasi/peserta"],
-    ["POST", "/talenta/:id/tahap"],
-    ["PATCH", "/talenta/:id/program"],
-    ["GET", "/usaha-saya"],
-    ["GET", "/laporan-saya"],
-    ["POST", "/laporan"],
-    ["GET", "/binaan"],
-    ["GET", "/binaan/antrean"],
-    ["GET", "/binaan/:talentaId"],
-    ["POST", "/binaan/:talentaId/rekomendasi"],
-    ["GET", "/laporan/:id"],
-    ["POST", "/laporan/:id/verifikasi"],
   ];
   for (const [method, path] of paths) {
     const anon = await run(r.routes[`${method} ${path}`], { query: {}, body: {}, headers: {} });
@@ -161,7 +136,7 @@ test("/me melayani peran self-scoped tanpa menuntut penugasan", async () => {
   assert.equal(out.res.body.data.usaha, null);
 });
 
-test("pendamping ke endpoint talenta → 403 dari gerbang app_role tanpa menyentuh domain", async () => {
+test("pendamping ke endpoint data lapangan → 403 dari gerbang app_role tanpa menyentuh domain", async () => {
   const queries = [];
   const r = mount(async (sql) => {
     queries.push(sql);
@@ -170,43 +145,16 @@ test("pendamping ke endpoint talenta → 403 dari gerbang app_role tanpa menyent
     }
     throw new Error("domain tidak boleh tersentuh");
   });
-  const out = await run(r.routes["GET /talenta"], {
+  const out = await run(r.routes["GET /usaha/:id"], {
     accountability: { user: OPERATOR_USER, role: APPLICATION_ROLE },
     query: {},
     body: {},
     headers: {},
-    params: {},
+    params: { id: "33333333-3333-4333-8333-000000000001" },
   });
   assert.equal(out.res.statusCode, 403);
   assert.equal(out.res.body.errors[0].extensions.code, "FORBIDDEN");
   assert.equal(queries.length, 1, "hanya query resolusi operator yang dijalankan");
-});
-
-test("roles per route sampai ke resolveOperator: umkm lolos di /usaha-saya", async () => {
-  const umkmRow = operatorRow({
-    app_role: "umkm",
-    kota: null,
-    kota_nama: null,
-    usaha: "44444444-4444-4444-8444-444444444444",
-    usaha_nama: "Wawan Leather",
-    usaha_nib: "9900000000001",
-  });
-  const queries = [];
-  const r = mount(async (sql) => {
-    queries.push(sql);
-    if (sql.includes("FROM directus_users u")) return { rows: [umkmRow] };
-    throw new Error("berhenti setelah gerbang");
-  });
-  const out = await run(r.routes["GET /usaha-saya"], {
-    accountability: { user: OPERATOR_USER, role: APPLICATION_ROLE },
-    query: {},
-    body: {},
-    headers: {},
-    params: {},
-  });
-  // Bila `roles` route tidak diteruskan, gerbang default DATA_ROLES menolak umkm di sini.
-  assert.notEqual(out.res.statusCode, 403, "umkm harus lolos gerbang /usaha-saya");
-  assert.ok(queries.length > 1, "domain query dijalankan setelah gerbang roles route lolos");
 });
 
 test("kabkota lolos gerbang route data (roles default DATA_ROLES)", async () => {
@@ -225,53 +173,4 @@ test("kabkota lolos gerbang route data (roles default DATA_ROLES)", async () => 
   });
   assert.notEqual(out.res.statusCode, 403, "kabkota bukan peran yang ditolak route data");
   assert.ok(queries.length > 1, "domain query dijalankan setelah gerbang roles lolos");
-});
-
-test("kabkota nominasi → 403 dari service", async () => {
-  const dbRaw = async (sql) => {
-    if (sql.includes("FROM directus_users")) {
-      return { rows: [operatorRow({ id: "u-kab" })] };
-    }
-    if (sql.includes("t.*, ko.nama")) {
-      return {
-        rows: [
-          {
-            id: "t-1",
-            usaha: "u-1",
-            kota: 1,
-            status: "diajukan",
-            kapasitas_produksi_bulanan: "1",
-            satuan_kapasitas: "unit",
-            kesiapan_halal: false,
-            kesiapan_pirt_bpom: false,
-            kesiapan_hki: false,
-            adopsi_qris: false,
-            pencatatan_keuangan_digital: false,
-            surat_komitmen: null,
-            skor_finansial: "0",
-            skor_pasar: "0",
-            skor_legalitas: "0",
-            skor_sdm: "0",
-            skor_total: "0",
-            rubrik_versi: 1,
-            rekomendasi: "Belum Direkomendasikan",
-            date_created: "2026-09-20T00:00:00.000Z",
-            berita_acara: null,
-          },
-        ],
-      };
-    }
-    return { rows: [] };
-  };
-  const r = mount(dbRaw);
-  const out = await run(r.routes["POST /talenta/:id/nominasi"], {
-    accountability: { user: OPERATOR_USER, role: APPLICATION_ROLE },
-    query: {},
-    body: {},
-    headers: {},
-    params: { id: "33333333-3333-4333-8333-000000000001" },
-  });
-  assert.equal(out.res.statusCode, 403);
-  assert.equal(out.res.body.errors[0].extensions.code, "FORBIDDEN");
-  assert.equal(out.res.headers["cache-control"], "private, no-store");
 });

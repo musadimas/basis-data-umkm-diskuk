@@ -171,6 +171,35 @@ async function renameSaved(payload: { id: string; name: string }) {
 async function startExport(type: AnalyticsExportType) {
   await exportApi.submit(type, state.applied.value);
 }
+const slidePending = ref(false);
+const slideError = ref<string | null>(null);
+/** Slide PPT: rasterise the rendered chart and build the deck in the browser (lib/analytics-slide). */
+async function exportSlide() {
+  if (!response.value || !metric.value) return;
+  slidePending.value = true;
+  slideError.value = null;
+  try {
+    const { downloadSlideDeck, svgToPng } = await import("~/lib/analytics-slide");
+    // The largest SVG in the visual panel is the chart (small ones are icons).
+    const svgs = [...document.querySelectorAll<SVGSVGElement>('section[aria-labelledby="visual-title"] svg')];
+    const chart = svgs.sort((a, b) => b.getBoundingClientRect().width * b.getBoundingClientRect().height - a.getBoundingClientRect().width * a.getBoundingClientRect().height)[0];
+    await downloadSlideDeck({
+      metric: metric.value,
+      dimensionLabel: dimensionLabel.value,
+      groups: groups.value,
+      total: Number(response.value.data.total ?? 0),
+      filters: applied.filters,
+      fieldLabel: (fieldId) => fields.value.find((field) => field.key === fieldId)?.label || fieldId,
+      dataAsOf: meta.value?.dataAsOf ?? null,
+      chartPng: chart ? await svgToPng(chart) : null,
+    });
+    showExport.value = false;
+  } catch {
+    slideError.value = "Slide PPT tidak dapat dibuat di peramban ini. Coba format lain.";
+  } finally {
+    slidePending.value = false;
+  }
+}
 /** Empty state “Reset filter”: kembalikan konfigurasi default dan langsung jalankan. */
 function resetFromEmptyState() {
   state.reset();
@@ -313,8 +342,10 @@ function clearGroupSelection() {
       v-model="showExport"
       :config="applied"
       :status="exportStatus"
-      :busy="exportPending"
+      :busy="exportPending || slidePending"
+      :error="slideError"
       @submit="startExport"
+      @slide="exportSlide"
     />
   </div>
 </template>

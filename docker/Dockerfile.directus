@@ -12,6 +12,9 @@ COPY services/directus/extensions /directus/extensions
 COPY services/directus/migrations /directus/migrations
 COPY services/directus/package.json services/directus/pnpm-lock.yaml /directus/service-package/
 COPY scripts/refresh-dashboard-snapshots.sql /directus/scripts/refresh-dashboard-snapshots.sql
+# The analytics and program bundles import ../analytics-shared (privacy masking, contracts);
+# rollup inlines it at build time, so it must exist in the builder stage too.
+COPY services/directus/analytics-shared /directus/analytics-shared
 # The docs extension has its own lockfile and TypeScript build.
 RUN cd /directus/extensions/docs && pnpm install --frozen-lockfile && pnpm run build
 # Analytics bundle (/v1/analytics endpoints + watchdog hook), built with the extensions SDK.
@@ -20,6 +23,10 @@ RUN cd /directus/extensions/analytics && pnpm install --frozen-lockfile && pnpm 
 RUN cd /directus/extensions/authentication && pnpm install --frozen-lockfile && pnpm run build
 # Operasional extension (dashboard Y01 endpoints); no dependencies, so a plain copy build.
 RUN cd /directus/extensions/directus-extension-operasional && pnpm run build
+# Program bundle (/v1/program endpoints for the Brief Fitur modules), built with the extensions SDK.
+# Its pnpm-workspace.yaml only carries pnpm 10 "allowBuilds" settings for local development and has
+# no "packages" field, which pnpm 9 rejects ("packages field missing or empty"); drop it first.
+RUN cd /directus/extensions/program && rm -f pnpm-workspace.yaml && pnpm install --frozen-lockfile && pnpm run build
 
 FROM directus/directus:11.17.4
 USER root

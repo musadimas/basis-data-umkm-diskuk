@@ -25,6 +25,22 @@ import {
 import type { InfografisRegion } from "~/types/infografis";
 import type { SkalaUsaha, SpasialUmkmItem } from "~/types/dashboard";
 import { formatAnalyticsNumber } from "~/lib/analytics-format";
+import { TALENT_STATUS } from "~/constants";
+import { endpoint } from "~/lib/directus";
+import type { TalentStatus } from "~/types/program";
+
+interface PetaCard {
+  id: string;
+  nama: string;
+  pemilik: string | null;
+  skala: string | null;
+  kodeKbli: string | null;
+  kegiatanUtama: string | null;
+  omzetTahunan: number | null;
+  sertifikasi: string[];
+  talentStatus: TalentStatus;
+  talentBatch: string | null;
+}
 
 const props = withDefaults(
   defineProps<{
@@ -50,6 +66,11 @@ const props = withDefaults(
     controlsClass?: string;
     /** Kelas posisi kontrol zoom (kanan-bawah di atas atribusi secara bawaan). */
     zoomClass?: string;
+    /**
+     * Klik titik memuat kartu detail privat (/v1/program/peta): pemilik, KBLI, omzet, sertifikasi,
+     * status talent, dan tautan profil. Hanya untuk dashboard yang sudah login.
+     */
+    pointCard?: boolean;
   }>(),
   {
     level: "kota",
@@ -63,6 +84,7 @@ const props = withDefaults(
     heightClass: "h-[480px] lg:h-[620px]",
     controlsClass: "right-3 top-3",
     zoomClass: "bottom-12 right-3",
+    pointCard: false,
   },
 );
 const emit = defineEmits<{
@@ -73,6 +95,8 @@ const emit = defineEmits<{
   "tiles-error": [];
 }>();
 const container = useTemplateRef<HTMLDivElement>("container");
+const directus = useDirectus();
+const router = useRouter();
 
 let map: MapLibreMap | null = null;
 let popup: Popup | null = null;
@@ -438,10 +462,63 @@ function onPointClick(event: MapLayerMouseEvent) {
   meta.className = "text-[11px] text-slate-600";
   meta.textContent = `${String(properties.kota ?? "")} · ${String(properties.kecamatan ?? "")}`;
   content.append(title, badge, produk, meta);
-  popup = new Popup({ closeButton: false, offset: 10, maxWidth: "260px" })
+  popup = new Popup({ closeButton: false, offset: 10, maxWidth: "280px" })
     .setLngLat(event.lngLat)
     .setDOMContent(content)
     .addTo(event.target);
+  if (props.pointCard && properties.id) void loadPointCard(String(properties.id), content, popup);
+}
+
+/** Kartu pin (Brief Fitur Modul 3): muat detail privat lalu ganti isi popup yang masih terbuka. */
+async function loadPointCard(id: string, content: HTMLElement, owner: Popup) {
+  const loading = document.createElement("div");
+  loading.className = "text-[11px] text-slate-400";
+  loading.textContent = "Memuat detail…";
+  content.append(loading);
+  let card: PetaCard;
+  try {
+    card = await directus.request(endpoint<PetaCard>(`/v1/program/peta/${encodeURIComponent(id)}`));
+  } catch {
+    loading.textContent = "Detail tidak dapat dimuat.";
+    return;
+  }
+  if (popup !== owner) return;
+  loading.remove();
+  const rows: [string, string][] = [
+    ["Pemilik", card.pemilik || "–"],
+    ["KBLI", [card.kodeKbli, card.kegiatanUtama].filter(Boolean).join(" · ") || "–"],
+    ["Omzet/tahun", card.omzetTahunan === null ? "Belum tersedia" : new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(card.omzetTahunan)],
+    ["Talent", `${TALENT_STATUS[card.talentStatus]?.label ?? card.talentStatus}${card.talentBatch ? ` · ${card.talentBatch}` : ""}`],
+  ];
+  const list = document.createElement("dl");
+  list.className = "mt-1 grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5 text-[11px]";
+  list.dataset.testid = "pin-card";
+  for (const [label, value] of rows) {
+    const term = document.createElement("dt");
+    term.className = "text-slate-500";
+    term.textContent = label;
+    const detail = document.createElement("dd");
+    detail.className = "text-slate-800";
+    detail.textContent = value;
+    list.append(term, detail);
+  }
+  const badges = document.createElement("div");
+  badges.className = "flex flex-wrap gap-1";
+  for (const jenis of card.sertifikasi) {
+    const chip = document.createElement("span");
+    chip.className = "rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-800";
+    chip.textContent = jenis.toUpperCase();
+    badges.append(chip);
+  }
+  const link = document.createElement("a");
+  link.href = `/dashboard/umkm/${encodeURIComponent(card.id)}`;
+  link.className = "mt-1 inline-block text-[12px] font-semibold text-blue-700 underline";
+  link.textContent = "Buka Profil Lengkap";
+  link.addEventListener("click", (clickEvent) => {
+    clickEvent.preventDefault();
+    void router.push(link.pathname);
+  });
+  content.append(list, ...(card.sertifikasi.length ? [badges] : []), link);
 }
 
 onMounted(() => {

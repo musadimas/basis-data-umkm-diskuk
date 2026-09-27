@@ -1,0 +1,77 @@
+{
+  "name": "@diskuk/program",
+  "description": "Programme endpoints under /v1/program (business certificates; later talent scouting, KPI monitoring, passport, katalog, kegiatan and klinik)",
+  "icon": "workspace_premium",
+  "version": "1.0.0",
+  "private": true,
+  "keywords": [
+    "directus",
+    "directus-extension",
+    "directus-extension-bundle"
+  ],
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "directus:extension": {
+    "type": "bundle",
+    "path": {
+      "app": "dist/app.js",
+      "api": "dist/api.js"
+    },
+    "entries": [
+      {
+        "type": "endpoint",
+        "name": "v1/program/legalitas",
+        "source": "src/endpoints/legalitas/index.js"
+      },
+      {
+        "type": "endpoint",
+        "name": "v1/program/talent",
+        "source": "src/endpoints/talent/index.js"
+      },
+      {
+        "type": "endpoint",
+        "name": "v1/program/kpi",
+        "source": "src/endpoints/kpi/index.js"
+      },
+      {
+        "type": "endpoint",
+        "name": "v1/program/katalog",
+        "source": "src/endpoints/katalog/index.js"
+      },
+      {
+        "type": "endpoint",
+        "name": "v1/program/passport",
+        "source": "src/endpoints/passport/index.js"
+      },
+      {
+        "type": "endpoint",
+        "name": "v1/program/klinik",
+        "source": "src/endpoints/klinik/index.js"
+      },
+      {
+        "type": "endpoint",
+        "name": "v1/program/peta",
+        "source": "src/endpoints/peta/index.js"
+      }
+    ],
+    "host": "^11.0.0"
+  },
+  "scripts": {
+    "build": "directus-extension build",
+    "dev": "directus-extension build -w --no-minify",
+    "validate": "directus-extension validate",
+    "test": "node --test test/*.test.js"
+  },
+  "devDependencies": {
+    "@directus/extensions-sdk": "18.0.5"
+  },
+  "dependencies": {
+    "altcha": "3.2.3",
+    "busboy": "1.6.0"
+  }
+}

@@ -137,6 +137,7 @@ onNuxtReady(() => {
       :height-class="heightClass"
       :controls-class="controlsClass"
       :zoom-class="zoomClass"
+      point-card
       @update:show-regions="emit('update:showRegions', $event)"
       @update:show-points="emit('update:showPoints', $event)"
       @tiles-ready="emit('tiles-ready')"

@@ -1,0 +1,56 @@
+openapi: 3.0.3
+info:
+  title: Program UMKM API (Brief Fitur)
+  version: "1.0.0"
+  description: Programme modules (legalitas, Talent Scouting). Authenticated unless marked public. Owner NIK is always masked.
+servers:
+  - url: /panel/v1/program
+security:
+  - Session: []
+components:
+  securitySchemes:
+    Session:
+      type: apiKey
+      in: cookie
+      name: diskuk_session
+  parameters:
+    UsahaId: { in: path, name: usahaId, required: true, schema: { type: string, format: uuid } }
+    Id: { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+paths:
+  /legalitas/{usahaId}: { get: { tags: [Program], parameters: [{ $ref: "#/components/parameters/UsahaId" }], responses: { "200": { description: Certificates of one business }, "404": { description: Business not found } } } }
+  /talent/usaha/{usahaId}: { get: { tags: [Talent Scouting], parameters: [{ $ref: "#/components/parameters/UsahaId" }], responses: { "200": { description: SIDT summary with masked NIK, certificates and latest submission } } } }
+  /talent/pengajuan:
+    get: { tags: [Talent Scouting], parameters: [{ in: query, name: status, schema: { type: string, enum: [draft, dinilai, disetujui, ditolak] } }], responses: { "200": { description: Submissions, best score first } } }
+    post: { tags: [Talent Scouting], requestBody: { required: true, content: { application/json: { schema: { type: object, required: [usaha] } } } }, responses: { "201": { description: Draft submission }, "409": { description: PENGAJUAN_SUDAH_ADA } } }
+  /talent/pengajuan/{id}: { patch: { tags: [Talent Scouting], parameters: [{ $ref: "#/components/parameters/Id" }], responses: { "200": { description: Updated draft; previous score cleared }, "409": { description: PENGAJUAN_CLOSED } } } }
+  /talent/pengajuan/{id}/hitung-skor: { post: { tags: [Talent Scouting], parameters: [{ $ref: "#/components/parameters/Id" }], responses: { "200": { description: Scored submission (placeholder rubric until the official one arrives) } } } }
+  /talent/pengajuan/{id}/tolak: { post: { tags: [Talent Scouting], parameters: [{ $ref: "#/components/parameters/Id" }], responses: { "200": { description: Rejected submission } } } }
+  /talent/berita-acara:
+    get: { tags: [Talent Scouting], responses: { "200": { description: Issued Berita Acara } } }
+    post: { tags: [Talent Scouting], requestBody: { required: true, content: { application/json: { schema: { type: object, required: [pengajuan], properties: { pengajuan: { type: array, maxItems: 200, items: { type: string, format: uuid } }, catatan: { type: string } } } } } }, responses: { "201": { description: Berita Acara issued; businesses moved to talent_pool }, "409": { description: PENGAJUAN_BELUM_DINILAI } } }
+  /kpi/peserta: { get: { tags: [KPI Mingguan], responses: { "200": { description: Active participants visible to the caller (scoped by app_role) with this week's report status } } } }
+  /kpi/peserta/{id}: { get: { tags: [KPI Mingguan], parameters: [{ $ref: "#/components/parameters/Id" }], responses: { "200": { description: Participant, weekly reports and pitching streak }, "404": { description: Not found or not visible } } } }
+  /kpi/peserta/{id}/laporan: { post: { tags: [KPI Mingguan], parameters: [{ $ref: "#/components/parameters/Id" }], requestBody: { required: true, content: { application/json: { schema: { type: object, required: [mingguKe, realisasiOmzet, jumlahTransaksi, clientUuid], properties: { mingguKe: { type: integer }, realisasiOmzet: { type: integer }, jumlahTransaksi: { type: integer }, kendala: { type: string }, bukti: { type: array, maxItems: 5, items: { type: string, format: uuid } }, clientUuid: { type: string, format: uuid } } } } } }, responses: { "201": { description: Report stored }, "200": { description: Same clientUuid already stored (idempotent), or a rejected report corrected }, "409": { description: LAPORAN_SUDAH_ADA } } } }
+  /kpi/peserta/{id}/pitching: { patch: { tags: [KPI Mingguan], parameters: [{ $ref: "#/components/parameters/Id" }], responses: { "200": { description: Updated participant }, "409": { description: PITCHING_BELUM_MEMENUHI (needs 4 consecutive approved weeks on target) } } } }
+  /kpi/laporan: { get: { tags: [KPI Mingguan], parameters: [{ in: query, name: status, schema: { type: string, enum: [menunggu, disetujui, ditolak] } }], responses: { "200": { description: Review queue } } } }
+  /kpi/laporan/{id}/review: { post: { tags: [KPI Mingguan], parameters: [{ $ref: "#/components/parameters/Id" }], requestBody: { required: true, content: { application/json: { schema: { type: object, required: [keputusan], properties: { keputusan: { type: string, enum: [disetujui, ditolak] }, catatan: { type: string } } } } } }, responses: { "200": { description: Reviewed report }, "400": { description: CATATAN_WAJIB when rejecting without a note }, "409": { description: LAPORAN_SUDAH_DIREVIEW } } } }
+  /katalog/usaha: { get: { tags: [Katalog], parameters: [{ in: query, name: q, schema: { type: string, minLength: 3 } }], responses: { "200": { description: Businesses the caller may manage (curators search by name or NIB) } } } }
+  /katalog/produk:
+    get: { tags: [Katalog], parameters: [{ in: query, name: usaha, required: true, schema: { type: string, format: uuid } }], responses: { "200": { description: Products of one business, any curation status } } }
+    post: { tags: [Katalog], responses: { "201": { description: Product created; waits for curation }, "400": { description: FOTO_TIDAK_VALID when photos are not in the public catalogue folder } } }
+  /katalog/produk/{id}: { patch: { tags: [Katalog], parameters: [{ $ref: "#/components/parameters/Id" }], responses: { "200": { description: Product updated and sent back to curation } } } }
+  /katalog/kurasi: { get: { tags: [Katalog], parameters: [{ in: query, name: status, schema: { type: string, enum: [menunggu, tayang, rekomendasi_marketplace, ditolak] } }], responses: { "200": { description: Curation queue (province/admin) } } } }
+  /katalog/produk/{id}/kurasi: { post: { tags: [Katalog], parameters: [{ $ref: "#/components/parameters/Id" }], responses: { "200": { description: Decision stored }, "400": { description: CATATAN_WAJIB when rejecting without a note } } } }
+  /katalog/loi:
+    get: { tags: [Katalog], responses: { "200": { description: Letters of intent (province/admin) } } }
+    post: { tags: [Katalog], security: [], requestBody: { required: true, content: { application/json: { schema: { type: object, required: [produk, nama, email, pesan, captcha] } } } }, responses: { "201": { description: Letter of intent stored }, "400": { description: CAPTCHA_INVALID or invalid input }, "404": { description: Product not published } } }
+  /passport: { get: { tags: [Talent Passport], parameters: [{ in: query, name: usaha, required: true, schema: { type: string, format: uuid } }], responses: { "200": { description: Active passport and eligibility } } }, post: { tags: [Talent Passport], responses: { "201": { description: Signed passport issued; the previous one is revoked }, "409": { description: PASSPORT_BELUM_MEMENUHI } } } }
+  /passport/{id}/cabut: { post: { tags: [Talent Passport], parameters: [{ $ref: "#/components/parameters/Id" }], responses: { "200": { description: Revoked } } } }
+  /passport/verify/{kode}: { get: { tags: [Talent Passport], security: [], parameters: [{ in: path, name: kode, required: true, schema: { type: string, pattern: "^TP[0-9A-Z]{10}$" } }], responses: { "200": { description: "valid: true with the signed payload and published products, or valid: false with status tidak_valid / dicabut" }, "404": { description: Unknown code } } } }
+  /klinik/lookup: { post: { tags: [Klinik], security: [], requestBody: { required: true, content: { application/json: { schema: { type: object, required: [jenis, nomor, captcha], properties: { jenis: { type: string, enum: [nib, nik] }, nomor: { type: string }, captcha: { type: string } } } } } }, responses: { "200": { description: "Businesses (name, scale, kab/kota, KBLI) with a 30-minute signed ref; never the owner or the business id" } } } }
+  /klinik/slot: { get: { tags: [Klinik], security: [], parameters: [{ in: query, name: poli, required: true, schema: { type: integer } }, { in: query, name: tanggal, required: true, schema: { type: string, format: date } }], responses: { "200": { description: Slot availability (weekdays, tomorrow to +30 days) } } } }
+  /klinik/tiket:
+    post: { tags: [Klinik], security: [], requestBody: { required: true, content: { multipart/form-data: { schema: { type: object, required: [payload, captcha], properties: { payload: { type: string, description: JSON form data }, captcha: { type: string }, lampiran: { type: array, maxItems: 3, items: { type: string, format: binary } } } } } } }, responses: { "201": { description: "Ticket number KLN-YYYY-MM-NNNN" }, "409": { description: SLOT_PENUH } } }
+    get: { tags: [Klinik], parameters: [{ in: query, name: status, schema: { type: string } }], responses: { "200": { description: Tickets for the kanban (staff) } } }
+  /klinik/tiket/{id}: { patch: { tags: [Klinik], parameters: [{ $ref: "#/components/parameters/Id" }], responses: { "200": { description: Updated ticket } } } }
+  /peta/{usahaId}: { get: { tags: [Program], parameters: [{ $ref: "#/components/parameters/UsahaId" }], responses: { "200": { description: "Map pin card: owner name, scale, KBLI, turnover, valid certificates, talent status (no NIK)" } } } }

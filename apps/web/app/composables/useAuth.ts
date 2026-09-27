@@ -12,7 +12,7 @@ export type AuthUser = {
   avatar?: string | null;
   app_role?: AppRole | null;
   instansi?: string | null;
-  /** `directus_users.kota`: integer FK of the assigned wilayah, id only. */
+  /** `directus_users.kota_scope`: integer FK of the assigned wilayah, id only. */
   kota?: number | null;
   /** `directus_users.usaha`: UUID FK of the account's business, id only. */
   usaha?: string | null;
@@ -63,7 +63,7 @@ function relationId<T>(value: T | string | null | undefined): string | null {
 }
 
 /**
- * `directus_users.kota` is an INTEGER FK, so its raw value is a number, a numeric string,
+ * `directus_users.kota_scope` is an INTEGER FK, so its raw value is a number, a numeric string,
  * or an expanded `{ id }` object. `relationId` only accepts strings — it would drop the
  * native number — so integer FKs need their own resolver.
  */
@@ -98,7 +98,7 @@ export function useAuth() {
         avatar: relationId(me.avatar),
         app_role: me.app_role,
         instansi: me.instansi,
-        kota: integerRelationId(me.kota),
+        kota: integerRelationId(me.kota_scope),
         usaha: relationId(me.usaha),
       };
       if (import.meta.client && user.value?.id && user.value.id !== current.id)

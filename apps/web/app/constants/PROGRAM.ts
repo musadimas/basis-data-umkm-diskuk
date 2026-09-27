@@ -1,0 +1,132 @@
+import type { JenisLegalitas, KesiapanLegalitas, PengajuanStatus, StatusLegalitas, TalentStatus } from "~/types/program";
+
+export const TALENT_STATUS: Record<TalentStatus, { label: string; className: string }> = {
+  none: { label: "Belum diajukan", className: "bg-slate-100 text-slate-700" },
+  nominated: { label: "Diajukan", className: "bg-sky-100 text-sky-800" },
+  scouting: { label: "Scouting", className: "bg-indigo-100 text-indigo-800" },
+  talent_pool: { label: "Talent Pool", className: "bg-emerald-100 text-emerald-800" },
+  accelerator: { label: "Akselerator", className: "bg-amber-100 text-amber-900" },
+  champion: { label: "Champion", className: "bg-yellow-300 text-yellow-950" },
+};
+
+export const PENGAJUAN_STATUS: Record<PengajuanStatus, { label: string; className: string }> = {
+  draft: { label: "Draft", className: "bg-slate-100 text-slate-700" },
+  dinilai: { label: "Dinilai", className: "bg-indigo-100 text-indigo-800" },
+  disetujui: { label: "Disetujui", className: "bg-emerald-100 text-emerald-800" },
+  ditolak: { label: "Ditolak", className: "bg-red-100 text-red-800" },
+};
+
+export const JENIS_LEGALITAS: { value: JenisLegalitas; label: string }[] = [
+  { value: "halal", label: "Halal" },
+  { value: "pirt", label: "PIRT" },
+  { value: "bpom", label: "BPOM" },
+  { value: "hki", label: "HKI" },
+  { value: "sni", label: "SNI" },
+  { value: "umku", label: "UMKU" },
+];
+
+export const STATUS_LEGALITAS: Record<StatusLegalitas, { label: string; className: string }> = {
+  dalam_proses: { label: "Dalam proses", className: "bg-amber-100 text-amber-900" },
+  terbit: { label: "Terbit", className: "bg-emerald-100 text-emerald-800" },
+  kedaluwarsa: { label: "Kedaluwarsa", className: "bg-red-100 text-red-800" },
+  dicabut: { label: "Dicabut", className: "bg-slate-200 text-slate-700" },
+};
+
+export const KESIAPAN_LEGALITAS: { value: KesiapanLegalitas; label: string }[] = [
+  { value: "belum", label: "Belum ada" },
+  { value: "dalam_proses", label: "Dalam proses" },
+  { value: "terbit", label: "Sudah terbit" },
+];
+
+export const SKALA_LABEL: Record<string, string> = { micro: "Mikro", small: "Kecil", medium: "Menengah" };
+
+export const SKOR_DIMENSI: { key: "finansial" | "pasar" | "legalitas" | "sdm"; label: string }[] = [
+  { key: "finansial", label: "Finansial" },
+  { key: "pasar", label: "Pasar" },
+  { key: "legalitas", label: "Legalitas" },
+  { key: "sdm", label: "SDM & Komitmen" },
+];
+
+/** Stored with scores computed by the placeholder rubric (see the program extension's scoring.js). */
+export const PLACEHOLDER_RUBRIK = "placeholder-v0";
+
+export const LAPORAN_STATUS: Record<import("~/types/program").LaporanStatus | "belum_mengirim", { label: string; className: string }> = {
+  menunggu: { label: "Menunggu review", className: "bg-amber-100 text-amber-900" },
+  disetujui: { label: "Disetujui", className: "bg-emerald-100 text-emerald-800" },
+  ditolak: { label: "Perlu perbaikan", className: "bg-red-100 text-red-800" },
+  belum_mengirim: { label: "Belum mengirim", className: "bg-slate-200 text-slate-700" },
+};
+
+export const FASE_LABEL: Record<string, string> = {
+  pra_akselerasi: "Pra-akselerasi",
+  akselerasi: "Akselerasi",
+  pasca_akselerasi: "Pasca-akselerasi",
+};
+
+/** Directus asset URL through the same-origin /panel proxy; `width` asks Directus for a resized copy. */
+export function assetUrl(id: string, width?: number) {
+  return `/panel/assets/${encodeURIComponent(id)}${width ? `?width=${width}&quality=75` : ""}`;
+}
+
+/** Directus folder the Public policy may read (migration 20260926G); product photos are uploaded here. */
+export const KATALOG_FOLDER_ID = "6f3c1a9e-2b7d-4e58-9a41-0d5e8c7b2f10";
+
+export const KATEGORI_PRODUK: { value: string; label: string }[] = [
+  { value: "makanan", label: "Makanan" },
+  { value: "minuman", label: "Minuman" },
+  { value: "fashion", label: "Fashion" },
+  { value: "kerajinan", label: "Kerajinan" },
+  { value: "kesehatan_kecantikan", label: "Kesehatan & Kecantikan" },
+  { value: "agribisnis", label: "Agribisnis" },
+  { value: "lainnya", label: "Lainnya" },
+];
+
+export const KURASI_STATUS: Record<import("~/types/program").KurasiStatus, { label: string; className: string }> = {
+  menunggu: { label: "Menunggu kurasi", className: "bg-amber-100 text-amber-900" },
+  tayang: { label: "Tayang", className: "bg-emerald-100 text-emerald-800" },
+  rekomendasi_marketplace: { label: "Rekomendasi Marketplace", className: "bg-indigo-100 text-indigo-800" },
+  ditolak: { label: "Ditolak", className: "bg-red-100 text-red-800" },
+};
+
+/** Talent statuses the catalogue shows as a "Talent Jabar" badge. */
+export const TALENT_BADGE_STATUS = ["talent_pool", "accelerator", "champion"] as const;
+
+export const RADAR_DIMENSI: { key: keyof import("~/types/program").PassportSkor; label: string }[] = [
+  { key: "finansial", label: "Finansial" },
+  { key: "pasar", label: "Pasar" },
+  { key: "legalitas", label: "Legalitas" },
+  { key: "sdm", label: "SDM" },
+  { key: "kinerja", label: "Kinerja Program" },
+];
+
+export const KLINIK_STATUS: { value: import("~/types/program").KlinikStatus; label: string }[] = [
+  { value: "masuk", label: "Tiket Masuk" },
+  { value: "dijadwalkan", label: "Jadwal Ditetapkan" },
+  { value: "berjalan", label: "Sesi Berjalan" },
+  { value: "tindak_lanjut", label: "Tindak Lanjut" },
+  { value: "selesai", label: "Selesai" },
+];
+
+export const KLINIK_PRIORITAS: Record<import("~/types/program").KlinikPrioritas, { label: string; className: string }> = {
+  normal: { label: "Normal", className: "bg-slate-100 text-slate-700" },
+  tinggi: { label: "Tinggi", className: "bg-amber-100 text-amber-900" },
+  mendesak: { label: "Mendesak", className: "bg-red-100 text-red-800" },
+};
+
+export const KLINIK_RUJUKAN: { value: import("~/types/program").KlinikRujukan; label: string }[] = [
+  { value: "sarpras", label: "Program Bantuan Sarpras" },
+  { value: "vokasi", label: "Pelatihan Vokasi" },
+  { value: "mediasi_sapa", label: "Mediasi Kementerian / SAPA UMKM" },
+  { value: "talent_lab", label: "Kurasi Talent Lab" },
+];
+
+/** Placeholder aspects until the official five-aspect framework is confirmed. */
+export const KLINIK_ASPEK: { value: import("~/types/program").KlinikAspek; label: string }[] = [
+  { value: "legalitas", label: "Legalitas" },
+  { value: "keuangan", label: "Keuangan" },
+  { value: "pemasaran", label: "Pemasaran" },
+  { value: "produksi", label: "Produksi" },
+  { value: "sdm", label: "SDM & Manajemen" },
+];
+
+export const KLINIK_SLOTS = ["09:00", "10:30", "13:00", "14:30"];

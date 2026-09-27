@@ -341,7 +341,7 @@ BEGIN
 
   -- Tautkan akun dummy ke wilayah/usaha.
   UPDATE directus_users u
-  SET kota = (
+  SET kota_scope = (
     SELECT k.id FROM kota k JOIN provinsi p ON p.id = k.provinsi
     WHERE lower(p.nama) = 'jawa barat' AND lower(k.nama) LIKE '%subang%'
     LIMIT 1
@@ -357,9 +357,7 @@ BEGIN
 END;
 $seed$;
 
--- ── Y02: 15 atribut Jabar + talenta/BA (skor = literal rubrik v1, terverifikasi
--- silang terhadap omzet/TK seed Y01 di atas: 01→97.75, 02→78.00, 03→93.50,
--- 04→50.44, 05→73.75, 07→19.25, 08→87.88) ───────────────────────────────
+-- ── Y02: 15 atribut Jabar ───────────────────────────────────────────────
 WITH admin AS (
   SELECT
     (SELECT id FROM directus_users WHERE email = 'dummy_admin@diskuk.jabarprov.go.id') AS prov,
@@ -391,132 +389,5 @@ SELECT
 FROM atribut a
 JOIN usaha u ON u.id = a.usaha
 WHERE NOT EXISTS (SELECT 1 FROM usaha_atribut_jabar j WHERE j.usaha = a.usaha);
-
-INSERT INTO talenta_berita_acara (nomor, tanggal, catatan, diterbitkan_oleh)
-SELECT 'dummy_BA-TS/2026/0001', '2026-08-01'::date, 'Seed Y02 disposable',
-  (SELECT id FROM directus_users WHERE email = 'dummy_admin@diskuk.jabarprov.go.id')
-WHERE NOT EXISTS (SELECT 1 FROM talenta_berita_acara WHERE nomor = 'dummy_BA-TS/2026/0001');
-
-WITH admin AS (
-  SELECT
-    (SELECT id FROM directus_users WHERE email = 'dummy_admin@diskuk.jabarprov.go.id') AS prov,
-    (SELECT id FROM directus_users WHERE email = 'dummy_admin.subang@jabarprov.go.id') AS subang,
-    (SELECT id FROM directus_files WHERE filename_download = 'dummy_surat-komitmen.jpg' LIMIT 1) AS surat,
-    (SELECT id FROM talenta_berita_acara WHERE nomor = 'dummy_BA-TS/2026/0001' LIMIT 1) AS ba
-),
-kota_usaha AS (
-  SELECT u.id AS usaha, ko.id AS kota, ko.nama AS kota_nama
-  FROM usaha u
-  LEFT JOIN alamat a ON a.id = u.alamat
-  LEFT JOIN kelurahan kl ON kl.id = a.kelurahan
-  LEFT JOIN kecamatan kc ON kc.id = kl.kecamatan
-  LEFT JOIN kota ko ON ko.id = kc.kota
-),
-talenta_seed(usaha, status, kapasitas, satuan, halal, pirt, hki, qris, catat, surat_ada, fin, pas, leg, sdm, total, rekomendasi, ba_ya, dinominasikan_pada, alasan, ditolak_pada) AS (
-  VALUES
-    ('d0000000-0000-4000-8000-000000000001'::uuid, 'scouting', 1200, 'unit', TRUE,  TRUE,  TRUE,  TRUE,  TRUE,  TRUE,  100.00, 100.00, 100.00, 91.00, 97.75, 'Direkomendasikan Masuk Talent Pool', TRUE,  NULL, NULL, NULL),
-    ('d0000000-0000-4000-8000-000000000002'::uuid, 'scouting', 3000, 'kg',   TRUE,  TRUE,  FALSE, TRUE,  FALSE, TRUE,  64.00,  100.00, 80.00,  68.00, 78.00, 'Direkomendasikan Masuk Talent Pool', TRUE,  NULL, NULL, NULL),
-    ('d0000000-0000-4000-8000-000000000003'::uuid, 'scouting', 800,  'kg',   TRUE,  TRUE,  TRUE,  TRUE,  TRUE,  TRUE,  85.00,  95.00,  100.00, 94.00, 93.50, 'Direkomendasikan Masuk Talent Pool', TRUE,  NULL, NULL, NULL),
-    ('d0000000-0000-4000-8000-000000000004'::uuid, 'diajukan', 150,  'unit', FALSE, FALSE, TRUE,  TRUE,  FALSE, TRUE,  35.00,  78.75,  40.00,  48.00, 50.44, 'Belum Direkomendasikan',               FALSE, NULL, NULL, NULL),
-    ('d0000000-0000-4000-8000-000000000005'::uuid, 'dinilai',  600,  'kg',   TRUE,  TRUE,  FALSE, TRUE,  TRUE,  TRUE,  43.00,  90.00,  80.00,  82.00, 73.75, 'Dipertimbangkan',                        FALSE, '2026-09-22T03:00:00Z', NULL, NULL),
-    ('d0000000-0000-4000-8000-000000000007'::uuid, 'ditolak',  100,  'unit', FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, 17.50,  27.50,  20.00,  12.00, 19.25, 'Belum Direkomendasikan',               FALSE, NULL, 'Kapasitas produksi belum memadai', '2026-07-25T03:00:00Z'),
-    ('d0000000-0000-4000-8000-000000000008'::uuid, 'scouting', 900,  'kg',   TRUE,  TRUE,  TRUE,  TRUE,  TRUE,  TRUE,  72.00,  97.50,  100.00, 82.00, 87.88, 'Direkomendasikan Masuk Talent Pool', TRUE,  NULL, NULL, NULL)
-)
-INSERT INTO talenta (
-  usaha, kota, status, kapasitas_produksi_bulanan, satuan_kapasitas,
-  kesiapan_halal, kesiapan_pirt_bpom, kesiapan_hki, adopsi_qris, pencatatan_keuangan_digital,
-  surat_komitmen, skor_finansial, skor_pasar, skor_legalitas, skor_sdm, skor_total,
-  rubrik_versi, rekomendasi, diajukan_oleh,
-  dinominasikan_oleh, dinominasikan_pada,
-  alasan_penolakan, ditolak_oleh, ditolak_pada, berita_acara
-)
-SELECT
-  s.usaha, ku.kota, s.status, s.kapasitas, s.satuan,
-  s.halal, s.pirt, s.hki, s.qris, s.catat,
-  CASE WHEN s.surat_ada THEN (SELECT surat FROM admin) ELSE NULL END,
-  s.fin, s.pas, s.leg, s.sdm, s.total,
-  1, s.rekomendasi,
-  CASE WHEN ku.kota_nama ILIKE '%subang%' THEN (SELECT subang FROM admin) ELSE (SELECT prov FROM admin) END,
-  CASE WHEN s.status IN ('dinilai','scouting') OR s.dinominasikan_pada IS NOT NULL THEN (SELECT prov FROM admin) ELSE NULL END,
-  s.dinominasikan_pada::timestamptz,
-  s.alasan,
-  CASE WHEN s.status = 'ditolak' THEN (SELECT prov FROM admin) ELSE NULL END,
-  s.ditolak_pada::timestamptz,
-  CASE WHEN s.ba_ya THEN (SELECT ba FROM admin) ELSE NULL END
-FROM talenta_seed s
-JOIN kota_usaha ku ON ku.usaha = s.usaha
-WHERE NOT EXISTS (SELECT 1 FROM talenta t WHERE t.usaha = s.usaha);
-
--- ── Y03: batch program + penugasan pendamping + laporan Jumat ──────────────
--- Batch mulai 35 hari lalu (WIB) agar minggu berjalan = 6 pada hari seed.
-INSERT INTO program_batch (kode, nama, tahap, tanggal_mulai, jumlah_minggu, faktor_target, dibuat_oleh)
-SELECT 'dummy_ACC-2026-B1', 'Batch 1', 'accelerator',
-  (now() AT TIME ZONE 'Asia/Jakarta')::date - 35, 12, 1.20,
-  (SELECT id FROM directus_users WHERE email = 'dummy_admin@diskuk.jabarprov.go.id')
-WHERE NOT EXISTS (SELECT 1 FROM program_batch WHERE kode = 'dummy_ACC-2026-B1');
-
-INSERT INTO program_batch (kode, nama, tahap, tanggal_mulai, jumlah_minggu, faktor_target, dibuat_oleh)
-SELECT 'dummy_TL-2026-B1', 'Talent Lab Batch 1', 'talent_lab',
-  (now() AT TIME ZONE 'Asia/Jakarta')::date - 10, 4, 1.00,
-  (SELECT id FROM directus_users WHERE email = 'dummy_admin@diskuk.jabarprov.go.id')
-WHERE NOT EXISTS (SELECT 1 FROM program_batch WHERE kode = 'dummy_TL-2026-B1');
-
-UPDATE talenta t SET
-  status = 'accelerator',
-  batch = (SELECT id FROM program_batch WHERE kode = 'dummy_ACC-2026-B1'),
-  pendamping = (SELECT id FROM directus_users WHERE email = 'dummy_coach.pendamping@jabarprov.go.id')
-WHERE t.usaha IN ('d0000000-0000-4000-8000-000000000001','d0000000-0000-4000-8000-000000000002','d0000000-0000-4000-8000-000000000008');
-
-UPDATE talenta t SET
-  status = 'talent_lab',
-  batch = (SELECT id FROM program_batch WHERE kode = 'dummy_TL-2026-B1')
-WHERE t.usaha = 'd0000000-0000-4000-8000-000000000003';
-
--- Laporan: client_uuid deterministik, dikirim Jumat WIB (minggu*7-2 hari setelah mulai, jam 10 WIB).
-WITH batch AS (SELECT id, tanggal_mulai FROM program_batch WHERE kode = 'dummy_ACC-2026-B1' LIMIT 1),
-coach AS (SELECT id FROM directus_users WHERE email = 'dummy_coach.pendamping@jabarprov.go.id' LIMIT 1),
-bukti AS (SELECT id FROM directus_files WHERE filename_download = 'dummy_nota-mingguan.jpg' LIMIT 1),
-seed(nn, minggu, omzet, transaksi, status, catatan_pendamping, kendala) AS (
-  VALUES
-    ('01', 1, 16500000, 42, 'disetujui', 'Pertahankan pencatatan harian.', NULL),
-    ('01', 2, 18200000, 47, 'disetujui', 'Target tercapai.', NULL),
-    ('01', 3, 19000000, 51, 'disetujui', 'Bagus, stok bahan kulit aman.', NULL),
-    ('01', 4, 20100000, 55, 'disetujui', 'Konsisten di atas target.', NULL),
-    ('01', 5, 21000000, 58, 'menunggu', NULL, NULL),
-    ('02', 1, 9800000, 130, 'disetujui', 'Target tercapai.', NULL),
-    ('02', 2, 6100000, 88, 'disetujui', 'Harga kedelai naik, evaluasi harga jual.', 'Kenaikan harga bahan baku kedelai'),
-    ('02', 3, 6400000, 90, 'disetujui', 'Perlu bimbingan teknis pemasaran.', NULL),
-    ('08', 1, 8500000, 210, 'disetujui', 'Target tercapai.', NULL),
-    ('08', 2, 8900000, 220, 'disetujui', 'Target tercapai.', NULL),
-    ('08', 3, 7900000, 190, 'ditolak', 'Foto nota tidak terbaca, mohon unggah ulang.', NULL),
-    ('08', 4, 8600000, 205, 'menunggu', NULL, NULL)
-)
-INSERT INTO talenta_laporan_mingguan
-  (talenta, minggu_ke, omzet, jumlah_transaksi, target, bukti, catatan_kendala, status,
-   catatan_pendamping, diverifikasi_oleh, diverifikasi_pada, client_uuid, dikirim_pada, provenance)
-SELECT
-  (SELECT id FROM talenta WHERE usaha = ('d0000000-0000-4000-8000-0000000000' || s.nn)::uuid LIMIT 1),
-  s.minggu, s.omzet, s.transaksi,
-  CASE
-    WHEN s.nn = '01' THEN 18000000
-    WHEN s.nn = '02' THEN 9692308
-    ELSE 8307692
-  END,
-  (SELECT id FROM bukti),
-  s.kendala, s.status::text,
-  s.catatan_pendamping,
-  CASE WHEN s.status IN ('disetujui','ditolak') THEN (SELECT id FROM coach) ELSE NULL END,
-  CASE WHEN s.status IN ('disetujui','ditolak')
-    THEN ((SELECT tanggal_mulai FROM batch) + (s.minggu*7 - 2))::timestamptz + interval '1 day' + time '03:00'
-    ELSE NULL END,
-  ('d1000000-0000-4000-8000-00000000' || s.nn || lpad(s.minggu::text, 2, '0'))::uuid,
-  (((SELECT tanggal_mulai FROM batch) + (s.minggu*7 - 2))::timestamptz + time '03:00'),
-  'online'
-FROM seed s
-WHERE NOT EXISTS (
-  SELECT 1 FROM talenta_laporan_mingguan l
-  JOIN talenta t ON t.id = l.talenta
-  WHERE t.usaha = ('d0000000-0000-4000-8000-0000000000' || s.nn)::uuid AND l.minggu_ke = s.minggu
-);
 
 COMMIT;

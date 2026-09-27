@@ -1,5 +1,5 @@
 // Operator dashboard: identitas role dari kolom `directus_users.app_role` (bukan UUID role
-// Directus) dan wilayah dari kolom `kota`. Guard masuk tetap di lib/utils/auth.js; berkas ini
+// Directus) dan wilayah dari kolom `kota_scope`. Guard masuk tetap di lib/utils/auth.js; berkas ini
 // hanya menambahkan scoping wilayah di atasnya.
 
 export const DATA_ROLES = ["provinsi", "kabkota"];
@@ -24,7 +24,7 @@ export class OperatorError extends Error {
 export const ALL_ROLES = ["provinsi", "kabkota", "pendamping", "umkm"];
 
 const OPERATOR_COLUMNS = `
-  u.id, u.app_role, u.email, u.first_name, u.last_name, u.avatar, u.kota, k.nama AS kota_nama,
+  u.id, u.app_role, u.email, u.first_name, u.last_name, u.avatar, u.kota_scope AS kota, k.nama AS kota_nama,
   u.usaha, us.nama AS usaha_nama, us.nib AS usaha_nib
 `;
 
@@ -87,7 +87,7 @@ export async function resolveOperator(database, accountability, { requireAssignm
   const result = await database.raw(
     `SELECT ${OPERATOR_COLUMNS}
      FROM directus_users u
-     LEFT JOIN kota k ON k.id = u.kota
+     LEFT JOIN kota k ON k.id = u.kota_scope
      LEFT JOIN usaha us ON us.id = u.usaha
      WHERE u.id = ?`,
     [accountability.user],

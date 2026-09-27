@@ -10,24 +10,31 @@ const props = defineProps<{
   config: AnalysisConfig;
   status?: AnalyticsExportStatus | null;
   busy?: boolean;
+  /** Message from a failed in-browser export (Slide PPT). */
+  error?: string | null;
 }>();
 const emit = defineEmits<{
   (event: "update:modelValue", value: boolean): void;
   (event: "submit", type: AnalyticsExportType): void;
+  /** Slide PPT is built in the browser from the canvas, not by the export worker. */
+  (event: "slide"): void;
 }>();
 
-const type = ref<AnalyticsExportType>("aggregate_csv");
+type ExportChoice = AnalyticsExportType | "slide_pptx";
+const type = ref<ExportChoice>("aggregate_csv");
 
-const EXPORT_TYPES: Array<{ value: AnalyticsExportType; label: string }> = [
+const EXPORT_TYPES: Array<{ value: ExportChoice; label: string }> = [
   { value: "aggregate_csv", label: "CSV agregat (langsung)" },
   { value: "detail_csv", label: "CSV detail (maks. 50.000)" },
   { value: "aggregate_png", label: "PNG agregat" },
   { value: "aggregate_pdf", label: "PDF agregat" },
+  { value: "slide_pptx", label: "Slide PPT (dari tampilan saat ini)" },
 ];
 
 function submit() {
   if (props.busy) return;
-  emit("submit", type.value);
+  if (type.value === "slide_pptx") emit("slide");
+  else emit("submit", type.value);
 }
 </script>
 
@@ -47,6 +54,7 @@ function submit() {
         <label class="block text-sm font-medium" for="export-format">
           Format
           <select
+            id="export-format"
             v-model="type"
             class="mt-1 h-10 w-full rounded-md border px-3"
           >
@@ -109,6 +117,8 @@ function submit() {
             >Unduh</a
           >
         </div>
+
+        <p v-if="error" role="alert" class="mt-3 text-sm text-destructive">{{ error }}</p>
 
         <p class="mt-3 text-xs text-muted-foreground">
           Tautan privat kedaluwarsa paling lambat 24 jam.

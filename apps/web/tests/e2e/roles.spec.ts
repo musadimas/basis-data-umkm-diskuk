@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { installMockDirectus, loginMock } from "../fixtures/mock-directus.mjs";
+import { installMockProgram } from "../fixtures/mock-program.mjs";
 
 /**
  * Matriks role Y01 pada mock Directus: beranda per role, guard route,
@@ -18,24 +19,26 @@ test.describe("role matrix Y01", () => {
     await page.screenshot({ path: testInfo.outputPath("dashboard-header-provinsi.png") });
   });
 
-  test("pendamping is redirected to the binaan home and cannot open analitik", async ({ page }, testInfo) => {
+  test("pendamping is redirected to the pendampingan home and cannot open analitik", async ({ page }, testInfo) => {
     await installMockDirectus(page, { authenticated: true, role: "pendamping" });
-    await loginMock(page, "/dashboard", "/dashboard/binaan");
-    await expect(page).toHaveURL(/\/dashboard\/binaan$/);
-    await expect(page.getByRole("link", { name: "Dasbor Binaan Aktif" })).toBeVisible();
+    await installMockProgram(page);
+    await loginMock(page, "/dashboard", "/dashboard/pendampingan");
+    await expect(page).toHaveURL(/\/dashboard\/pendampingan$/);
+    await expect(page.getByRole("link", { name: "Panel Pendampingan" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Analitik" })).toHaveCount(0);
     await page.goto("/dashboard/analitik");
-    await expect(page).toHaveURL(/\/dashboard\/binaan$/);
+    await expect(page).toHaveURL(/\/dashboard\/pendampingan$/);
     await expect(page.getByText("Admin Provinsi")).toHaveCount(0);
     await page.screenshot({ path: testInfo.outputPath("dashboard-header-pendamping.png") });
   });
 
-  test("umkm lands on /dashboard/usaha inside the phone frame", async ({ page }, testInfo) => {
+  test("umkm lands on the /dashboard/usaha KPI phone view", async ({ page }, testInfo) => {
     await installMockDirectus(page, { authenticated: true, role: "umkm" });
+    await installMockProgram(page);
     await loginMock(page, "/dashboard", "/dashboard/usaha");
-    await expect(page.getByTestId("umkm-frame")).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Beranda Usaha" })).toBeVisible();
-    await expect(page.getByTestId("umkm-frame").getByRole("main").getByText("Wawan Leathercraft")).toBeVisible();
+    await expect(page.getByTestId("phone-frame")).toBeVisible();
+    await expect(page.getByRole("link", { name: "Laporan KPI" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Analitik" })).toHaveCount(0);
     await page.screenshot({ path: testInfo.outputPath("umkm-beranda.png") });
   });
 
@@ -68,6 +71,7 @@ test.describe("role matrix Y01", () => {
 
   test("NIB login resolves the usaha account and reaches the umkm home", async ({ page }) => {
     await installMockDirectus(page, { authenticated: false, role: "umkm" });
+    await installMockProgram(page);
     await page.goto("/sign-in?returnTo=/dashboard");
     await page.getByLabel("Email / NIB").waitFor({ state: "visible", timeout: 15000 });
     // Bukti hidrasi: toggle sandi mengubah tipe input sebelum nilai diisi.
@@ -88,7 +92,7 @@ test.describe("role matrix Y01", () => {
     await page.getByRole("button", { name: "Masuk ke Dashboard", exact: true }).click();
     expect((await loginRequest).status()).toBe(200);
     await expect(page).toHaveURL(/\/dashboard\/usaha$/);
-    await expect(page.getByTestId("umkm-frame")).toBeVisible();
+    await expect(page.getByTestId("phone-frame")).toBeVisible();
   });
 
   test("provinsi spasial page renders inside the dashboard layout", async ({ page }, testInfo) => {

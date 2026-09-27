@@ -25,9 +25,7 @@ export const layerOrderStore = localforage.createInstance({
   name: IDB_DB_NAME,
   storeName: "layerOrder",
 });
-
-/** Antrean laporan KPI offline (Y03). Retensi: bertahan di perangkat (reload),
- *  terhapus otomatis per-item saat sinkron sukses; ikut terhapus saat logout. */
+/** Unsent weekly KPI reports (see ~/lib/kpi-outbox). */
 export const kpiOutboxStore = localforage.createInstance({
   name: IDB_DB_NAME,
   storeName: "kpiOutbox",
@@ -57,13 +55,6 @@ export async function clearPrivateClientState(queryClient?: {
     layerOrderStore.clear(),
     kpiOutboxStore.clear(),
   ]);
-  if (import.meta.client) {
-    try {
-      localStorage.removeItem("diskuk:usaha-saya");
-    } catch {
-      /* abaikan */
-    }
-  }
   if (import.meta.client && "caches" in window) {
     const names = await caches.keys();
     await Promise.allSettled(

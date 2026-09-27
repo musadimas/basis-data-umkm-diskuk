@@ -4,16 +4,11 @@
 BEGIN;
 
 -- Lepaskan penugasan akun dummy agar FK tidak menghalangi.
-UPDATE directus_users SET usaha = NULL, kota = NULL WHERE email LIKE 'dummy\_%';
+UPDATE directus_users SET usaha = NULL, kota_scope = NULL WHERE email LIKE 'dummy\_%';
 
 -- Fase berikutnya menambah DELETE tabel domainnya di bagian ini (sebelum delete usaha).
 
--- Y03: laporan dummy (ikut cascade usaha, tapi hapus eksplisit agar idempoten).
-DELETE FROM talenta_laporan_mingguan WHERE client_uuid::text LIKE 'd1000000-%';
-DELETE FROM program_batch WHERE kode LIKE 'dummy\_%';
-
--- Y02: BA dummy (talenta/atribut ikut cascade dari usaha di bawah).
-DELETE FROM talenta_berita_acara WHERE nomor LIKE 'dummy\_%';
+-- Y02: atribut ikut cascade dari usaha di bawah.
 DELETE FROM directus_files WHERE filename_download LIKE 'dummy\_%';
 
 -- Kumpulkan alamat dummy (via pelaku_usaha dummy) ke temp table.

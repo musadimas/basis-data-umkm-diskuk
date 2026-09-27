@@ -10,7 +10,7 @@ import {
   isRoleKey,
   lockedKotaId,
 } from "../../app/constants/ROLES";
-import { ATRIBUT_JABAR, LAPORAN_STATUS, TALENTA_STATUS } from "../../app/constants/OPERASIONAL";
+import { ATRIBUT_JABAR } from "../../app/constants/OPERASIONAL";
 
 describe("matriks role Y01", () => {
   it("empat role fungsional dengan label dan badge berbeda", () => {
@@ -19,11 +19,11 @@ describe("matriks role Y01", () => {
     expect(new Set(Object.values(ROLE_BADGE_CLASSES)).size).toBe(4);
   });
 
-  it("akses route: talenta tertutup untuk pendamping/umkm", () => {
-    expect(hasRouteAccess("provinsi", "/dashboard/talenta")).toBe(true);
-    expect(hasRouteAccess("kabkota", "/dashboard/talenta/123")).toBe(true);
-    expect(hasRouteAccess("pendamping", "/dashboard/talenta")).toBe(false);
-    expect(hasRouteAccess("umkm", "/dashboard/talenta")).toBe(false);
+  it("akses route: talent scouting tertutup untuk pendamping/umkm", () => {
+    expect(hasRouteAccess("provinsi", "/dashboard/talent/kurasi")).toBe(true);
+    expect(hasRouteAccess("kabkota", "/dashboard/talent/ajukan/123")).toBe(true);
+    expect(hasRouteAccess("pendamping", "/dashboard/talent/kurasi")).toBe(false);
+    expect(hasRouteAccess("umkm", "/dashboard/talent/kurasi")).toBe(false);
     expect(hasRouteAccess("kabkota", "/dashboard/data-lapangan/abc")).toBe(true);
     expect(hasRouteAccess(null, "/dashboard")).toBe(false);
   });
@@ -36,19 +36,10 @@ describe("konstanta operasional Y02", () => {
     expect(ATRIBUT_JABAR.map((a) => a.key)).toContain("qris");
   });
 
-  it("tujuh status talenta termasuk scouting", () => {
-    expect(TALENTA_STATUS.map((s) => s.value)).toEqual([
-      "diajukan",
-      "dinilai",
-      "scouting",
-      "talent_lab",
-      "accelerator",
-      "champion",
-      "ditolak",
-    ]);
+  it("route talent scouting untuk peran data", () => {
     expect(DATA_ROLES).toEqual(["provinsi", "kabkota"]);
-    expect(ROLE_ROUTES.provinsi).toContain("/dashboard/talenta");
-    expect(ROLE_ROUTES.kabkota).toContain("/dashboard/talenta");
+    expect(ROLE_ROUTES.provinsi).toContain("/dashboard/talent");
+    expect(ROLE_ROUTES.kabkota).toContain("/dashboard/talent");
   });
 });
 
@@ -61,9 +52,10 @@ describe("matriks hasRouteAccess Y01", () => {
     expect(hasRouteAccess("provinsi", "/dashboard/umkm/11111111-1111-4111-8111-000000000001")).toBe(true);
     expect(hasRouteAccess("provinsi", "/dashboard/akun")).toBe(true);
     expect(hasRouteAccess("provinsi", "/dashboard/audit-sesi")).toBe(true);
-    expect(hasRouteAccess("provinsi", "/dashboard/akselerasi")).toBe(true);
-    // Y03 M5-06: pimpinan membaca tren binaan sesuai scope (read-only).
-    expect(hasRouteAccess("provinsi", "/dashboard/binaan")).toBe(true);
+    expect(hasRouteAccess("provinsi", "/dashboard/pendampingan")).toBe(true);
+    expect(hasRouteAccess("provinsi", "/dashboard/katalog/kurasi")).toBe(true);
+    expect(hasRouteAccess("provinsi", "/dashboard/klinik")).toBe(true);
+    expect(hasRouteAccess("provinsi", "/dashboard/usaha/passport")).toBe(true);
     expect(hasRouteAccess("provinsi", "/dashboard/usaha")).toBe(false);
   });
 
@@ -74,13 +66,15 @@ describe("matriks hasRouteAccess Y01", () => {
     expect(hasRouteAccess("kabkota", "/dashboard/spasial")).toBe(true);
     expect(hasRouteAccess("kabkota", "/dashboard/umkm")).toBe(true);
     expect(hasRouteAccess("kabkota", "/dashboard/akun")).toBe(true);
+    expect(hasRouteAccess("kabkota", "/dashboard/pendampingan")).toBe(true);
+    expect(hasRouteAccess("kabkota", "/dashboard/katalog/kurasi")).toBe(false);
     expect(hasRouteAccess("kabkota", "/dashboard/usaha")).toBe(false);
   });
 
-  it("pendamping hanya binaan + akun", () => {
-    expect(hasRouteAccess("pendamping", "/dashboard/binaan")).toBe(true);
-    expect(hasRouteAccess("pendamping", "/dashboard/binaan/123")).toBe(true);
-    expect(hasRouteAccess("pendamping", "/dashboard/binaan/verifikasi")).toBe(true);
+  it("pendamping hanya pendampingan + klinik + akun", () => {
+    expect(hasRouteAccess("pendamping", "/dashboard/pendampingan")).toBe(true);
+    expect(hasRouteAccess("pendamping", "/dashboard/pendampingan/123")).toBe(true);
+    expect(hasRouteAccess("pendamping", "/dashboard/klinik")).toBe(true);
     expect(hasRouteAccess("pendamping", "/dashboard/akun")).toBe(true);
     expect(hasRouteAccess("pendamping", "/dashboard/audit-sesi")).toBe(true);
     expect(hasRouteAccess("pendamping", "/dashboard")).toBe(false);
@@ -88,14 +82,16 @@ describe("matriks hasRouteAccess Y01", () => {
     expect(hasRouteAccess("pendamping", "/dashboard/tabular")).toBe(false);
   });
 
-  it("umkm hanya beranda usaha + akun", () => {
+  it("umkm hanya modul usaha + klinik + akun", () => {
     expect(hasRouteAccess("umkm", "/dashboard/usaha")).toBe(true);
-    expect(hasRouteAccess("umkm", "/dashboard/usaha/laporan")).toBe(true);
+    expect(hasRouteAccess("umkm", "/dashboard/usaha/produk")).toBe(true);
+    expect(hasRouteAccess("umkm", "/dashboard/usaha/passport")).toBe(true);
+    expect(hasRouteAccess("umkm", "/dashboard/klinik")).toBe(true);
     expect(hasRouteAccess("umkm", "/dashboard/akun")).toBe(true);
     expect(hasRouteAccess("umkm", "/dashboard/audit-sesi")).toBe(true);
     expect(hasRouteAccess("umkm", "/dashboard")).toBe(false);
     expect(hasRouteAccess("umkm", "/dashboard/analitik")).toBe(false);
-    expect(hasRouteAccess("umkm", "/dashboard/binaan")).toBe(false);
+    expect(hasRouteAccess("umkm", "/dashboard/pendampingan")).toBe(false);
   });
 
   it("entri /dashboard hanya cocok persis dan tidak menelan sub-path mirip", () => {
@@ -119,9 +115,8 @@ describe("matriks hasRouteAccess Y01", () => {
 });
 
 describe("konstanta role Y01", () => {
-  it("Y03 tiga status laporan + route akselerasi/binaan", () => {
-    expect(LAPORAN_STATUS.map((s) => s.value)).toEqual(["menunggu", "disetujui", "ditolak"]);
-    expect(ROLE_ROUTES.provinsi).toContain("/dashboard/akselerasi");
+  it("route program akselerasi + usaha", () => {
+    expect(ROLE_ROUTES.provinsi).toContain("/dashboard/pendampingan");
     expect(ROLE_ROUTES.umkm).toContain("/dashboard/usaha");
   });
   it("warna badge solid M1-03 per role", () => {
@@ -137,7 +132,7 @@ describe("konstanta role Y01", () => {
     expect(ROLE_HOME).toEqual({
       provinsi: "/dashboard",
       kabkota: "/dashboard",
-      pendamping: "/dashboard/binaan",
+      pendamping: "/dashboard/pendampingan",
       umkm: "/dashboard/usaha",
     });
   });

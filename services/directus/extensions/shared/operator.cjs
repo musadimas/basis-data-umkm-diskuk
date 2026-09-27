@@ -2,13 +2,13 @@
 
 // Resolver operator dashboard operasional: identitas peran dari kolom `directus_users.app_role`
 // (bukan UUID role Directus, karena semua pengguna operasional memakai satu role aplikasi) dan
-// wilayah dari kolom `kota`. Batas peran per route ditegakkan di sini, bukan di routeGuard.
+// wilayah dari kolom `kota_scope`. Batas peran per route ditegakkan di sini, bukan di routeGuard.
 const { ALL_ROLES } = require("./auth.cjs");
 
 const DATA_ROLES = ["provinsi", "kabkota"];
 
 const OPERATOR_COLUMNS = `
-  u.id, u.app_role, u.email, u.first_name, u.last_name, u.avatar, u.kota, k.nama AS kota_nama,
+  u.id, u.app_role, u.email, u.first_name, u.last_name, u.avatar, u.kota_scope AS kota, k.nama AS kota_nama,
   u.usaha, us.nama AS usaha_nama, us.nib AS usaha_nib
 `;
 
@@ -79,7 +79,7 @@ async function resolveOperator(database, accountability, { requireAssignment = t
   const result = await database.raw(
     `SELECT ${OPERATOR_COLUMNS}
      FROM directus_users u
-     LEFT JOIN kota k ON k.id = u.kota
+     LEFT JOIN kota k ON k.id = u.kota_scope
      LEFT JOIN usaha us ON us.id = u.usaha
      WHERE u.id = ?`,
     [accountability.user],

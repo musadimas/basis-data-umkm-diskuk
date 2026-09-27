@@ -30,9 +30,13 @@ export const ROLE_ROUTES = {
     "/dashboard/spasial",
     "/dashboard/umkm",
     "/dashboard/data-lapangan",
-    "/dashboard/talenta",
-    "/dashboard/akselerasi",
-    "/dashboard/binaan",
+    "/dashboard/talent",
+    "/dashboard/pendampingan",
+    "/dashboard/katalog",
+    // Kurator provinsi mengelola produk dan menerbitkan passport atas nama usaha.
+    "/dashboard/usaha/produk",
+    "/dashboard/usaha/passport",
+    "/dashboard/klinik",
     "/dashboard/akun",
     "/dashboard/audit-sesi",
   ],
@@ -43,21 +47,20 @@ export const ROLE_ROUTES = {
     "/dashboard/spasial",
     "/dashboard/umkm",
     "/dashboard/data-lapangan",
-    "/dashboard/talenta",
-    "/dashboard/akselerasi",
-    "/dashboard/binaan",
+    "/dashboard/talent",
+    "/dashboard/pendampingan",
     "/dashboard/akun",
     "/dashboard/audit-sesi",
   ],
-  pendamping: ["/dashboard/binaan", "/dashboard/akun", "/dashboard/audit-sesi"],
-  umkm: ["/dashboard/usaha", "/dashboard/akun", "/dashboard/audit-sesi"],
+  pendamping: ["/dashboard/pendampingan", "/dashboard/klinik", "/dashboard/akun", "/dashboard/audit-sesi"],
+  umkm: ["/dashboard/usaha", "/dashboard/klinik", "/dashboard/akun", "/dashboard/audit-sesi"],
 } as const satisfies Record<AppRole, readonly string[]>;
 
 /** Beranda pertama setelah login per role; juga tujuan redirect akses di luar role. */
 export const ROLE_HOME = {
   provinsi: "/dashboard",
   kabkota: "/dashboard",
-  pendamping: "/dashboard/binaan",
+  pendamping: "/dashboard/pendampingan",
   umkm: "/dashboard/usaha",
 } as const satisfies Record<AppRole, string>;
 

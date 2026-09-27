@@ -6,23 +6,26 @@ import assert from "node:assert/strict";
 const require = createRequire(import.meta.url);
 
 // Nama migrasi pasca-merge: A = fondasi login (kolom app_role + policy aplikasi),
-// D = peran operasional (kolom kota/usaha + hak baca), E/F/G = atribut Jabar, talenta, program.
+// D = peran operasional (kolom usaha + hak baca), E = atribut Jabar,
+// H = fondasi program (kolom wilayah kota_scope).
 const readMigration = (name) =>
   readFileSync(new URL(`../migrations/${name}`, import.meta.url), "utf8");
 
 const migrationA = readMigration("20260926A-create-auth-login.js");
 const migrationD = readMigration("20260926D-operational-roles.js");
+const migrationH = readMigration("20260926H-create-program-foundation.js");
 
 const auth = require("../extensions/shared/auth.cjs");
 const operator = require("../extensions/shared/operator.cjs");
-const berkas = require("../extensions/directus-extension-operasional/src/berkas-service.js");
 
 // Nilai yang harus tetap sinkron antara migrasi, auth.cjs, dan operator.cjs.
 const APPLICATION_ROLE_ID = "7d6d493c-1a6d-4c59-9e74-40d42a7862eb";
 const APPLICATION_POLICY_ID = "9325db4b-9518-41db-b122-8c667f2ce510";
 const APP_ROLES = ["provinsi", "kabkota", "pendamping", "umkm"];
-// Bidang directus_users yang boleh dibaca aplikasi (USER_READ_FIELDS di migrasi D).
-const USER_READ_FIELDS = "id,email,first_name,last_name,avatar,app_role,instansi,kota,usaha";
+// Bidang directus_users yang boleh dibaca aplikasi (USER_READ_FIELDS di migrasi D, lalu
+// READ_FIELDS_AFTER di migrasi H menambah kota_scope).
+const USER_READ_FIELDS = "id,email,first_name,last_name,avatar,app_role,instansi,usaha";
+const USER_READ_FIELDS_H = "id,email,first_name,last_name,avatar,app_role,instansi,usaha,kota_scope";
 const READ_FIELDS_BEFORE = "id,email,first_name,last_name,avatar,app_role,instansi";
 // Kata sandi: minimal 12 karakter, NIB 13 digit ditolak.
 const PASSWORD_POLICY_SOURCE = String.raw`PASSWORD_POLICY = "^(?!\\d{13}$).{12,}$"`;
@@ -80,16 +83,11 @@ test("migrasi A: himpunan app_role tertutup dan policy aplikasi", () => {
 
 test("migrasi D: kontrak kolom penugasan, hak baca, dan policy kata sandi", () => {
   assert.ok(migrationD.includes(APPLICATION_POLICY_ID), "policy aplikasi pada migrasi D");
-  // `kota` integer FK ke kota(id) — inilah yang dibaca resolver sebagai kotaId/kotaNama.
-  assert.ok(
-    migrationD.includes("ADD COLUMN IF NOT EXISTS kota INTEGER REFERENCES kota(id) ON DELETE SET NULL"),
-    "kota integer FK ke kota(id)",
-  );
   assert.ok(
     migrationD.includes("ADD COLUMN IF NOT EXISTS usaha UUID REFERENCES usaha(id) ON DELETE SET NULL"),
     "usaha UUID FK ke usaha(id)",
   );
-  assert.ok(migrationD.includes(USER_READ_FIELDS), "fields baca memuat app_role/kota/usaha");
+  assert.ok(migrationD.includes(USER_READ_FIELDS), "fields baca memuat app_role/usaha");
   assert.ok(
     migrationD.includes("AND collection = 'directus_users' AND action = 'read'"),
     "hak baca directus_users diperbarui, bukan dibuat ulang",
@@ -102,6 +100,16 @@ test("migrasi D: kontrak kolom penugasan, hak baca, dan policy kata sandi", () =
     !migrationD.includes("directus_roles") && !migrationD.includes("directus_policies"),
     "tanpa role/policy per peran",
   );
+});
+
+test("migrasi H: kota_scope integer FK dan hak baca melanjutkan migrasi D", () => {
+  // `kota_scope` integer FK ke kota(id) — inilah yang dibaca resolver sebagai kotaId/kotaNama.
+  assert.ok(
+    migrationH.includes("ADD COLUMN IF NOT EXISTS kota_scope INTEGER REFERENCES kota(id) ON DELETE SET NULL"),
+    "kota_scope integer FK ke kota(id)",
+  );
+  assert.ok(migrationH.includes(`"${USER_READ_FIELDS}"`), "rollback H kembali ke fields baca migrasi D");
+  assert.ok(migrationH.includes(`"${USER_READ_FIELDS_H}"`), "fields baca memuat usaha dan kota_scope");
 });
 
 test("auth.cjs dan operator.cjs sinkron dengan kontrak app_role", () => {
@@ -149,7 +157,7 @@ test("routeGuard: anonim 401, role asing 403, daftar peran route tidak membedaka
   );
 });
 
-test("resolveOperator membaca app_role/kota/usaha dalam satu query", async () => {
+test("resolveOperator membaca app_role/kota_scope/usaha dalam satu query", async () => {
   const calls = [];
   const op = await operator.resolveOperator(
     {
@@ -164,14 +172,15 @@ test("resolveOperator membaca app_role/kota/usaha dalam satu query", async () =>
   assert.equal(calls.length, 1);
   assert.match(calls[0].sql, /FROM directus_users u/);
   assert.match(calls[0].sql, /u\.app_role/);
-  assert.match(calls[0].sql, /LEFT JOIN kota k ON k\.id = u\.kota/);
+  assert.match(calls[0].sql, /u\.kota_scope AS kota/);
+  assert.match(calls[0].sql, /LEFT JOIN kota k ON k\.id = u\.kota_scope\b/);
   assert.match(calls[0].sql, /LEFT JOIN usaha us ON us\.id = u\.usaha/);
   assert.deepEqual(calls[0].params, [OPERATOR_USER]);
-  // Resolver hanya boleh membaca kolom yang diizinkan policy aplikasi (USER_READ_FIELDS).
+  // Resolver hanya boleh membaca kolom yang diizinkan policy aplikasi (USER_READ_FIELDS_H).
   const columns = [...new Set([...calls[0].sql.matchAll(/\bu\.([a-z_]+)\b/g)].map((m) => m[1]))];
   assert.ok(columns.length > 0);
   for (const column of columns) {
-    assert.ok(USER_READ_FIELDS.split(",").includes(column), `kolom u.${column} di USER_READ_FIELDS`);
+    assert.ok(USER_READ_FIELDS_H.split(",").includes(column), `kolom u.${column} di USER_READ_FIELDS_H`);
   }
 
   assert.equal(op.role, "kabkota");
@@ -330,10 +339,8 @@ test("extension operasional terdaftar sebagai endpoint", () => {
   assert.equal(pkg["directus:extension"].type, "endpoint");
 });
 
-// ── Y02: atribut Jabar + talenta/BA + kontrak skor (jangan hapus saat Y01 berubah) ──
+// ── Y02: atribut Jabar (jangan hapus saat Y01 berubah) ──
 const migrationE = readMigration("20260926E-create-usaha-atribut-jabar.js");
-const migrationF = readMigration("20260926F-create-talenta.js");
-const talentIndex = require("../extensions/directus-extension-operasional/src/talent-index.js");
 
 const ATRIBUT_15 = [
   "npwp_usaha",
@@ -360,96 +367,4 @@ test("migrasi E: 15 atribut Jabar nullable, cascade, rollback disposable", () =>
   }
   assert.ok(migrationE.includes("REFERENCES usaha(id) ON DELETE CASCADE"));
   assert.ok(migrationE.includes("DROP TABLE IF EXISTS usaha_atribut_jabar"));
-});
-
-test("migrasi F: talenta + BA + indeks parsial + folder + berkas hanya untuk policy aplikasi", () => {
-  assert.ok(migrationF.includes("CREATE TABLE IF NOT EXISTS talenta_berita_acara"));
-  assert.ok(migrationF.includes("CREATE TABLE IF NOT EXISTS talenta"));
-  assert.ok(migrationF.includes("ux_talenta_usaha_aktif"));
-  assert.ok(migrationF.includes("WHERE status <> 'ditolak'"));
-  assert.ok(migrationF.includes("idx_talenta_status_kota"));
-  assert.ok(migrationF.includes("DROP TABLE IF EXISTS talenta"));
-
-  // Folder berkas operasional harus sama dengan yang dipakai berkas-service saat menulis/membaca.
-  const folderMigration = migrationF.match(/const FOLDER_OPERASIONAL = "([0-9a-f-]+)"/)[1];
-  assert.equal(berkas.FOLDER_OPERASIONAL, folderMigration, "folder operasional sinkron dengan migrasi F");
-  // Peran operasional memakai satu policy aplikasi: berkas tidak lagi dibuka per peran.
-  const filePolicies = JSON.parse(migrationF.match(/const FILE_POLICIES = (\[[^\]]*\]);/)[1]);
-  assert.deepEqual(filePolicies, [APPLICATION_POLICY_ID]);
-});
-
-test("kontrak skor Y02: fixture angka hasil hitung manual", () => {
-  const seed01 = talentIndex.hitungTalentIndex({
-    omzetTahunan: 600_000_000,
-    nibAda: true,
-    totalTenagaKerja: 7,
-    atribut: {
-      npwp_usaha: true,
-      sertifikat_halal: true,
-      pirt_bpom: true,
-      hki_merek: true,
-      rekening_terpisah: true,
-      sop_tertulis: true,
-      ecommerce: true,
-      medsos_bisnis: true,
-      akses_kur: true,
-    },
-    form: {
-      kapasitasProduksiBulanan: 1200,
-      kesiapanHalal: true,
-      kesiapanPirtBpom: true,
-      kesiapanHki: true,
-      adopsiQris: true,
-      pencatatanKeuanganDigital: true,
-      suratKomitmenAda: true,
-    },
-  });
-  assert.deepEqual(
-    [seed01.finansial, seed01.pasar, seed01.legalitas, seed01.sdm, seed01.total],
-    [100, 100, 100, 91, 97.75],
-  );
-  assert.equal(talentIndex.RUBRIK_VERSI, 1);
-});
-
-// ── Y03: program akselerasi + laporan Jumat + verifikasi (jangan hapus) ──
-const migrationG = readMigration("20260926G-create-program-akselerasi.js");
-const programWeek = require("../extensions/directus-extension-operasional/src/program-week.js");
-const kpiEvaluasi = require("../extensions/directus-extension-operasional/src/kpi-evaluasi.js");
-
-test("migrasi G: batch + kolom talenta + laporan mingguan + provenance + rollback", () => {
-  assert.ok(migrationG.includes("CREATE TABLE IF NOT EXISTS program_batch"));
-  assert.ok(migrationG.includes("talent_lab','accelerator"));
-  assert.ok(migrationG.includes("ADD COLUMN IF NOT EXISTS batch"));
-  assert.ok(migrationG.includes("ADD COLUMN IF NOT EXISTS pendamping"));
-  assert.ok(migrationG.includes("target_mingguan_override"));
-  assert.ok(migrationG.includes("rekomendasi_pitching"));
-  assert.ok(migrationG.includes("CREATE TABLE IF NOT EXISTS talenta_laporan_mingguan"));
-  assert.ok(migrationG.includes("client_uuid UUID NOT NULL UNIQUE"));
-  assert.ok(migrationG.includes("UNIQUE (talenta, minggu_ke)"));
-  assert.ok(migrationG.includes("provenance"));
-  assert.ok(migrationG.includes("offline-replay"));
-  assert.ok(migrationG.includes("DROP TABLE IF EXISTS talenta_laporan_mingguan"));
-  assert.ok(migrationG.includes("DROP TABLE IF EXISTS program_batch"));
-});
-
-test("kontrak Y03: vektor minggu + Jumat + capaian + rekomendasi", () => {
-  assert.equal(programWeek.mingguKe("2026-09-28", new Date("2026-09-27T16:59:59Z")), 0);
-  assert.equal(programWeek.mingguKe("2026-09-28", new Date("2026-09-27T17:00:00Z")), 1);
-  assert.equal(programWeek.targetMingguan(780000000, 1.2, null), 18000000);
-  assert.equal(programWeek.isJumatJakarta(new Date("2026-10-02T05:00:00Z")), true);
-  assert.equal(programWeek.isJumatJakarta(new Date("2026-10-01T05:00:00Z")), false);
-  assert.equal(kpiEvaluasi.capaianPersen(21000000, 18000000), 116.7);
-  assert.equal(kpiEvaluasi.capaianPersen(5000, 0), null);
-  assert.equal(
-    kpiEvaluasi.layakRekomendasi(
-      [1, 2, 3, 4].map((m) => ({ mingguKe: m, omzet: 19000000, target: 18000000, status: "disetujui" })),
-    ),
-    true,
-  );
-  assert.equal(
-    kpiEvaluasi.layakRekomendasi(
-      [2, 3, 5, 6].map((m) => ({ mingguKe: m, omzet: 19000000, target: 18000000, status: "disetujui" })),
-    ),
-    false,
-  );
 });
