@@ -124,7 +124,9 @@ test("panitia: keputusan → e-pass umkm, tugas, sertifikat terbit dan dicabut, 
   await expect(page.getByTestId("pesan-panitia")).toContainText("selesai");
   await page.getByTestId(/terbit-/).first().click();
   await expect(page.getByTestId(/kode-/).first()).toHaveText(/^SKMOCK/);
+  // Cabut kini lewat dialog konfirmasi (P4): dua langkah, bukan satu klik.
   await page.getByTestId(/cabut-/).first().click();
+  await page.getByRole("button", { name: "Ya, lanjutkan" }).click();
   await expect(page.getByTestId(/kode-/)).toHaveCount(0);
 
   // Ekspor XLSX mengunduh berkas pendaftar.

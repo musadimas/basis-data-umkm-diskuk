@@ -1,20 +1,12 @@
 <script setup lang="ts">
-import type { NavLink, SocialLink } from "@/types/landing";
+import type { NavLink } from "@/types/landing";
 
 const quickLinks: NavLink[] = [
   { label: "Katalog", to: "/katalog" },
   { label: "Download", to: "/download" },
   { label: "FAQ", to: "/faq" },
-  { label: "Galeri", to: "/galeri" },
-  { label: "Hubungi Kami", to: "/hubungi-kami" },
   { label: "Konsultasi", to: "/konsultasi" },
   { label: "Tentang Program", to: "/tentang-program" },
-];
-
-const socials: SocialLink[] = [
-  { label: "Facebook", href: "/" },
-  { label: "X / Twitter", href: "/" },
-  { label: "Instagram", href: "/" },
 ];
 </script>
 
@@ -106,30 +98,6 @@ const socials: SocialLink[] = [
                   class="inline-flex break-all text-sm font-semibold text-foreground transition-colors hover:text-primary"
                 >
                   buk.diskukjabar@gmail.com
-                </a>
-              </li>
-            </ul>
-          </div>
-
-          <!-- Social -->
-          <div class="col-span-full lg:col-span-4">
-            <h3
-              class="mb-6 border-b border-foreground/10 pb-6 text-center text-[11px] font-semibold uppercase tracking-widest text-sky-500 lg:text-start"
-            >
-              Ikuti Kami
-            </h3>
-            <ul
-              class="group flex flex-col gap-1 text-center lg:text-start"
-              role="list"
-            >
-              <li v-for="social in socials" :key="social.label">
-                <a
-                  :href="social.href"
-                  rel="noopener noreferrer"
-                  target="_blank"
-                  class="inline-flex text-sm font-semibold text-foreground transition-colors hover:text-primary"
-                >
-                  {{ social.label }}
                 </a>
               </li>
             </ul>

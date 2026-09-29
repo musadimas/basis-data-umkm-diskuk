@@ -83,10 +83,13 @@ async function terbitkan() {
 async function cabut() {
   if (!passport.value || !window.confirm(`Cabut Talent Passport ${passport.value.kode}?`)) return;
   busy.value = true;
+  message.value = null;
   try {
     await directus.request(endpoint<Passport>(`/v1/program/passport/${passport.value.id}/cabut`, { method: "POST" }));
     message.value = { tone: "success", text: "Talent Passport dicabut." };
     await refresh();
+  } catch {
+    message.value = { tone: "error", text: "Talent Passport tidak dapat dicabut. Coba lagi." };
   } finally {
     busy.value = false;
   }

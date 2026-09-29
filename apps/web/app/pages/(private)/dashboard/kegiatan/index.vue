@@ -15,7 +15,7 @@ const auth = useAuth();
 const peran = computed(() => auth.user.value?.app_role ?? null);
 const staf = computed(() => ["provinsi", "kabkota"].includes(peran.value ?? ""));
 
-const { data: agenda } = await useAsyncData("kegiatan:panitia", async () => {
+const { data: agenda, error: errorAgenda, refresh: refreshAgenda } = await useAsyncData("kegiatan:panitia", async () => {
   if (!staf.value) return null;
   const payload = await directus.request(endpoint<KegiatanListResponse>("/v1/program/kegiatan"));
   return payload;
@@ -28,15 +28,18 @@ watchEffect(() => {
 
 const pendaftar = ref<RegistrasiPendaftarListItem[]>([]);
 const muatPendaftar = ref(false);
+const gagalMuatPendaftar = ref(false);
 const pesan = ref<string | null>(null);
 async function muatDaftar() {
   if (!kegiatanTerpilih.value) return;
   muatPendaftar.value = true;
+  gagalMuatPendaftar.value = false;
   try {
     const payload = await directus.request(endpoint<RegistrasiPendaftarListItem[]>(`/v1/program/registrasi/kegiatan/${kegiatanTerpilih.value}/pendaftar`));
     pendaftar.value = payload;
   } catch {
     pendaftar.value = [];
+    gagalMuatPendaftar.value = true;
   } finally {
     muatPendaftar.value = false;
   }
@@ -101,6 +104,27 @@ async function cabut(pendaftaran: RegistrasiPendaftarListItem) {
   }
 }
 
+// Aksi cabut sertifikat / batalkan pendaftaran dieksekusi lewat dialog konfirmasi (lihat §P4 UI_audit).
+const aksiTunda = ref<{ jenis: "cabut" | "batal"; item: RegistrasiPendaftarListItem } | null>(null);
+const sibukKonfirmasi = ref(false);
+function mintaCabut(item: RegistrasiPendaftarListItem) {
+  aksiTunda.value = { jenis: "cabut", item };
+}
+function mintaBatal(item: RegistrasiPendaftarListItem) {
+  aksiTunda.value = { jenis: "batal", item };
+}
+async function jalankanAksiTunda() {
+  if (!aksiTunda.value || sibukKonfirmasi.value) return;
+  sibukKonfirmasi.value = true;
+  try {
+    if (aksiTunda.value.jenis === "cabut") await cabut(aksiTunda.value.item);
+    else await putuskan(aksiTunda.value.item.id, "batal");
+    aksiTunda.value = null;
+  } finally {
+    sibukKonfirmasi.value = false;
+  }
+}
+
 async function unduhXlsx() {
   pesan.value = null;
   try {
@@ -122,7 +146,10 @@ const PESAN_PINDAI = new Map([[401, "Sesi tidak valid."], [403, "Pemindai hanya 
 const qrInput = ref("");
 const sesiKe = ref(1);
 const hasilPindai = ref<string | null>(null);
+const memindai = ref(false);
 async function pindai() {
+  if (memindai.value) return;
+  memindai.value = true;
   hasilPindai.value = null;
   try {
     const respons = await $fetch<{ data?: { hadir: number; jumlahSesi: number; persen: number } }>("/api/operasional/pindai", {
@@ -133,6 +160,8 @@ async function pindai() {
     qrInput.value = "";
   } catch (cause) {
     hasilPindai.value = PESAN_PINDAI.get(requestStatus(cause) ?? 0) ?? "Pindai gagal — periksa QR dan sesi.";
+  } finally {
+    memindai.value = false;
   }
 }
 </script>
@@ -149,6 +178,11 @@ async function pindai() {
     </p>
 
     <template v-else>
+      <div v-if="errorAgenda" role="alert" class="flex flex-wrap items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+        <span>Daftar kegiatan gagal dimuat.</span>
+        <UiButton type="button" variant="outline" size="sm" @click="() => refreshAgenda()">Coba lagi</UiButton>
+      </div>
+
       <section class="rounded-xl border bg-card p-5 shadow-sm">
         <div class="flex flex-wrap items-end gap-3">
           <label class="text-sm">
@@ -175,7 +209,7 @@ async function pindai() {
             <span class="mb-1 block font-medium">Sesi ke-</span>
             <input v-model.number="sesiKe" type="number" min="1" max="60" class="h-9 w-20 rounded-md border bg-transparent px-3 text-sm" data-testid="input-sesi">
           </label>
-          <UiButton type="submit" data-testid="tombol-pindai">Catat hadir</UiButton>
+          <UiButton type="submit" data-testid="tombol-pindai" :disabled="memindai">{{ memindai ? "Memproses…" : "Catat hadir" }}</UiButton>
         </form>
         <p v-if="hasilPindai" class="mt-3 text-sm text-muted-foreground" data-testid="hasil-pindai">{{ hasilPindai }}</p>
       </section>
@@ -225,19 +259,45 @@ async function pindai() {
                       <UiButton type="button" size="sm" variant="outline" :disabled="Boolean(item.sertifikatKode)" :data-testid="`terbit-${item.id}`" @click="terbitkan(item)">
                         <ShieldCheck class="size-4" /> Terbitkan
                       </UiButton>
-                      <UiButton v-if="item.sertifikatKode" type="button" size="sm" variant="outline" :data-testid="`cabut-${item.id}`" @click="cabut(item)">Cabut</UiButton>
-                      <UiButton type="button" size="sm" variant="outline" @click="putuskan(item.id, 'batal')">Batalkan</UiButton>
+                      <UiButton v-if="item.sertifikatKode" type="button" size="sm" variant="outline" :data-testid="`cabut-${item.id}`" @click="mintaCabut(item)">Cabut</UiButton>
+                      <UiButton type="button" size="sm" variant="outline" @click="mintaBatal(item)">Batalkan</UiButton>
                     </template>
                   </div>
                 </td>
               </tr>
-              <tr v-if="!pendaftar.length && !muatPendaftar">
+              <tr v-if="gagalMuatPendaftar && !muatPendaftar">
+                <td colspan="7" class="p-6 text-center text-sm" data-testid="pendaftar-gagal">
+                  <span role="alert" class="text-destructive">Daftar pendaftar gagal dimuat.</span>
+                  <UiButton type="button" variant="outline" size="sm" class="ml-3" @click="muatDaftar">Coba lagi</UiButton>
+                </td>
+              </tr>
+              <tr v-else-if="!pendaftar.length && !muatPendaftar">
                 <td colspan="7" class="p-6 text-center text-sm text-muted-foreground" data-testid="pendaftar-kosong">Belum ada pendaftar.</td>
               </tr>
             </tbody>
           </table>
         </div>
       </section>
+
+      <UiDialog :open="Boolean(aksiTunda)" @update:open="(value) => !value && (aksiTunda = null)">
+        <UiDialogContent v-if="aksiTunda" class="max-w-md" aria-labelledby="judul-konfirmasi-kegiatan" aria-describedby="deskripsi-konfirmasi-kegiatan">
+          <UiDialogHeader>
+            <UiDialogTitle id="judul-konfirmasi-kegiatan">{{ aksiTunda.jenis === "cabut" ? "Cabut sertifikat?" : "Batalkan pendaftaran?" }}</UiDialogTitle>
+            <UiDialogDescription id="deskripsi-konfirmasi-kegiatan">
+              <template v-if="aksiTunda.jenis === 'cabut'">
+                Sertifikat {{ aksiTunda.item.sertifikatKode }} dicabut dan indikator dampak usaha dinonaktifkan.
+              </template>
+              <template v-else>
+                Pendaftaran {{ aksiTunda.item.usahaNama ?? "peserta" }} akan dibatalkan dan statusnya berubah menjadi batal.
+              </template>
+            </UiDialogDescription>
+          </UiDialogHeader>
+          <UiDialogFooter class="gap-2">
+            <UiButton type="button" variant="outline" :disabled="sibukKonfirmasi" @click="aksiTunda = null">Tutup</UiButton>
+            <UiButton type="button" variant="destructive" :disabled="sibukKonfirmasi" @click="jalankanAksiTunda">Ya, lanjutkan</UiButton>
+          </UiDialogFooter>
+        </UiDialogContent>
+      </UiDialog>
     </template>
   </div>
 </template>

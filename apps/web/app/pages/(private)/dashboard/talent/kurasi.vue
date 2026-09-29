@@ -177,7 +177,7 @@ const date = (value: string) => new Intl.DateTimeFormat("id-ID", { dateStyle: "m
                 <div class="flex justify-end gap-3 whitespace-nowrap">
                   <NuxtLink :to="`/dashboard/talent/ajukan/${row.usaha}`" class="font-semibold underline">Detail</NuxtLink>
                   <button
-                    v-if="row.status === 'dinilai' || row.status === 'draft'"
+                    v-if="isProvinsi && (row.status === 'dinilai' || row.status === 'draft')"
                     type="button"
                     class="font-semibold text-destructive underline disabled:opacity-50"
                     :disabled="rejecting === row.id"

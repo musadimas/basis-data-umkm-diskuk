@@ -12,12 +12,24 @@ import type {
 } from "~/types/analytics";
 import { useSavedAnalyses } from "~/composables/useSavedAnalyses";
 import { useAnalyticsExports } from "~/composables/useAnalyticsExports";
+import { isUnauthorized } from "~/lib/request-error";
 definePageMeta({ layout: "dashboard" });
 useSeoMeta({ title: "Analitik UMKM" });
 const catalogApi = useAnalyticsCatalog();
 await catalogApi.load();
 const savedApi = useSavedAnalyses();
-await savedApi.load();
+// Gagal memuat analisis tersimpan tidak boleh mematikan render halaman (async setup).
+const savedLoadError = ref<string | null>(null);
+const aksiFeedback = ref<{ tone: "success" | "error"; text: string } | null>(null);
+async function muatSaved() {
+  savedLoadError.value = null;
+  try {
+    await savedApi.load();
+  } catch {
+    savedLoadError.value = "Daftar analisis tersimpan gagal dimuat.";
+  }
+}
+await muatSaved();
 const exportApi = useAnalyticsExports();
 const route = useRoute();
 const state = useAnalysisState();
@@ -152,9 +164,14 @@ function prevRecordPage() {
   void query.fetchRecords(previous || null);
 }
 async function saveAnalysis(name: string) {
-  if (name.trim()) {
+  if (!name.trim()) return;
+  aksiFeedback.value = null;
+  try {
     await savedApi.save(name.trim(), state.applied.value);
     showSave.value = false;
+    aksiFeedback.value = { tone: "success", text: `Analisis "${name.trim()}" tersimpan.` };
+  } catch {
+    aksiFeedback.value = { tone: "error", text: "Analisis tidak dapat disimpan. Coba lagi." };
   }
 }
 function openSaved(item: SavedAnalysis) {
@@ -163,13 +180,35 @@ function openSaved(item: SavedAnalysis) {
   showSaved.value = false;
 }
 async function removeSaved(id: string) {
-  await savedApi.remove(id);
+  aksiFeedback.value = null;
+  try {
+    await savedApi.remove(id);
+    aksiFeedback.value = { tone: "success", text: "Analisis tersimpan dihapus." };
+  } catch {
+    aksiFeedback.value = { tone: "error", text: "Analisis tersimpan tidak dapat dihapus. Coba lagi." };
+  }
 }
 async function renameSaved(payload: { id: string; name: string }) {
-  await savedApi.rename(payload.id, payload.name);
+  aksiFeedback.value = null;
+  try {
+    await savedApi.rename(payload.id, payload.name);
+  } catch {
+    aksiFeedback.value = { tone: "error", text: "Nama analisis tidak dapat diubah. Coba lagi." };
+  }
 }
 async function startExport(payload: { type: AnalyticsExportType; title?: string }) {
-  await exportApi.submit(payload.type, state.applied.value, { title: payload.title });
+  aksiFeedback.value = null;
+  try {
+    await exportApi.submit(payload.type, state.applied.value, { title: payload.title });
+  } catch (cause) {
+    // Sesi habis (401) sudah memicu event auth:unauthorized di useAnalyticsExports; sisanya tampil inline.
+    aksiFeedback.value = {
+      tone: "error",
+      text: isUnauthorized(cause)
+        ? "Sesi berakhir. Masuk kembali untuk mengekspor hasil."
+        : "Ekspor tidak dapat dimulai. Coba lagi.",
+    };
+  }
 }
 const slidePending = ref(false);
 const slideError = ref<string | null>(null);
@@ -244,6 +283,23 @@ function clearGroupSelection() {
       @export="showExport = true"
       @toggle-rail="railOpen = !railOpen"
     />
+
+    <div
+      v-if="savedLoadError"
+      role="alert"
+      class="flex shrink-0 flex-wrap items-center gap-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+    >
+      <span>{{ savedLoadError }}</span>
+      <UiButton size="sm" variant="outline" :disabled="savedPending" @click="muatSaved">Coba lagi</UiButton>
+    </div>
+    <p
+      v-else-if="aksiFeedback"
+      :role="aksiFeedback.tone === 'error' ? 'alert' : 'status'"
+      class="shrink-0 text-sm"
+      :class="aksiFeedback.tone === 'error' ? 'text-destructive' : 'text-emerald-700'"
+    >
+      {{ aksiFeedback.text }}
+    </p>
 
     <AnalyticsState
       class="shrink-0"
