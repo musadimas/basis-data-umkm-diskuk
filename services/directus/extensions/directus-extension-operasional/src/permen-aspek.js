@@ -73,6 +73,24 @@ function columnsForQuery() {
   });
 }
 
+// Agregat tanpa filter memindai seluruh snapshot (±30 detik untuk 5,4 juta usaha di prod), jadi hasil
+// per filter wilayah disimpan 10 menit per koneksi database. Permintaan bersamaan berbagi satu query;
+// query yang gagal tidak disimpan.
+const CACHE_MS = 10 * 60_000;
+const cache = new WeakMap();
+
+function cached(database, key, load) {
+  let entries = cache.get(database);
+  if (!entries) cache.set(database, (entries = new Map()));
+  const hit = entries.get(key);
+  if (hit && hit.expires > Date.now()) return hit.value;
+  // Knex raw adalah thenable yang mengeksekusi ulang query di setiap `.then`; bungkus sekali.
+  const value = Promise.resolve(load());
+  entries.set(key, { value, expires: Date.now() + CACHE_MS });
+  value.catch(() => entries.get(key)?.value === value && entries.delete(key));
+  return value;
+}
+
 async function getAspekPerkembangan(database, query, operator) {
   const kota = operator.role === "kabkota" ? parseId(operator.kotaId) : parseId(query.kota);
   if (operator.role === "kabkota" && kota === null) {
@@ -88,7 +106,7 @@ async function getAspekPerkembangan(database, query, operator) {
       params.push(value);
     }
   }
-  const result = await database.raw(
+  const result = await cached(database, JSON.stringify([clauses, params]), () => database.raw(
     `WITH ${KLINIK_CTE}
      SELECT COUNT(*)::int AS total, ${columnsForQuery().join(", ")}
      FROM usaha_tabular t
@@ -97,7 +115,7 @@ async function getAspekPerkembangan(database, query, operator) {
      LEFT JOIN klinik k ON k.usaha = t.id
      ${clauses.length ? `WHERE ${clauses.join(" AND ")}` : ""}`,
     params,
-  );
+  ));
   const counts = rowsOf(result)[0] ?? {};
   const total = Number(counts.total ?? 0);
   return { data: {

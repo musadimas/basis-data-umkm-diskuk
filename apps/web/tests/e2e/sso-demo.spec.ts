@@ -12,7 +12,7 @@ test("N1-01: login menampilkan identitas DISKUK dan SIDT Jabar", async ({ page }
 
 test("N2-01: lima aspek menampilkan numerator, denominator, dan data kosong", async ({ page }) => {
   await installMockDirectus(page, { role: "provinsi" });
-  await page.route("**/panel/v1/operasional/aspek-perkembangan*", (route) => route.fulfill({
+  await page.route("**/panel/operasional/aspek-perkembangan*", (route) => route.fulfill({
     status: 200, contentType: "application/json",
     body: JSON.stringify({ data: { totalUsaha: 100, sumber: "Snapshot usaha_tabular, usaha, dan usaha_atribut_jabar", definisiVersi: "indikator-operasional-v1", kepatuhanRegulasi: false, aspek: [
       { id: "legalitas", label: "Legalitas dan formalitas", indikator: [{ id: "nib", label: "NIB tercatat", sumber: "usaha.nib", ya: 80, tidak: 0, diketahui: 80, belumAdaData: 20, persentase: 100 }] },

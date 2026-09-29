@@ -477,8 +477,11 @@ const categoryLabels = computed(
 const categoryTick = (tick: number | Date) =>
   categoryLabels.value.get(Number(tick)) || "";
 const valueTick = (tick: number | Date) => formatValue(Number(tick), true);
+// VisTooltip menerima record internal StackedBar ({ datum, index, stacked, stackIndex }), bukan
+// ChartRow; tanpa membuka `.datum` label/nilai terbaca undefined (lihat BarChart.vue). Event klik
+// sudah dipetakan balik oleh unovis, tooltip tidak.
 const tooltip = computed(() => ({
-  [StackedBar.selectors.bar]: (row: ChartRow) =>
+  [StackedBar.selectors.bar]: ({ datum: row }: { datum: ChartRow }) =>
     `<div class="rounded-md border bg-background px-2 py-1 text-xs shadow-sm"><strong>${row.label}</strong><br>${formatValue(row.value)} · ${formatAnalyticsPercent(row.share)}</div>`,
 }));
 const barEvents = computed(() => ({

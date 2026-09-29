@@ -171,7 +171,9 @@ services:
       RATE_LIMITER_ENABLED: ${RATE_LIMITER_ENABLED:-true}
       RATE_LIMITER_STORE: memory
       RATE_LIMITER_POINTS: ${RATE_LIMITER_POINTS:-60}
-      RATE_LIMITER_DURATION: ${RATE_LIMITER_DURATION:-10s}
+      # Seconds as a plain number: rate-limiter-flexible gets "10s" as a string, its window
+      # becomes NaN and never resets, so each IP is locked out after 60 requests until restart.
+      RATE_LIMITER_DURATION: ${RATE_LIMITER_DURATION:-10}
       IP_TRUST_PROXY: loopback,uniquelocal
       FILES_MAX_UPLOAD_SIZE: 10mb
       # Authentication: ALTCHA captcha on every local login + password reset.

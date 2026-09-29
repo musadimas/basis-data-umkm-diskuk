@@ -54,3 +54,35 @@ test("indikator dampak IP-UMKM membaca sertifikat aktif; tanpa sertifikat = belu
   assert.ok(calls[0].sql.includes("kegiatan_sertifikat_dampak"));
   assert.ok(calls[0].sql.includes("d.aktif = TRUE"));
 });
+
+test("hasil per filter wilayah disimpan: query berat tidak diulang, filter lain dan kegagalan tidak ikut tersimpan", async () => {
+  let calls = 0;
+  let gagal = true;
+  const database = { raw: async () => {
+    calls += 1;
+    if (gagal) throw new Error("timeout");
+    return { rows: [{ total: 7 }] };
+  } };
+  await assert.rejects(getAspekPerkembangan(database, {}, { role: "provinsi" }), /timeout/);
+  gagal = false;
+  const [a, b] = await Promise.all([
+    getAspekPerkembangan(database, {}, { role: "provinsi" }),
+    getAspekPerkembangan(database, {}, { role: "provinsi" }),
+  ]);
+  assert.equal(calls, 2, "kegagalan tidak disimpan; dua permintaan bersamaan berbagi satu query");
+  assert.equal(a.data.totalUsaha, 7);
+  assert.equal(b.data.totalUsaha, 7);
+  await getAspekPerkembangan(database, { kota: "3" }, { role: "provinsi" });
+  assert.equal(calls, 3, "filter berbeda = query sendiri");
+  await getAspekPerkembangan(database, {}, { role: "provinsi" });
+  assert.equal(calls, 3);
+});
+
+test("thenable knex dijalankan sekali walau hasil cache dipakai berulang", async () => {
+  let eksekusi = 0;
+  // Meniru knex.raw: query berjalan setiap kali `.then` dipanggil.
+  const database = { raw: () => ({ then: (ok, gagal) => { eksekusi += 1; return Promise.resolve({ rows: [{ total: 1 }] }).then(ok, gagal); } }) };
+  await getAspekPerkembangan(database, { kota: "4" }, { role: "provinsi" });
+  await getAspekPerkembangan(database, { kota: "4" }, { role: "provinsi" });
+  assert.equal(eksekusi, 1);
+});

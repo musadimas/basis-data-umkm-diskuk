@@ -216,8 +216,9 @@ const aspekQuery = computed(() => ({
 }));
 const { data: aspekData, error: aspekError, pending: aspekPending } = await useAsyncData(
   "operasional:aspek-perkembangan",
-  () => directus.request(endpoint<AspekPerkembangan>("/v1/operasional/aspek-perkembangan", { query: { ...aspekQuery.value } })),
-  { watch: [aspekQuery] },
+  () => directus.request(endpoint<AspekPerkembangan>("/operasional/aspek-perkembangan", { query: { ...aspekQuery.value } })),
+  // Agregat penuh bisa puluhan detik sebelum cache server terisi: jangan tahan render halaman.
+  { watch: [aspekQuery], lazy: true, server: false },
 );
 
 type InfografisMapData = Pick<
