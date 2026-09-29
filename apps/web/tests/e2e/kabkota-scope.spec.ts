@@ -2,29 +2,30 @@ import { test, expect } from "@playwright/test";
 import { installMockDirectus, loginMock } from "../fixtures/mock-directus.mjs";
 
 /**
- * Scoping wilayah Admin Kab/Kota pada mock: filter kota terkunci ke kotaannya
- * dan setiap permintaan infografis/tabular membawa kota terkunci.
+ * Scoping wilayah Admin Kab/Kota pasca-merge (Y01):
+ * app_role kabkota + kota_scope angka terkunci via lockedKotaId();
+ * filter kota terkunci, request infografis/tabular membawa kota terkunci.
  */
 test.describe("kabkota locked kota scope", () => {
-  test("infografis and tabular are locked to the admin's kota", async ({ page }, testInfo) => {
+  test("infografis is locked to the admin's kota", async ({ page }, testInfo) => {
     await installMockDirectus(page, { authenticated: true, role: "kabkota" });
     await loginMock(page, "/dashboard");
     await expect(page).toHaveURL(/\/dashboard$/);
 
-    // Terapkan satu filter non-kota untuk memicu refetch infografis dari browser;
+    // Terapkan satu filter non-kota untuk memicu refetch infografis;
     // URL permintaan wajib membawa kota=1 (kota terkunci admin).
     const filterButton = page.getByRole("button", { name: "Buka filter data" });
     await expect(filterButton).toBeVisible();
     await filterButton.click();
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible();
-    await dialog.getByRole("combobox", { name: "Skala Usaha" }).click();
+    await dialog.getByLabel("Skala Usaha").click();
     await page.getByRole("option", { name: "Mikro", exact: true }).click();
 
     const infografisRequest = page.waitForRequest((request) => {
       const url = new URL(request.url());
       return (
-        url.pathname === "/panel/infografis/" &&
+        url.pathname === "/panel/v1/analytics/infographic/" &&
         url.searchParams.get("skala") === "micro"
       );
     });
@@ -35,9 +36,9 @@ test.describe("kabkota locked kota scope", () => {
 
     // Dropdown Kabupaten/Kota nonaktif dan menampilkan kota terkunci.
     await filterButton.click();
-    const kotaSelect = dialog.getByRole("combobox", { name: "Kabupaten/Kota" });
+    const kotaSelect = dialog.getByLabel("Kabupaten/Kota");
     await expect(kotaSelect).toBeDisabled();
-    await expect(kotaSelect).toContainText("Kabupaten Bogor");
+    await expect(dialog).toContainText("Kabupaten Bogor");
     await page.keyboard.press("Escape");
 
     await page.screenshot({ path: testInfo.outputPath("infografis-kabkota.png") });
@@ -47,8 +48,17 @@ test.describe("kabkota locked kota scope", () => {
     await installMockDirectus(page, { authenticated: true, role: "kabkota" });
     // Navigasi klien-side agar opsi filter ter-intercept browser (bukan kosong dari SSR).
     await loginMock(page, "/dashboard/tabular");
-    const kotaSelect = page.getByRole("combobox", { name: "Kabupaten/Kota" });
+    const kotaSelect = page.getByLabel("Kabupaten/Kota");
     await expect(kotaSelect).toBeDisabled();
-    await expect(kotaSelect).toContainText("Kabupaten Bogor");
+    await expect(page.getByText("Kabupaten Bogor").first()).toBeVisible();
+  });
+
+  test("spasial kota select is locked for kabkota (B39)", async ({ page }) => {
+    await installMockDirectus(page, { authenticated: true, role: "kabkota" });
+    await loginMock(page, "/dashboard/spasial");
+    await page.getByRole("button", { name: "Buka filter data" }).click();
+    // Kunci wilayah kini datang dari useTabularFilters, bukan hanya TabularData.
+    await expect(page.getByLabel("Kabupaten/Kota")).toBeDisabled();
+    await expect(page.getByText("Kabupaten Bogor").first()).toBeVisible();
   });
 });

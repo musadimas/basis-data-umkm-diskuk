@@ -12,6 +12,8 @@ import type {
   TabularOptions,
 } from "~/types/tabular";
 import { endpoint } from "~/lib/directus";
+import { lockedKotaId } from "~/constants/ROLES";
+import { useAuth } from "~/composables/useAuth";
 
 /** Konversi nilai skala UI (Indonesia) ke nilai enum API snapshot. */
 export const TABULAR_SKALA_TO_API = new Map<string, string>([
@@ -41,10 +43,43 @@ export function tabularFilterQuery(applied: TabularFilters) {
   };
 }
 
+/**
+ * Kota terkunci menurut akun (Y01/B39): kabkota hanya melihat kotanya sendiri.
+ * Satu aturan untuk composable ini, TabularData.vue, dan dashboard infografis;
+ * server tetap menegakkan scope lewat `scopeTabularQuery`.
+ */
+export function useLockedKota() {
+  const auth = useAuth();
+  return computed(() =>
+    lockedKotaId({ app_role: auth.user.value?.app_role, kota: auth.user.value?.kota }),
+  );
+}
+
+/** Salin kunci ke draft dan filter terpakai; `false` bila tidak ada kunci. */
+export function applyLockedKota(
+  filters: TabularFilters,
+  appliedFilters: TabularFilters,
+  locked: string | null,
+): boolean {
+  if (!locked) return false;
+  filters.kabupatenKota = locked;
+  appliedFilters.kabupatenKota = locked;
+  return true;
+}
+
 export function useTabularFilters() {
   const filters = reactive(defaultTabularFilters());
   const appliedFilters = reactive(defaultTabularFilters());
   const filterOpen = ref(false);
+
+  const lockedKota = useLockedKota();
+  watch(
+    lockedKota,
+    (locked) => {
+      applyLockedKota(filters, appliedFilters, locked);
+    },
+    { immediate: true },
+  );
 
   const directus = useDirectus();
   // Shared key: every dashboard component that needs these options reuses one request.
@@ -146,6 +181,7 @@ export function useTabularFilters() {
     filters,
     appliedFilters,
     filterOpen,
+    lockedKota,
     optionsError,
     kabupatenOptions,
     kecamatanOptions,

@@ -4,13 +4,8 @@ import type {
   AnalyticsExportType,
 } from "~/types/analytics";
 import { endpoint, fromEnvelope, type Enveloped } from "~/lib/directus";
+import { exportRequestBody, type ExportRequestBody } from "~/lib/analytics-export";
 import { isUnauthorized } from "~/lib/request-error";
-
-interface ExportRequestBody {
-  exportType: AnalyticsExportType;
-  config: AnalysisConfig;
-  profileId?: string;
-}
 
 export function useAnalyticsExports() {
   const directus = useDirectus();
@@ -20,12 +15,11 @@ export function useAnalyticsExports() {
   async function submit(
     type: AnalyticsExportType,
     config: AnalysisConfig,
-    profileId?: string,
+    options: { profileId?: string; title?: string } = {},
   ) {
     pending.value = true;
     try {
-      const body: ExportRequestBody = { exportType: type, config };
-      if (profileId) body.profileId = profileId;
+      const body = exportRequestBody(type, config, options);
       status.value = fromEnvelope<AnalyticsExportStatus>(
         await directus.request(
           endpoint<Enveloped<AnalyticsExportStatus>, ExportRequestBody>("/v1/analytics/analysis/exports", {

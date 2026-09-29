@@ -7,18 +7,23 @@ import { sanitizeError } from "../lib/utils/http.js";
 import { resolveLoginEmail } from "../lib/utils/identity.js";
 
 async function recordLogin(database, { status, user, reason, accountability }) {
-  await database.raw(
-    `INSERT INTO auth_login_audit (user_id, status, reason, ip, user_agent, origin)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    [
-      user || null,
-      status,
-      clip(reason, 64),
-      clip(accountability?.ip, 64),
-      clip(accountability?.userAgent, 1024),
-      clip(accountability?.origin, 255),
-    ],
-  );
+  try {
+    await database.raw(
+      `INSERT INTO auth_login_audit (user_id, status, reason, ip, user_agent, origin)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [
+        user || null,
+        status,
+        clip(reason, 64),
+        clip(accountability?.ip, 64),
+        clip(accountability?.userAgent, 1024),
+        clip(accountability?.origin, 255),
+      ],
+    );
+  } catch (error) {
+    if (error?.code === "42P01") return;
+    throw error;
+  }
 }
 
 /**
@@ -84,6 +89,7 @@ export default ({ init, filter, action, schedule }, { database, env, logger }) =
       await database.raw(`DELETE FROM auth_login_audit WHERE created_at < NOW() - INTERVAL '${AUDIT_RETENTION}'`);
       return { status: "completed" };
     } catch (error) {
+      if (error?.code === "42P01") return { status: "skipped" };
       logger.error(sanitizeError(error), "Auth login cleanup failed");
       return { status: "failed" };
     }

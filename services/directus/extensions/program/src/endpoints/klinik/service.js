@@ -1,280 +1,118 @@
-import crypto from "node:crypto";
-import { Readable } from "node:stream";
-import busboy from "busboy";
-import { ProgramError, noStore, rows, sendError } from "../../lib/utils/http.js";
-import { loadActor } from "../../lib/access.js";
-import { requireCaptcha } from "../../lib/captcha.js";
+import { ProgramError, rows } from "../../lib/utils/http.js";
 import { objectBody, oneOf, optionalText, uuidParam } from "../../lib/validate.js";
-import { notify } from "../../lib/notify.js";
-import { ASPEK_DIAGNOSIS, PRIORITAS, RUJUKAN, SLOTS, STATUS, nomorTiket, sniffType, tanggalTidakValid } from "./rules.js";
+import { STATUS_LABEL } from "../../lib/outbox/index.js";
+import { assertTransisi, assertVersi, cakupanPetugas, catatAudit } from "./penugasan.js";
+import {
+  ASPEK_DIAGNOSIS, NOMOR_TIKET, PRIORITAS, RUJUKAN, SLOTS, STATUS, bolehUbah, kunciPesan, nomorTiket, normalisasiTelepon, pesanPembatalan,
+  pesanStatusBerubah, pesanTiket, sniffType, statusLabel, tanggalTidakValid, transisiUntuk,
+} from "./rules.js";
 
-/** Private Directus folder for ticket attachments (migration 20260926J). */
+/** Private Directus folder for ticket attachments (migration 20260926N). */
 export const LAMPIRAN_FOLDER_ID = "0b8f2d4c-7a13-4c55-9e6d-3f1a2b9c8d70";
-const MAX_LAMPIRAN = 3;
-const MAX_LAMPIRAN_BYTES = 5 * 1024 * 1024;
-const REF_TTL_MS = 30 * 60 * 1000;
-const REF_LABEL = "diskuk-klinik-ref-v1";
+export const MAX_LAMPIRAN = 3;
+export const MAX_LAMPIRAN_BYTES = 5 * 1024 * 1024;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const PHONE = /^(\+?62|0)8\d{7,12}$/;
 
-const handle = (logger, res, fn) => fn().catch((error) => sendError(res, logger, error));
-const isStaff = (actor) => actor.admin || actor.appRole === "provinsi" || actor.appRole === "pendamping";
+const isStaff = (pemanggil) =>
+  Boolean(pemanggil?.admin) || ["provinsi", "kabkota", "pendamping"].includes(pemanggil?.peran);
+const notFound = () => new ProgramError(404, "TIKET_TIDAK_DITEMUKAN", "The ticket was not found.");
 
-// ── Business reference tokens ──────────────────────────────────────────────
-// The lookup hands the browser a short-lived signed reference instead of the business UUID, so
-// the public form can link a ticket to a SIDT business without exposing its identifier.
-function refKey(env) {
-  if (!env?.SECRET) throw new ProgramError(503, "KLINIK_NOT_CONFIGURED", "The clinic is not configured.");
-  return crypto.createHmac("sha256", String(env.SECRET)).update(REF_LABEL).digest();
+/** Galat batas multipart dengan kode domain klinik (dipasang adapter HTTP pada `readMultipart`). */
+export const galatLampiran = {
+  terlaluBesar: () => new ProgramError(400, "LAMPIRAN_TERLALU_BESAR", "Each attachment may be at most 5 MB."),
+  terlaluBanyak: () => new ProgramError(400, "LAMPIRAN_TERLALU_BANYAK", "At most 3 attachments."),
+};
+
+/**
+ * Usaha dan id pemohon untuk formulir publik (01): sesi yang tidak terbaca
+ * diperlakukan sebagai anonim (usaha/id null), tidak pernah sebagai staf.
+ * Berbeda dengan `muatPemanggil` yang menolak baris tak terbaca dengan 401 —
+ * di sini penolakan itu akan mengunci pengunjung tanpa akun.
+ */
+async function pemohonKlinik(database, akun) {
+  if (!akun?.user) return { id: null, usahaId: null };
+  if (akun.admin) return { id: akun.user, usahaId: null };
+  const row = rows(await database.raw(`SELECT id, usaha FROM directus_users WHERE id = ?`, [akun.user]))[0];
+  if (!row) return { id: null, usahaId: null };
+  return { id: row.id, usahaId: row.usaha ?? null };
 }
 
-export function signRef(env, usahaId, now = Date.now()) {
-  const body = `${usahaId}.${now + REF_TTL_MS}`;
-  const mac = crypto.createHmac("sha256", refKey(env)).update(body).digest("base64url");
-  return Buffer.from(`${body}.${mac}`).toString("base64url");
-}
+/** Templat `rules.js` memakai `payload`; port Outbox menamainya `pesan`. */
+const untukOutbox = ({ template, payload }) => ({ template, pesan: payload });
 
-export function readRef(env, token, now = Date.now()) {
-  if (typeof token !== "string" || token.length > 300) return null;
-  const [usahaId, exp, mac] = Buffer.from(token, "base64url").toString("utf8").split(".");
-  if (!usahaId || !exp || !mac || Number(exp) < now) return null;
-  const expected = crypto.createHmac("sha256", refKey(env)).update(`${usahaId}.${exp}`).digest("base64url");
-  const a = Buffer.from(mac);
-  const b = Buffer.from(expected);
-  return a.length === b.length && crypto.timingSafeEqual(a, b) ? usahaId : null;
-}
-
-// ── Public: lookup, slots, ticket ──────────────────────────────────────────
-
-/** POST /lookup — PUBLIC, captcha. NIB or NIK → business name, scale, kab/kota, KBLI only. */
-export const lookup =
-  ({ database, logger, env }) =>
-  (req, res) =>
-    handle(logger, res, async () => {
-      const body = objectBody(req);
-      const jenis = oneOf(body, "jenis", ["nib", "nik"]);
-      const nomor = String(body.nomor ?? "").replace(/\D/g, "");
-      if ((jenis === "nib" && nomor.length !== 13) || (jenis === "nik" && nomor.length !== 16)) {
-        throw new ProgramError(400, "NOMOR_TIDAK_VALID", jenis === "nib" ? "NIB has 13 digits." : "NIK has 16 digits.");
-      }
-      await requireCaptcha(database, env, body.captcha);
-      const result = await database.raw(
-        `SELECT u.id, u.nama, u.skala, t.kota_nama AS kota, kk.kode AS kbli
-           FROM usaha u
-           JOIN pelaku_usaha p ON p.id = u.pelaku_usaha
-           LEFT JOIN usaha_tabular t ON t.id = u.id
-           LEFT JOIN klasifikasi_usaha kk ON kk.id = u.klasifikasi
-          WHERE ${jenis === "nib" ? "u.nib = ?" : "p.nik = ?"}
-          ORDER BY u.nama LIMIT 10`,
-        [nomor],
-      );
-      noStore(res);
-      res.json({
-        data: rows(result).map((row) => ({ ref: signRef(env, row.id), nama: row.nama, skala: row.skala, kota: row.kota, kbli: row.kbli })),
-      });
-    });
-
-/** GET /slot?poli=&tanggal= — PUBLIC. Free slots for one poli on one day. */
-export const slots =
-  ({ database, logger }) =>
-  (req, res) =>
-    handle(logger, res, async () => {
-      const poli = Number(req.query?.poli);
-      const tanggal = String(req.query?.tanggal ?? "");
-      if (!Number.isInteger(poli) || poli < 1) throw new ProgramError(400, "POLI_TIDAK_VALID", "The poli is not valid.");
-      const reason = tanggalTidakValid(tanggal);
-      if (reason) throw new ProgramError(400, reason, "The date cannot be booked.");
-      const taken = rows(
-        await database.raw(
-          `SELECT jadwal_slot FROM konsultasi_tiket WHERE poli = ? AND jadwal_tanggal = ? AND status <> 'batal'`,
-          [poli, tanggal],
-        ),
-      ).map((row) => row.jadwal_slot);
-      res.setHeader("Cache-Control", "no-store");
-      res.json({ data: SLOTS.map((slot) => ({ slot, tersedia: !taken.includes(slot) })) });
-    });
-
-/** Reads the multipart form: a JSON `payload` field, the `captcha` field and up to 3 files. */
-function readMultipart(req) {
-  return new Promise((resolve, reject) => {
-    let parser;
-    try {
-      parser = busboy({
-        headers: req.headers,
-        limits: { files: MAX_LAMPIRAN, fileSize: MAX_LAMPIRAN_BYTES, fields: 4, fieldSize: 20_000, parts: 8 },
-      });
-    } catch {
-      reject(new ProgramError(400, "INVALID_PAYLOAD", "Send the form as multipart/form-data."));
-      return;
-    }
-    const fields = {};
-    const files = [];
-    let failure = null;
-    parser.on("field", (name, value) => (fields[name] = value));
-    parser.on("file", (name, stream, info) => {
-      const chunks = [];
-      stream.on("data", (chunk) => chunks.push(chunk));
-      stream.on("limit", () => (failure = new ProgramError(400, "LAMPIRAN_TERLALU_BESAR", "Each attachment may be at most 5 MB.")));
-      stream.on("end", () => {
-        if (name === "lampiran") files.push({ filename: String(info.filename ?? "lampiran").slice(0, 200), buffer: Buffer.concat(chunks) });
-      });
-    });
-    parser.on("filesLimit", () => (failure = new ProgramError(400, "LAMPIRAN_TERLALU_BANYAK", "At most 3 attachments.")));
-    parser.on("partsLimit", () => (failure = new ProgramError(400, "INVALID_PAYLOAD", "Too many form parts.")));
-    parser.on("error", () => reject(new ProgramError(400, "INVALID_PAYLOAD", "The form could not be read.")));
-    parser.on("close", () => (failure ? reject(failure) : resolve({ fields, files })));
-    req.pipe(parser);
-  });
-}
-
-function parseTiket(fields, env) {
+/** Validates the JSON payload of the booking form. `usaha` comes from the session, never the body. */
+function parseTiket(payload, usaha, now) {
   let body;
   try {
-    body = JSON.parse(fields.payload ?? "");
+    body = JSON.parse(payload ?? "");
   } catch {
     throw new ProgramError(400, "INVALID_PAYLOAD", 'The field "payload" must be JSON.');
   }
   if (!body || typeof body !== "object" || Array.isArray(body)) throw new ProgramError(400, "INVALID_PAYLOAD", "Invalid payload.");
-  const usaha = body.usahaRef ? readRef(env, body.usahaRef) : null;
-  if (body.usahaRef && !usaha) throw new ProgramError(400, "REF_KEDALUWARSA", "Look up the business again.");
-  const namaUsaha = optionalText(body, "namaUsaha", 255);
+  const invalid = (field) => new ProgramError(400, "INVALID_PAYLOAD", `The field "${field}" is not valid.`);
   const namaKontak = optionalText(body, "namaKontak", 120);
-  const whatsapp = String(body.whatsapp ?? "").replace(/[\s-]/g, "");
   const email = optionalText(body, "email", 160);
   const deskripsi = optionalText(body, "deskripsi", 3000);
+  const whatsapp = normalisasiTelepon(body.whatsapp);
   const poli = Number(body.poli);
-  const invalid = (field) => new ProgramError(400, "INVALID_PAYLOAD", `The field "${field}" is not valid.`);
+  const namaUsaha = usaha ? null : optionalText(body, "namaUsaha", 255);
   if (!usaha && !namaUsaha) throw invalid("namaUsaha");
   if (!namaKontak) throw invalid("namaKontak");
-  if (!PHONE.test(whatsapp)) throw invalid("whatsapp");
+  if (!whatsapp) throw invalid("whatsapp");
   if (email && !EMAIL.test(email)) throw invalid("email");
   if (!deskripsi || deskripsi.length < 20) throw invalid("deskripsi");
   if (!Number.isInteger(poli) || poli < 1) throw invalid("poli");
+  if (typeof body.consent !== "boolean") throw invalid("consent");
   const moda = oneOf(body, "moda", ["daring", "luring"]);
   const slot = oneOf(body, "slot", SLOTS);
   const tanggal = String(body.tanggal ?? "");
-  const reason = tanggalTidakValid(tanggal);
+  const reason = tanggalTidakValid(tanggal, now);
   if (reason) throw new ProgramError(400, reason, "The date cannot be booked.");
-  return { usaha, namaUsaha, namaKontak, whatsapp, email, deskripsi, poli, moda, slot, tanggal };
+  return { namaUsaha, namaKontak, whatsapp, email, deskripsi, poli, moda, slot, tanggal, consent: body.consent };
 }
-
-function storageLocation(env) {
-  const locations = env?.STORAGE_LOCATIONS;
-  const first = Array.isArray(locations) ? locations[0] : String(locations ?? "local").split(",")[0];
-  return first.trim() || "local";
-}
-
-/**
- * POST /tiket — PUBLIC, captcha, multipart. Books a slot and returns the ticket number.
- * Attachments are sniffed (PDF, JPEG, PNG, WebP) and stored in the private "Lampiran Klinik" folder.
- */
-export const createTiket =
-  ({ database, logger, env, services, getSchema }) =>
-  (req, res) =>
-    handle(logger, res, async () => {
-      if (!String(req.headers?.["content-type"] ?? "").startsWith("multipart/form-data")) {
-        throw new ProgramError(400, "INVALID_PAYLOAD", "Send the form as multipart/form-data.");
-      }
-      const { fields, files } = await readMultipart(req);
-      const input = parseTiket(fields, env);
-      const lampiran = files.map((file) => ({ ...file, type: sniffType(file.buffer) }));
-      if (lampiran.some((file) => !file.type)) {
-        throw new ProgramError(400, "LAMPIRAN_TIDAK_DIDUKUNG", "Attachments must be PDF, JPG, PNG or WebP.");
-      }
-      await requireCaptcha(database, env, fields.captcha);
-
-      const poli = rows(await database.raw(`SELECT id, nama FROM konsultasi_poli WHERE id = ? AND aktif`, [input.poli]))[0];
-      if (!poli) throw new ProgramError(400, "POLI_TIDAK_VALID", "The poli is not valid.");
-      let namaUsaha = input.namaUsaha;
-      if (input.usaha) {
-        namaUsaha = rows(await database.raw(`SELECT nama FROM usaha WHERE id = ?`, [input.usaha]))[0]?.nama ?? namaUsaha;
-      }
-
-      // Upload first (outside the transaction); remove the files again if the booking fails.
-      const fileIds = [];
-      const filesService = lampiran.length ? new services.FilesService({ schema: await getSchema(), accountability: null }) : null;
-      try {
-        for (const file of lampiran) {
-          fileIds.push(
-            await filesService.uploadOne(Readable.from(file.buffer), {
-              storage: storageLocation(env),
-              folder: LAMPIRAN_FOLDER_ID,
-              filename_download: file.filename,
-              title: `Lampiran klinik – ${file.filename}`,
-              type: file.type,
-            }),
-          );
-        }
-        const tiket = await database.transaction(async (trx) => {
-          const seq = rows(await trx.raw(`SELECT nextval('konsultasi_tiket_nomor_seq') AS n`))[0].n;
-          let row;
-          try {
-            row = rows(
-              await trx.raw(
-                `INSERT INTO konsultasi_tiket
-                   (nomor, usaha, nama_usaha, nama_kontak, whatsapp, email, poli, deskripsi, moda, jadwal_tanggal, jadwal_slot)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                 RETURNING id, nomor, moda, jadwal_tanggal::text AS tanggal, jadwal_slot AS slot`,
-                [nomorTiket(seq), input.usaha, namaUsaha, input.namaKontak, input.whatsapp, input.email, poli.id, input.deskripsi,
-                  input.moda, input.tanggal, input.slot],
-              ),
-            )[0];
-          } catch (error) {
-            if (error?.code === "23505") throw new ProgramError(409, "SLOT_PENUH", "This slot has just been booked. Choose another.");
-            throw error;
-          }
-          for (const [index, fileId] of fileIds.entries()) {
-            await trx.raw(
-              `INSERT INTO konsultasi_tiket_lampiran (konsultasi_tiket_id, directus_files_id, sort) VALUES (?, ?, ?)`,
-              [row.id, fileId, index + 1],
-            );
-          }
-          return row;
-        });
-        await notify({ logger }, "klinik.tiket_dibuat", { nomor: tiket.nomor, whatsapp: input.whatsapp });
-        noStore(res);
-        res.status(201).json({
-          data: { nomor: tiket.nomor, poli: poli.nama, moda: tiket.moda, tanggal: tiket.tanggal, slot: tiket.slot },
-        });
-      } catch (error) {
-        if (fileIds.length) await filesService.deleteMany(fileIds).catch(() => {});
-        throw error;
-      }
-    });
-
-// ── Staff: kanban ───────────────────────────────────────────────────────────
 
 const TIKET_SELECT = `
   SELECT t.id, t.nomor, t.usaha, t.nama_usaha AS "namaUsaha", t.nama_kontak AS "namaKontak", t.whatsapp, t.email,
          t.poli, po.nama AS "poliNama", t.deskripsi, t.moda, t.jadwal_tanggal::text AS "jadwalTanggal",
-         t.jadwal_slot AS "jadwalSlot", t.prioritas, t.status, t.pendamping,
+         t.jadwal_slot AS "jadwalSlot", t.prioritas, t.status, t.pendamping, t.pemohon,
+         t.sumber_identitas AS "sumberIdentitas", t.wa_consent AS "waConsent", ut.kota_id AS "kotaId",
          NULLIF(TRIM(CONCAT_WS(' ', pd.first_name, pd.last_name)), '') AS "pendampingNama",
          t.link_meet AS "linkMeet", t.diagnosis, t.action_plan AS "actionPlan", t.rujukan, t.catatan,
          t.date_created AS "dateCreated", t.date_updated AS "dateUpdated",
+         -- Microsecond version the panel echoes back, so two officers cannot overwrite each other.
+         to_char(t.date_updated AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS versi,
+         -- Aduan PMSE mendesak (M7-13): the advocacy poli flagged as urgent.
+         (po.kode = 'advokasi' AND t.prioritas = 'mendesak') AS "pmseMendesak",
+         COALESCE((SELECT json_agg(json_build_object(
+                          'aksi', a.aksi, 'statusDari', a.status_dari, 'statusKe', a.status_ke,
+                          'perubahan', a.perubahan, 'aktorNama', a.aktor_nama, 'dateCreated', a.date_created)
+                        ORDER BY a.date_created DESC, a.id DESC)
+                     FROM (SELECT * FROM konsultasi_tiket_audit WHERE tiket = t.id
+                            ORDER BY date_created DESC, id DESC LIMIT 20) a), '[]'::json) AS riwayat,
          COALESCE((SELECT json_agg(l.directus_files_id ORDER BY l.sort) FROM konsultasi_tiket_lampiran l
-                    WHERE l.konsultasi_tiket_id = t.id), '[]'::json) AS lampiran
+                    WHERE l.konsultasi_tiket_id = t.id), '[]'::json) AS lampiran,
+         (SELECT json_build_object('status', n.status, 'jenis', n.jenis, 'template', n.template, 'attempts', n.attempts,
+                                   'lastError', n.last_error, 'providerMessageId', n.provider_message_id,
+                                   'terkirimAt', n.terkirim_at, 'diterimaAt', n.diterima_at)
+            FROM notifikasi_outbox n WHERE n.tiket = t.id ORDER BY n.date_created DESC LIMIT 1) AS notifikasi
     FROM konsultasi_tiket t
     JOIN konsultasi_poli po ON po.id = t.poli
+    LEFT JOIN usaha_tabular ut ON ut.id = t.usaha
     LEFT JOIN directus_users pd ON pd.id = t.pendamping`;
 
-/** GET /tiket?status= — tickets for the kanban (staff only). */
-export const listTiket =
-  ({ database, logger }) =>
-  (req, res) =>
-    handle(logger, res, async () => {
-      const actor = await loadActor(database, req.accountability);
-      if (!isStaff(actor)) throw new ProgramError(403, "FORBIDDEN", "Clinic staff only.");
-      const status = req.query?.status ? oneOf(req.query, "status", STATUS) : null;
-      const result = await database.raw(
-        `${TIKET_SELECT}
-          WHERE (?::text IS NULL AND t.status <> 'batal') OR t.status = ?
-          ORDER BY CASE t.prioritas WHEN 'mendesak' THEN 0 WHEN 'tinggi' THEN 1 ELSE 2 END, t.jadwal_tanggal, t.jadwal_slot
-          LIMIT 500`,
-        [status, status],
-      );
-      noStore(res);
-      res.json({ data: rows(result) });
-    });
+/**
+ * Staff DTO of a ticket: the notification label plus what the web needs to stay rule-free, the
+ * statuses this pemanggil may move it to (`transisi`) and its display label (`statusLabel`). The
+ * business' kota only feeds `transisiUntuk`, so it is not sent on.
+ */
+function toTiketDto(pemanggil, { kotaId, ...row }) {
+  return {
+    ...row,
+    statusLabel: statusLabel(row.status),
+    transisi: transisiUntuk(pemanggil, { ...row, kotaId }),
+    notifikasi: row.notifikasi ? { ...row.notifikasi, label: STATUS_LABEL[row.notifikasi.status] ?? row.notifikasi.status } : null,
+  };
+}
 
 function parseUpdate(body) {
   const update = {};
@@ -310,35 +148,323 @@ function parseUpdate(body) {
   return update;
 }
 
-/** PATCH /tiket/:id — move on the kanban, assign, schedule a meeting, record the session. */
-export const updateTiket =
-  ({ database, logger }) =>
-  (req, res) =>
-    handle(logger, res, async () => {
-      const id = uuidParam(req.params?.id);
-      const update = parseUpdate(objectBody(req));
-      const actor = await loadActor(database, req.accountability);
-      if (!isStaff(actor)) throw new ProgramError(403, "FORBIDDEN", "Clinic staff only.");
-      const columns = Object.keys(update);
-      const casts = { diagnosis: "::jsonb", rujukan: "::jsonb" };
-      const updated = await database.transaction(async (trx) => {
-        const current = rows(await trx.raw(`SELECT id, status FROM konsultasi_tiket WHERE id = ? FOR UPDATE`, [id]))[0];
-        if (!current) throw new ProgramError(404, "TIKET_NOT_FOUND", "The ticket was not found.");
+/**
+ * Use case Klinik Konsultasi. Validasi, transaksi, dan efek pasca-commit dimiliki di sini; adapter
+ * HTTP (`index.js`) hanya memetakan request/response dan multipart.
+ *
+ * Dependensi:
+ *  - `db`: knex.
+ *  - `files`: port berkas `{ simpan({ buffer, filename, type, folder, title }) -> id, hapus(ids), baca(id) -> { stream, file } }`
+ *    (adapter Directus di `index.js`; tes memakai fake in-memory).
+ *  - `outbox`: outbox bersama (`lib/outbox`); `enqueue` berjalan di transaksi pemanggil.
+ *  - `captcha`: `async (raw) => void`, melempar `CAPTCHA_INVALID`. Diverifikasi di sini karena
+ *    urutannya bagian dari aturan: validasi -> captcha -> tulis.
+ *  - `kick`: dipanggil setelah commit yang mengantre pesan (mendorong dispatcher; tidak pernah memblokir).
+ *  - `clock`: sumber "sekarang" untuk rentang tanggal dan nomor tiket.
+ *
+ * `pemanggil` petugas = `{ id, admin, peran, kotaId, usahaId }`. Formulir publik menerima
+ * `akun` (`accountability` Directus atau null) karena sesi yang tak terbaca harus dianggap anonim.
+ */
+export function createKlinik({ db, files, outbox, captcha, kick = () => {}, clock = () => new Date() }) {
+  return { poli, prefill, slots, buatTiket, lacakTiket, listTiket, ubahStatusTiket, bacaLampiran };
+
+  /** Meja konsultasi aktif dan topiknya (tanpa PII). */
+  async function poli() {
+    const result = await db.raw(`SELECT id, kode, nama, deskripsi, subtopik FROM konsultasi_poli WHERE aktif ORDER BY sort NULLS LAST, id`);
+    return rows(result).map((row) => ({
+      id: row.id,
+      kode: row.kode,
+      nama: row.nama,
+      deskripsi: row.deskripsi,
+      subtopik: Array.isArray(row.subtopik) ? row.subtopik : [],
+    }));
+  }
+
+  /**
+   * Prefill formulir: usaha dan kontak yang sudah tersimpan pada akun. Tidak ada NIB/NIK yang
+   * ditukar lewat endpoint publik, jadi tidak ada lookup anonim yang bisa menguji keberadaan identitas.
+   */
+  async function prefill(pemanggil) {
+    const kontak = rows(
+      await db.raw(
+        `SELECT NULLIF(TRIM(CONCAT_WS(' ', first_name, last_name)), '') AS nama, email FROM directus_users WHERE id = ?`,
+        [pemanggil.id],
+      ),
+    )[0];
+    let usaha = null;
+    if (pemanggil.usahaId) {
+      usaha =
+        rows(
+          await db.raw(
+            `SELECT u.nama, u.skala, t.kota_nama AS kota, kk.kode AS kbli, u.nomor_whatsapp AS whatsapp
+               FROM usaha u
+               LEFT JOIN usaha_tabular t ON t.id = u.id
+               LEFT JOIN klasifikasi_usaha kk ON kk.id = u.klasifikasi
+              WHERE u.id = ?`,
+            [pemanggil.usahaId],
+          ),
+        )[0] ?? null;
+    }
+    return {
+      usaha: usaha ? { nama: usaha.nama, skala: usaha.skala, kota: usaha.kota, kbli: usaha.kbli, sumber: "sidt" } : null,
+      kontak: {
+        nama: kontak?.nama ?? null,
+        email: kontak?.email ?? null,
+        whatsapp: usaha?.whatsapp ? normalisasiTelepon(usaha.whatsapp) : null,
+      },
+    };
+  }
+
+  /** Slot bebas satu poli pada satu hari; `query` = `{ poli, tanggal }` mentah dari URL. */
+  async function slots(query = {}) {
+    const idPoli = Number(query.poli);
+    const tanggal = String(query.tanggal ?? "");
+    if (!Number.isInteger(idPoli) || idPoli < 1) throw new ProgramError(400, "POLI_TIDAK_VALID", "The poli is not valid.");
+    const reason = tanggalTidakValid(tanggal, clock());
+    if (reason) throw new ProgramError(400, reason, "The date cannot be booked.");
+    const taken = rows(
+      await db.raw(`SELECT jadwal_slot FROM konsultasi_tiket WHERE poli = ? AND jadwal_tanggal = ? AND status <> 'batal'`, [idPoli, tanggal]),
+    ).map((row) => row.jadwal_slot);
+    return SLOTS.map((slot) => ({ slot, tersedia: !taken.includes(slot) }));
+  }
+
+  /**
+   * Pesan slot dan kembalikan nomor tiket. `akun` = accountability Directus atau null (anonim);
+   * `payload` = JSON mentah dari form; `lampiran` = `[{ filename, buffer }]`; `captchaRaw` = payload captcha.
+   * Urutan: validasi -> sniff lampiran -> captcha -> poli/usaha -> unggah -> transaksi.
+   * Pemesanan adalah satu transaksi: unique index slot adalah kuotanya, jadi dua pemesan yang berebut
+   * slot yang sama menghasilkan satu tiket (409 untuk yang kalah) dan berkas yang sudah terunggah dihapus lagi.
+   */
+  async function buatTiket(akun, payload, lampiran, captchaRaw) {
+    const pemohon = await pemohonKlinik(db, akun);
+    const usaha = pemohon.usahaId;
+    const input = parseTiket(payload, usaha, clock());
+    const berkas = lampiran.map((file) => ({ ...file, type: sniffType(file.buffer) }));
+    if (berkas.some((file) => !file.type)) {
+      throw new ProgramError(400, "LAMPIRAN_TIDAK_DIDUKUNG", "Attachments must be PDF, JPG, PNG or WebP.");
+    }
+    await captcha(captchaRaw);
+
+    const meja = rows(await db.raw(`SELECT id, nama FROM konsultasi_poli WHERE id = ? AND aktif`, [input.poli]))[0];
+    if (!meja) throw new ProgramError(400, "POLI_TIDAK_VALID", "The poli is not valid.");
+    let namaUsaha = input.namaUsaha;
+    if (usaha) {
+      // The owner's own business name wins: a payload cannot rename a SIDT business.
+      namaUsaha = rows(await db.raw(`SELECT nama FROM usaha WHERE id = ?`, [usaha]))[0]?.nama ?? null;
+    }
+
+    // Upload first (outside the transaction); remove the files again if the booking fails.
+    const fileIds = [];
+    try {
+      for (const file of berkas) {
+        fileIds.push(
+          await files.simpan({
+            buffer: file.buffer,
+            filename: file.filename,
+            type: file.type,
+            folder: LAMPIRAN_FOLDER_ID,
+            title: `Lampiran klinik – ${file.filename}`,
+          }),
+        );
+      }
+      const tiket = await db.transaction(async (trx) => {
+        const seq = rows(await trx.raw(`SELECT nextval('konsultasi_tiket_nomor_seq') AS n`))[0].n;
+        let row;
         try {
-          await trx.raw(
-            `UPDATE konsultasi_tiket SET ${columns.map((column) => `${column} = ?${casts[column] ?? ""}`).join(", ")}, date_updated = NOW() WHERE id = ?`,
-            [...columns.map((column) => update[column]), id],
-          );
+          row = rows(
+            await trx.raw(
+              `INSERT INTO konsultasi_tiket
+                 (nomor, usaha, nama_usaha, nama_kontak, whatsapp, email, poli, deskripsi, moda, jadwal_tanggal, jadwal_slot,
+                  pemohon, sumber_identitas, wa_consent)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               RETURNING id, nomor, moda, jadwal_tanggal::text AS tanggal, jadwal_slot AS slot`,
+              [nomorTiket(seq, clock()), usaha, namaUsaha, input.namaKontak, input.whatsapp, input.email, meja.id, input.deskripsi,
+                input.moda, input.tanggal, input.slot, pemohon.id, usaha ? "sidt" : "manual", input.consent],
+            ),
+          )[0];
         } catch (error) {
-          // Re-opening a cancelled ticket whose slot was taken meanwhile.
-          if (error?.code === "23505") throw new ProgramError(409, "SLOT_PENUH", "The slot is already taken by another ticket.");
+          if (error?.code === "23505") throw new ProgramError(409, "SLOT_PENUH", "This slot has just been booked. Choose another.");
           throw error;
         }
-        return { before: current.status, row: rows(await trx.raw(`${TIKET_SELECT} WHERE t.id = ?`, [id]))[0] };
+        for (const [index, fileId] of fileIds.entries()) {
+          await trx.raw(
+            `INSERT INTO konsultasi_tiket_lampiran (konsultasi_tiket_id, directus_files_id, sort) VALUES (?, ?, ?)`,
+            [row.id, fileId, index + 1],
+          );
+        }
+        await outbox.enqueue(trx, {
+          kunci: kunciPesan(row.id, "tiket_dibuat"),
+          jenis: "tiket_dibuat",
+          sumber: { tiket: row.id },
+          ...untukOutbox(pesanTiket({ nomor: row.nomor, poli_nama: meja.nama, jadwal_tanggal: row.tanggal, jadwal_slot: row.slot, moda: row.moda })),
+          tujuan: input.whatsapp,
+          // Same rule as a status change: the number belongs to the signed-in owner of a SIDT
+          // business, not to a name typed by hand.
+          tujuanTerverifikasi: Boolean(usaha),
+          consent: input.consent,
+        });
+        return row;
       });
-      if (update.status && update.status !== updated.before) {
-        await notify({ logger }, "klinik.status_berubah", { nomor: updated.row.nomor, status: update.status });
+      kick();
+      return {
+        nomor: tiket.nomor,
+        poli: meja.nama,
+        moda: tiket.moda,
+        tanggal: tiket.tanggal,
+        slot: tiket.slot,
+        sumberIdentitas: usaha ? "sidt" : "manual",
+        notifikasi: (await outbox.statusUntuk({ tiket: tiket.id })) ?? { status: "batal", label: STATUS_LABEL.batal },
+      };
+    } catch (error) {
+      if (fileIds.length) await files.hapus(fileIds).catch(() => {});
+      throw error;
+    }
+  }
+
+  /**
+   * Baca ulang tiket: butuh nomor tiket DAN nomor WhatsApp pemesanan, sehingga endpoint tidak bisa
+   * dipakai untuk menyisir tiket orang lain.
+   */
+  async function lacakTiket(body) {
+    const data = objectBody({ body });
+    const nomor = String(data.nomor ?? "").trim().toUpperCase();
+    if (!NOMOR_TIKET.test(nomor)) throw notFound();
+    const whatsapp = normalisasiTelepon(data.whatsapp);
+    await captcha(data.captcha);
+    const tiket = rows(
+      await db.raw(
+        `SELECT t.nomor, t.nama_usaha AS "namaUsaha", t.status, t.moda, t.jadwal_tanggal::text AS tanggal, t.jadwal_slot AS slot,
+                t.whatsapp, t.sumber_identitas AS "sumberIdentitas", po.nama AS "poliNama", t.id AS "tiketId"
+           FROM konsultasi_tiket t JOIN konsultasi_poli po ON po.id = t.poli
+          WHERE t.nomor = ?`,
+        [nomor],
+      ),
+    )[0];
+    if (!tiket || !whatsapp || normalisasiTelepon(tiket.whatsapp) !== whatsapp) throw notFound();
+    return {
+      nomor: tiket.nomor,
+      namaUsaha: tiket.namaUsaha,
+      poli: tiket.poliNama,
+      status: tiket.status,
+      moda: tiket.moda,
+      tanggal: tiket.tanggal,
+      slot: tiket.slot,
+      sumberIdentitas: tiket.sumberIdentitas,
+      notifikasi: (await outbox.statusUntuk({ tiket: tiket.tiketId })) ?? { status: "batal", label: STATUS_LABEL.batal },
+    };
+  }
+
+  /** Tiket yang boleh dikerjakan petugas ini (provinsi melihat semua, lihat penugasan.js). */
+  async function listTiket(pemanggil, query = {}) {
+    const status = query.status ? oneOf(query, "status", STATUS) : null;
+    const cakupan = cakupanPetugas(pemanggil);
+    const result = await db.raw(
+      `${TIKET_SELECT}
+        WHERE ${cakupan.sql} AND ((?::text IS NULL AND t.status <> 'batal') OR t.status = ?)
+        ORDER BY CASE t.prioritas WHEN 'mendesak' THEN 0 WHEN 'tinggi' THEN 1 ELSE 2 END, t.jadwal_tanggal, t.jadwal_slot
+        LIMIT 500`,
+      [...cakupan.bindings, status, status],
+    );
+    return rows(result).map((row) => toTiketDto(pemanggil, row));
+  }
+
+  /**
+   * Geser di kanban, tugaskan, jadwalkan, catat sesi. `versi` (timestamp mikrodetik yang terakhir
+   * dilihat klien) wajib: tanpa itu kunci optimistis opsional dan dua petugas bisa saling menimpa (B24).
+   * Baris, audit, dan pesan outbox commit atau rollback bersama.
+   */
+  async function ubahStatusTiket(pemanggil, tiketId, body, versi) {
+    const id = uuidParam(tiketId);
+    const data = objectBody({ body });
+    const update = parseUpdate(data);
+    const columns = Object.keys(update);
+    const casts = { diagnosis: "::jsonb", rujukan: "::jsonb" };
+    const updated = await db.transaction(async (trx) => {
+      const current = rows(
+        await trx.raw(
+          `SELECT t.id, t.status, t.pendamping, t.pemohon, t.wa_consent AS "waConsent", t.whatsapp,
+                  t.sumber_identitas AS "sumberIdentitas", ut.kota_id AS "kotaId",
+                  NULLIF(TRIM(CONCAT_WS(' ', u.first_name, u.last_name)), '') AS "aktorNama",
+                  to_char(t.date_updated AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS versi
+             FROM konsultasi_tiket t
+             LEFT JOIN usaha_tabular ut ON ut.id = t.usaha
+             LEFT JOIN directus_users u ON u.id = ?
+            WHERE t.id = ?
+            FOR UPDATE OF t`,
+          [pemanggil.id, id],
+        ),
+      )[0];
+      if (!current) throw notFound();
+      // Officer scope, stage order and the version the client saw, all before any write.
+      assertVersi(versi, current.versi);
+      if (!bolehUbah(pemanggil, current, update)) {
+        throw new ProgramError(403, "BUKAN_PENUGASAN_ANDA", "This ticket is not assigned to you.");
       }
-      noStore(res);
-      res.json({ data: updated.row });
+      assertTransisi(update, current.status);
+      try {
+        await trx.raw(
+          `UPDATE konsultasi_tiket SET ${columns.map((column) => `${column} = ?${casts[column] ?? ""}`).join(", ")}, date_updated = NOW() WHERE id = ?`,
+          [...columns.map((column) => update[column]), id],
+        );
+      } catch (error) {
+        // Re-opening a cancelled ticket whose slot was taken meanwhile.
+        if (error?.code === "23505") throw new ProgramError(409, "SLOT_PENUH", "The slot is already taken by another ticket.");
+        throw error;
+      }
+      await catatAudit(trx, {
+        tiket: id,
+        aktor: pemanggil.id,
+        aktorNama: current.aktorNama,
+        statusDari: current.status,
+        statusKe: update.status,
+        perubahan: update,
+      });
+      const row = rows(await trx.raw(`${TIKET_SELECT} WHERE t.id = ?`, [id]))[0];
+      // One message per transition: repeating the same status never queues a second one.
+      if (update.status && update.status !== current.status) {
+        const batal = update.status === "batal";
+        const jenis = batal ? "pembatalan" : "status_berubah";
+        const tiket = { nomor: row.nomor };
+        await outbox.enqueue(trx, {
+          // Versi baris setelah update masuk ke kunci idempotensi (B15).
+          kunci: kunciPesan(row.id, jenis, update.status, row.versi),
+          jenis,
+          sumber: { tiket: row.id },
+          ...untukOutbox(batal ? pesanPembatalan(tiket) : pesanStatusBerubah(tiket, update.status)),
+          tujuan: normalisasiTelepon(row.whatsapp),
+          tujuanTerverifikasi: row.sumberIdentitas === "sidt",
+          consent: row.waConsent,
+        });
+      }
+      return row;
     });
+    kick();
+    return toTiketDto(pemanggil, updated);
+  }
+
+  /**
+   * Buka lampiran tiket: pemohon pada tiket itu, atau petugas yang kanbannya mencakup tiketnya.
+   * Berkas klinis ada di folder privat yang tidak dibuka policy Directus mana pun, jadi ini satu-satunya
+   * jalan masuk. Berkas yang bukan lampiran, atau di luar jangkauan, mendapat 404 yang sama dengan berkas
+   * yang tidak ada. Mengembalikan `{ stream, file }` dari port berkas.
+   */
+  async function bacaLampiran(pemanggil, fileIdParam) {
+    const fileId = uuidParam(fileIdParam, "LAMPIRAN_TIDAK_DITEMUKAN");
+    const cakupan = isStaff(pemanggil) ? cakupanPetugas(pemanggil) : { sql: "FALSE", bindings: [] };
+    const milik = rows(
+      await db.raw(
+        `SELECT t.pemohon, t.usaha, (${cakupan.sql}) AS dalam_cakupan FROM konsultasi_tiket_lampiran l
+           JOIN konsultasi_tiket t ON t.id = l.konsultasi_tiket_id
+          WHERE l.directus_files_id = ?`,
+        [...cakupan.bindings, fileId],
+      ),
+    )[0];
+    const boleh =
+      Boolean(milik) &&
+      (milik.dalam_cakupan === true ||
+        (milik.pemohon && milik.pemohon === pemanggil.id) ||
+        (milik.usaha && pemanggil.usahaId && milik.usaha === pemanggil.usahaId));
+    if (!boleh) throw new ProgramError(404, "LAMPIRAN_TIDAK_DITEMUKAN", "The attachment was not found.");
+    return files.baca(fileId);
+  }
+}

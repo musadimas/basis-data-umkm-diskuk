@@ -1,5 +1,6 @@
 import { ProgramError, noStore, rows, sendError } from "../../lib/utils/http.js";
 import { loadLegalitas, loadUsahaSummary } from "../../lib/usaha.js";
+import cakupan from "../../../../../analytics-shared/cakupan.cjs";
 import {
   flag,
   objectBody,
@@ -10,13 +11,14 @@ import {
   uuidParam,
   UUID,
 } from "../../lib/validate.js";
-import { JENIS_LEGALITAS, hitungSkor, mergeLegalitas } from "./scoring.js";
+import { JENIS_LEGALITAS, hitungSkor, mergeLegalitas, rekomendasiOf } from "./scoring.js";
 
 const KESIAPAN_STATUS = ["belum", "dalam_proses", "terbit"];
 const LIST_STATUS = ["draft", "dinilai", "disetujui", "ditolak"];
 const OPEN_STATUS = ["draft", "dinilai"];
 const MAX_BERITA_ACARA_ITEMS = 200;
 // Knex expands array bindings into value lists, so id arrays are bound as one JSON text value.
+const { pastikanUsaha } = cakupan;
 const ID_LIST = "SELECT jsonb_array_elements_text(?::jsonb)::uuid";
 
 const PENGAJUAN_COLUMNS = `p.id, p.usaha, p.status, p.kapasitas_produksi, p.satuan, p.kesiapan_legalitas,
@@ -46,6 +48,7 @@ export function toPengajuan(row) {
             legalitas: num(row.skor_legalitas),
             sdm: num(row.skor_sdm),
             total: num(row.skor_total),
+            rekomendasi: rekomendasiOf(num(row.skor_total)),
             rubrikVersi: row.rubrik_versi,
           },
     dinilaiAt: row.dinilai_at,
@@ -102,9 +105,10 @@ const handle = (logger, res, fn) =>
 /** GET /usaha/:usahaId — SIDT data (masked), certificates and the latest submission. */
 export const readUsaha =
   ({ database, logger }) =>
-  (req, res) =>
+  (req, res, pemanggil) =>
     handle(logger, res, async () => {
       const usahaId = uuidParam(req.params?.usahaId, "INVALID_USAHA_ID");
+      await pastikanUsaha(database, pemanggil, usahaId);
       const usaha = await loadUsahaSummary(database, usahaId);
       const legalitas = await loadLegalitas(database, usahaId);
       const latest = rows(
@@ -120,9 +124,15 @@ export const readUsaha =
 /** GET /pengajuan?status=dinilai — submissions for the curation panel, best score first. */
 export const listPengajuan =
   ({ database, logger }) =>
-  (req, res) =>
+  (req, res, pemanggil) =>
     handle(logger, res, async () => {
       const status = req.query?.status ? oneOf(req.query, "status", LIST_STATUS) : null;
+      const provinsiWide = pemanggil.admin || pemanggil.peran === "provinsi";
+      // A kab/kota officer without a kota must not fall through to the province-wide list.
+      if (!provinsiWide && !pemanggil.kotaId) {
+        throw new ProgramError(403, "KOTA_NOT_ASSIGNED", "Petugas kab/kota belum memiliki penugasan kota.");
+      }
+      const kotaScope = provinsiWide ? null : pemanggil.kotaId;
       const result = await database.raw(
         `SELECT ${PENGAJUAN_COLUMNS}, u.nama AS usaha_nama, u.nib AS usaha_nib, u.skala AS usaha_skala,
                 t.kota_nama AS usaha_kota
@@ -130,9 +140,10 @@ export const listPengajuan =
            JOIN usaha u ON u.id = p.usaha
            LEFT JOIN usaha_tabular t ON t.id = p.usaha
           WHERE (?::text IS NULL OR p.status = ?)
+            AND (?::integer IS NULL OR t.kota_id = ?)
           ORDER BY p.skor_total DESC NULLS LAST, p.date_created DESC
           LIMIT 500`,
-        [status, status],
+        [status, status, kotaScope, kotaScope],
       );
       noStore(res);
       res.json({
@@ -146,13 +157,13 @@ export const listPengajuan =
 /** POST /pengajuan — open a submission for a business (moves it to "nominated"). */
 export const createPengajuan =
   ({ database, logger }) =>
-  (req, res) =>
+  (req, res, pemanggil) =>
     handle(logger, res, async () => {
       const body = objectBody(req);
       const usahaId = uuidParam(body.usaha, "INVALID_USAHA_ID");
       const fields = parseFields(body);
       const created = await database.transaction(async (trx) => {
-        await loadUsahaSummary(trx, usahaId);
+        await pastikanUsaha(trx, pemanggil, usahaId);
         let row;
         try {
           row = rows(
@@ -164,7 +175,7 @@ export const createPengajuan =
                RETURNING id`,
               [
                 usahaId,
-                req.accountability.user,
+                pemanggil.id,
                 fields.kapasitas_produksi,
                 fields.satuan,
                 fields.kesiapan_legalitas,
@@ -191,12 +202,14 @@ export const createPengajuan =
 /** PATCH /pengajuan/:id — edit an open submission; any edit discards the previous score. */
 export const updatePengajuan =
   ({ database, logger }) =>
-  (req, res) =>
+  (req, res, pemanggil) =>
     handle(logger, res, async () => {
       const id = uuidParam(req.params?.id);
       const fields = parseFields(objectBody(req));
       const updated = await database.transaction(async (trx) => {
-        requireOpen(await findPengajuan(trx, id, { lock: true }));
+        const existing = await findPengajuan(trx, id, { lock: true });
+        requireOpen(existing);
+        await pastikanUsaha(trx, pemanggil, existing.usaha);
         await trx.raw(
           `UPDATE talent_pengajuan
               SET kapasitas_produksi = ?, satuan = ?, kesiapan_legalitas = ?::jsonb, literasi_qris = ?,
@@ -224,12 +237,13 @@ export const updatePengajuan =
 /** POST /pengajuan/:id/hitung-skor — score on the server and move the business to "scouting". */
 export const scorePengajuan =
   ({ database, logger }) =>
-  (req, res) =>
+  (req, res, pemanggil) =>
     handle(logger, res, async () => {
       const id = uuidParam(req.params?.id);
       const scored = await database.transaction(async (trx) => {
         const row = await findPengajuan(trx, id, { lock: true });
         requireOpen(row);
+        await pastikanUsaha(trx, pemanggil, row.usaha);
         const usaha = await loadUsahaSummary(trx, row.usaha);
         const certificates = await loadLegalitas(trx, row.usaha);
         const skor = hitungSkor({
@@ -262,13 +276,14 @@ export const scorePengajuan =
 /** POST /pengajuan/:id/tolak — reject an open submission; the business returns to "none". */
 export const rejectPengajuan =
   ({ database, logger }) =>
-  (req, res) =>
+  (req, res, pemanggil) =>
     handle(logger, res, async () => {
       const id = uuidParam(req.params?.id);
       const catatan = optionalText(objectBody(req), "catatan", 2000);
       const rejected = await database.transaction(async (trx) => {
         const row = await findPengajuan(trx, id, { lock: true });
         requireOpen(row);
+        await pastikanUsaha(trx, pemanggil, row.usaha);
         await trx.raw(
           `UPDATE talent_pengajuan SET status = 'ditolak', catatan = COALESCE(?, catatan), date_updated = NOW() WHERE id = ?`,
           [catatan, id],
@@ -286,7 +301,7 @@ export const rejectPengajuan =
 /** GET /berita-acara — issued Berita Acara, newest first. */
 export const listBeritaAcara =
   ({ database, logger }) =>
-  (_req, res) =>
+  (req, res) =>
     handle(logger, res, async () => {
       const result = await database.raw(
         `SELECT b.id, b.nomor, b.tanggal, b.catatan, b.berkas, b.date_created AS "dateCreated",
@@ -307,7 +322,7 @@ export const listBeritaAcara =
  */
 export const createBeritaAcara =
   ({ database, logger }) =>
-  (req, res) =>
+  (req, res, pemanggil) =>
     handle(logger, res, async () => {
       const body = objectBody(req);
       const ids = body.pengajuan;
@@ -343,7 +358,7 @@ export const createBeritaAcara =
                     lpad(n::text, GREATEST(4, length(n::text)), '0'), ?, ?
                FROM (SELECT nextval('talent_berita_acara_nomor_seq') AS n) seq
              RETURNING id, nomor, tanggal, catatan, berkas, date_created AS "dateCreated"`,
-            [req.accountability.user, catatan],
+            [pemanggil.id, catatan],
           ),
         )[0];
         await trx.raw(

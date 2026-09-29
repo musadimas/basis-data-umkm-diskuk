@@ -1,8 +1,15 @@
-import { routeGuard } from "../../lib/utils/auth.js";
 import { buildTabularFilter } from "../../lib/utils/tabular-filter.js";
-import { resolveOperator, scopeTabularQuery } from "../../lib/utils/operator.js";
+import { scopeTabularQuery } from "../../lib/utils/operator.js";
 import contracts from "../../../../../analytics-shared/contracts.cjs";
+import cakupan from "../../../../../analytics-shared/cakupan.cjs";
 const { KBLI_SECTORS } = contracts;
+const { terjaga } = cakupan;
+
+// Seluruh bundel analytics hanya untuk dashboard provinsi/kabkota (DATA_ROLES);
+// pendamping/umkm memakai endpoint operasional. Kandidat 01: gerbang peran di
+// adapter, scope wilayah via scopeTabularQuery dari peran + kota pemanggil.
+const DATA = { peran: ["provinsi", "kabkota"] };
+const operatorDariPemanggil = (pemanggil) => ({ role: pemanggil.peran, kotaId: pemanggil.kotaId });
 
 const rows = (result) => result?.rows ?? result?.[0] ?? [];
 
@@ -374,11 +381,9 @@ function emptyPayload() {
 
 // Mounted by the bundle entry "v1/analytics/infographic" (see package.json).
 export default function registerInfographicRoutes(router, { database, logger }) {
-  router.get("/", async (req, res, next) => {
-    if (!routeGuard(req, next)) return;
+  router.get("/", terjaga(DATA, () => async (req, res, pemanggil) => {
     try {
-      const operator = await resolveOperator(database, req.accountability);
-      const query = scopeTabularQuery(req.query ?? {}, operator);
+      const query = scopeTabularQuery(req.query ?? {}, operatorDariPemanggil(pemanggil));
       const payload =
         (await readPayload(database, query, req.signal)) ?? emptyPayload();
       const response = await attachAuthoritativeGeometry(database, payload, query);
@@ -386,14 +391,12 @@ export default function registerInfographicRoutes(router, { database, logger }) 
       res.json({ data: response });
     } catch (error) {
       logger.error(error, "Unable to read infographic snapshot");
-      next(error);
+      throw error;
     }
-  });
-  router.get("/map", async (req, res, next) => {
-    if (!routeGuard(req, next)) return;
+  })({ database, logger }));
+  router.get("/map", terjaga(DATA, () => async (req, res, pemanggil) => {
     try {
-      const operator = await resolveOperator(database, req.accountability);
-      const query = scopeTabularQuery(req.query ?? {}, operator);
+      const query = scopeTabularQuery(req.query ?? {}, operatorDariPemanggil(pemanggil));
       const payload = await readMapPayload(
         database,
         query,
@@ -408,9 +411,9 @@ export default function registerInfographicRoutes(router, { database, logger }) 
       res.json({ data: response });
     } catch (error) {
       logger.error(error, "Unable to read infographic map");
-      next(error);
+      throw error;
     }
-  });
+  })({ database, logger }));
 }
 
 export { attachAuthoritativeGeometry, readPayload, readMapPayload, regionLevelFor };

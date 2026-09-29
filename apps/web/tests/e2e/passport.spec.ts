@@ -42,7 +42,8 @@ test.describe("Modul 6 · Talent Passport", () => {
     await page.goto(`/passport/${PASSPORT_KODE.toLowerCase()}`);
     await expect(page.getByText("Terverifikasi: tanda tangan digital DISKUK Jawa Barat valid")).toBeVisible();
     await expect(page.getByRole("heading", { name: "Keripik Siti" })).toBeVisible();
-    await expect(page.getByText("Halal: Terverifikasi")).toBeVisible();
+    // Y04: badge legalitas dirender sebagai chip Terverifikasi/Deklarasi dengan data-terverifikasi.
+    await expect(page.getByTestId("badge-legalitas_halal")).toHaveAttribute("data-terverifikasi", "true");
 
     await expect(async () => {
       await page.getByRole("tab", { name: "Spesifikasi Teknis" }).click();

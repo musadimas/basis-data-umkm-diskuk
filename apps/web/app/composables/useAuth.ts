@@ -40,7 +40,7 @@ function validReturnTo(value: ReturnToInput) {
       decoded,
       import.meta.client ? window.location.origin : "https://dashboard.invalid",
     );
-    return url.pathname === "/dashboard" ||
+    return url.pathname === "/investor" || url.pathname.startsWith("/investor/") || url.pathname === "/dashboard" ||
       url.pathname.startsWith("/dashboard/")
       ? `${url.pathname}${url.search}${url.hash}`
       : "/dashboard";
@@ -67,12 +67,25 @@ function relationId<T>(value: T | string | null | undefined): string | null {
  * or an expanded `{ id }` object. `relationId` only accepts strings — it would drop the
  * native number — so integer FKs need their own resolver.
  */
-function integerRelationId(
-  value: number | string | { id: number | string | null } | null | undefined,
-): number | null {
-  const raw = value !== null && typeof value === "object" ? value.id : value;
-  if (typeof raw === "number") return Number.isInteger(raw) ? raw : null;
-  const text = typeof raw === "string" ? raw.trim() : "";
+type IntegerRelationInput = number | string | { id: number | string | null } | null | undefined;
+
+function isIntegerRelationObject(value: IntegerRelationInput): value is { id: number | string | null } {
+  return value !== null && typeof value === "object";
+}
+
+function isIntegerRelationNumber(value: number | string): value is number {
+  return typeof value === "number";
+}
+
+function isIntegerRelationText(value: number | string): value is string {
+  return typeof value === "string";
+}
+
+function integerRelationId(value: IntegerRelationInput): number | null {
+  const raw = isIntegerRelationObject(value) ? value.id : value;
+  if (raw === null || raw === undefined) return null;
+  if (isIntegerRelationNumber(raw)) return Number.isInteger(raw) ? raw : null;
+  const text = isIntegerRelationText(raw) ? raw.trim() : "";
   return /^\d+$/.test(text) ? Number(text) : null;
 }
 

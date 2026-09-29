@@ -1,6 +1,8 @@
-import { sanitizeError } from "./auth.js";
+import cakupan from "../../../../../analytics-shared/cakupan.cjs";
 
-export { routeGuard, sanitizeError } from "./auth.js";
+const { sanitizeError } = cakupan;
+
+export { sanitizeError };
 
 export function noStore(res) {
   res.setHeader("Cache-Control", "private, no-store");

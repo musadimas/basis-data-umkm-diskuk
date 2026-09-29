@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ChevronDown, History, LogOut, ShieldCheck } from "@lucide/vue";
 import { useAuth } from "~/composables/useAuth";
-import { APP_ROLE_BADGES, DEFAULT_APP_ROLE } from "~/constants";
+import { appRoleBadge } from "~/constants";
 
 const auth = useAuth();
 const user = computed(() => auth.user.value);
@@ -16,7 +16,7 @@ const initials = computed(() =>
     .map((part) => part.charAt(0).toUpperCase())
     .join(""),
 );
-const badge = computed(() => APP_ROLE_BADGES[user.value?.app_role ?? DEFAULT_APP_ROLE]);
+const badge = computed(() => appRoleBadge(user.value?.app_role));
 const instansi = computed(() => user.value?.instansi || "Dinas Koperasi dan Usaha Kecil Jawa Barat");
 const avatarUrl = computed(() =>
   user.value?.avatar ? `/panel/assets/${encodeURIComponent(user.value.avatar)}?width=80&height=80&fit=cover` : undefined,

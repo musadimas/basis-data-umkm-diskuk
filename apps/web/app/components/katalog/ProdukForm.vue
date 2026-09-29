@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { uploadFiles } from "@directus/sdk";
 import { ImagePlus, X } from "@lucide/vue";
-import { KATALOG_FOLDER_ID, KATEGORI_PRODUK, assetUrl } from "~/constants";
+import { KURASI_FOLDER_ID, KATEGORI_PRODUK, assetUrl } from "~/constants";
 import type { Produk, ProdukInput } from "~/types/program";
 
 const MAX_FOTO = 5;
@@ -14,6 +14,7 @@ const directus = useDirectus();
 const text = (value: string | number | null | undefined) => (value === null || value === undefined ? "" : String(value));
 
 // Inputs bind strings; toInput() converts them to the API shape.
+// SAFETY: daftar foto dimulai kosong dan hanya diisi id berkas (string) dari Directus.
 const form = reactive({
   nama: "",
   deskripsi: "",
@@ -30,6 +31,7 @@ const form = reactive({
   tkdnPersen: "",
   kapasitasBulanan: "",
   leadTime: "",
+  ujiLab: "",
   persenBahanLokal: "",
   pdnDeklarasi: false,
   foto: [] as string[],
@@ -54,6 +56,7 @@ watch(
       tkdnPersen: text(produk?.tkdnPersen),
       kapasitasBulanan: text(produk?.kapasitasBulanan),
       leadTime: text(produk?.leadTime),
+      ujiLab: text(produk?.ujiLab),
       persenBahanLokal: text(produk?.persenBahanLokal),
       pdnDeklarasi: produk?.pdnDeklarasi ?? false,
       foto: [...(produk?.foto ?? [])],
@@ -66,6 +69,7 @@ const uploading = ref(false);
 const error = ref("");
 
 async function addFoto(event: Event) {
+  // SAFETY: handler ini hanya dipasang pada <input type="file">, sehingga target-nya selalu elemen input.
   const input = event.target as HTMLInputElement;
   const files = [...(input.files ?? [])];
   input.value = "";
@@ -81,11 +85,12 @@ async function addFoto(event: Event) {
         error.value = `Foto harus berupa gambar dengan ukuran maksimal ${MAX_FOTO_MB} MB.`;
         continue;
       }
-      // The folder must come before the file: Directus reads form fields in order.
+      // Photos wait in the curation folder (no public grant) until a curator publishes them.
       const body = new FormData();
-      body.append("folder", KATALOG_FOLDER_ID);
+      body.append("folder", KURASI_FOLDER_ID);
       body.append("file", file);
       const uploaded = await directus.request(uploadFiles(body));
+      // SAFETY: uploadFiles hanya mengembalikan berkas Directus yang punya `id`.
       form.foto.push((uploaded as { id: string }).id);
     }
   } catch {
@@ -123,6 +128,7 @@ function toInput(): ProdukInput | null {
     tkdnPersen: number(form.tkdnPersen),
     kapasitasBulanan: optional(form.kapasitasBulanan),
     leadTime: optional(form.leadTime),
+    ujiLab: optional(form.ujiLab),
     persenBahanLokal: number(form.persenBahanLokal),
     pdnDeklarasi: form.pdnDeklarasi,
     foto: form.foto,
@@ -182,6 +188,7 @@ function submit() {
         <UiField class="gap-1"><UiFieldLabel for="produk-shelf">Masa simpan</UiFieldLabel><UiInput id="produk-shelf" v-model="form.shelfLife" maxlength="50" /></UiField>
         <UiField class="gap-1"><UiFieldLabel for="produk-kapasitas">Kapasitas per bulan</UiFieldLabel><UiInput id="produk-kapasitas" v-model="form.kapasitasBulanan" maxlength="100" /></UiField>
         <UiField class="gap-1"><UiFieldLabel for="produk-lead">Lead time</UiFieldLabel><UiInput id="produk-lead" v-model="form.leadTime" maxlength="100" /></UiField>
+        <UiField class="gap-1"><UiFieldLabel for="produk-uji">Sertifikasi uji lab</UiFieldLabel><UiInput id="produk-uji" v-model="form.ujiLab" maxlength="200" placeholder="Bila ada, mis. uji mikrobiologi labkes" /></UiField>
         <UiField class="gap-1"><UiFieldLabel for="produk-tkdn">TKDN (%)</UiFieldLabel><UiInput id="produk-tkdn" v-model="form.tkdnPersen" type="number" min="0" max="100" /></UiField>
         <UiField class="gap-1"><UiFieldLabel for="produk-lokal">Bahan baku lokal (%)</UiFieldLabel><UiInput id="produk-lokal" v-model="form.persenBahanLokal" type="number" min="0" max="100" /></UiField>
         <UiField class="gap-1 sm:col-span-2"><UiFieldLabel for="produk-bahan">Bahan baku</UiFieldLabel><UiTextarea id="produk-bahan" v-model="form.bahanBaku" rows="2" maxlength="2000" /></UiField>
@@ -192,7 +199,7 @@ function submit() {
         <span>Saya menyatakan produk ini diproduksi di dalam negeri (deklarasi mandiri Produk Dalam Negeri).</span>
       </label>
       <p class="rounded-md bg-sky-50 p-3 text-xs leading-relaxed text-sky-950">
-        <strong>Kepatuhan PMSE:</strong> informasi produk yang ditayangkan wajib lengkap, benar, dan tidak menyesatkan sesuai ketentuan Perdagangan Melalui Sistem Elektronik. Setiap perubahan akan dikurasi ulang sebelum tayang.
+        <strong>Kepatuhan PMSE:</strong> dilarang memanipulasi transaksi maupun ulasan, dan wajib menjaga standar mutu barang yang ditawarkan. Informasi produk harus lengkap, benar, dan tidak menyesatkan sesuai ketentuan Perdagangan Melalui Sistem Elektronik. Setiap perubahan akan dikurasi ulang sebelum tayang.
       </p>
     </fieldset>
 

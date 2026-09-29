@@ -47,6 +47,7 @@ function __resetBudgetForTests() {
 function secret() {
   return (
     process.env.DIRECTUS_SECRET ||
+    process.env.SECRET ||
     process.env.NUXT_SESSION_POLICY_SECRET ||
     "analytics-development-secret"
   );
@@ -107,6 +108,7 @@ async function listRecords(database, request, opts = {}) {
         filters: request.filters || [],
       },
       registry,
+      opts.operator,
     );
     const sort = request.sort === "nama" ? "a.nama" : "a.usaha_id";
     const cursorClause = cursor

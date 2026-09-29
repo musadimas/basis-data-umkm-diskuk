@@ -33,30 +33,27 @@ export interface UsahaLapangan {
 /**
  * Profil operator dari kontrak `GET /panel/operasional/me` (phase Y01).
  * Bentuk camelCase milik ekstensi operasional — bukan bentuk `directus_users`.
+ * (RoleKey/OperatorProfile yang lama dihapus §2.5: tak ada pemakai; peran dibaca
+ * sebagai AppRole lewat useAuth dan badge lewat appRoleBadge.)
  */
 
-export type RoleKey = "provinsi" | "kabkota" | "pendamping" | "umkm";
-
-export interface OperatorProfile {
-  id: string;
-  email: string;
-  firstName: string | null;
-  lastName: string | null;
-  avatar: string | null;
-  role: RoleKey;
-  roleLabel: string;
-  instansi: string;
-  kota: { id: number; nama: string } | null;
-  usaha: { id: string; nama: string; nib: string | null } | null;
-}
-
-/** Satu baris log aktivitas sesi dari `GET /panel/operasional/aktivitas`. */
-export interface AktivitasItem {
-  id: number;
-  action: string;
-  collection: string;
-  item: string | null;
-  timestamp: string;
-  ip: string | null;
-  userAgent: string | null;
+export interface AspekPerkembangan {
+  totalUsaha: number;
+  sumber: string;
+  definisiVersi: string;
+  kepatuhanRegulasi: false;
+  aspek: Array<{
+    id: string;
+    label: string;
+    indikator: Array<{
+      id: string;
+      label: string;
+      sumber: string;
+      ya: number;
+      tidak: number;
+      diketahui: number;
+      belumAdaData: number;
+      persentase: number | null;
+    }>;
+  }>;
 }

@@ -15,26 +15,29 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{
   (event: "update:modelValue", value: boolean): void;
-  (event: "submit", type: AnalyticsExportType): void;
+  (event: "submit", payload: { type: AnalyticsExportType; title?: string }): void;
   /** Slide PPT is built in the browser from the canvas, not by the export worker. */
   (event: "slide"): void;
 }>();
 
 type ExportChoice = AnalyticsExportType | "slide_pptx";
 const type = ref<ExportChoice>("aggregate_csv");
+/** Judul dokumen untuk PDF/PNG/PPT agregat; kosong = judul bawaan worker. */
+const judul = ref("");
 
 const EXPORT_TYPES: Array<{ value: ExportChoice; label: string }> = [
   { value: "aggregate_csv", label: "CSV agregat (langsung)" },
   { value: "detail_csv", label: "CSV detail (maks. 50.000)" },
   { value: "aggregate_png", label: "PNG agregat" },
   { value: "aggregate_pdf", label: "PDF agregat" },
+  { value: "aggregate_pptx", label: "Slide PPT (rapat pimpinan)" },
   { value: "slide_pptx", label: "Slide PPT (dari tampilan saat ini)" },
 ];
 
 function submit() {
   if (props.busy) return;
   if (type.value === "slide_pptx") emit("slide");
-  else emit("submit", type.value);
+  else emit("submit", { type: type.value, title: judul.value.trim() || undefined });
 }
 </script>
 
@@ -51,7 +54,18 @@ function submit() {
       </UiDialogHeader>
 
       <form @submit.prevent="submit">
-        <label class="block text-sm font-medium" for="export-format">
+        <label class="block text-sm font-medium" for="export-document-title">
+          Judul dokumen
+          <UiInput
+            id="export-document-title"
+            v-model="judul"
+            maxlength="120"
+            placeholder="Analitik UMKM"
+            class="mt-1 h-10 w-full"
+          />
+        </label>
+
+        <label class="mt-3 block text-sm font-medium" for="export-format">
           Format
           <select
             id="export-format"

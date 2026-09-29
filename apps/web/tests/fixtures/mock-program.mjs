@@ -3,7 +3,15 @@
  * Directus /files uploads. Install after installMockDirectus: Playwright gives later routes
  * priority, and anything this mock does not handle falls back to the base mock.
  */
-import { PASSPORT_PAYLOAD, PNG_1PX, katalogResponse } from "./katalog-data.mjs";
+import { PASSPORT_PAYLOAD, PDF_CONTOH, PNG_1PX, katalogResponse } from "./katalog-data.mjs";
+import { createKegiatanState, kegiatanApiResponse } from "./kegiatan-data.mjs";
+import { hargaRange, loiDuplikat, validasiKurasi } from "../../../../services/directus/extensions/program/src/endpoints/katalog/rules.js";
+import { PITCHING_STREAK, capaian, longestTargetStreak } from "../../../../services/directus/extensions/program/src/endpoints/kpi/rules.js";
+import { UUID } from "../../../../services/directus/extensions/program/src/lib/validate.js";
+import { VERSI_AWAL, klinikMockResponse } from "./klinik-data.mjs";
+
+/** Same version marker the specs use to simulate a ticket another officer already changed. */
+export { VERSI_AWAL };
 
 export const USAHA_ID = "11111111-1111-4111-8111-000000000001";
 export const PESERTA_ID = "33333333-3333-4333-8333-000000000001";
@@ -52,12 +60,20 @@ export function createProgramState() {
     ],
     laporan: [],
     produk: [],
+    /** Usaha milik akun mock; null = kurator/provinsi (boleh mengelola semua usaha). */
+    usahaSaya: null,
     loi: [],
     uploads: [],
     uploadFolders: [],
     passport: null,
     tiket: [],
     tiketForms: [],
+    /** Session prefill for the clinic form; null makes `GET /klinik/prefill` answer 401. */
+    prefill: null,
+    /** The signed-in officer as `{ id, admin, appRole, kotaScope }`; null means the provincial analyst. */
+    aktor: null,
+    /** Agenda fixtures + reminder opt-ins of this install (Y07). */
+    kegiatan: createKegiatanState(),
     requests: [],
   };
 }
@@ -65,7 +81,7 @@ export function createProgramState() {
 export async function installMockProgram(page, state = createProgramState()) {
   await page.route("**/panel/assets/**", (route) => route.fulfill({ status: 200, contentType: "image/png", body: PNG_1PX }));
   // Public catalogue reads through the Directus Public policy.
-  await page.route(/\/panel\/items\/produk/, async (route) => {
+  await page.route(/\/panel\/items\/(produk|kota)/, async (route) => {
     const url = new URL(route.request().url());
     state.requests.push({ method: "GET", path: url.pathname, query: Object.fromEntries(url.searchParams) });
     const body = katalogResponse(url.pathname, url.searchParams);
@@ -95,39 +111,39 @@ export async function installMockProgram(page, state = createProgramState()) {
     } catch {
       body = null; // multipart; handled by the route that expects it
     }
-    state.requests.push({ method, path, body });
+    state.requests.push({ method, path, body, query: Object.fromEntries(new URL(request.url()).searchParams) });
     const find = (id) => state.pengajuan.find((item) => item.id === id);
     let match;
 
+    // Public agenda (Y07): same rules as the endpoint, shared with the SSR mock server.
+    if (path.startsWith("/kegiatan")) {
+      state.kegiatan ??= createKegiatanState();
+      const hasil = kegiatanApiResponse({
+        pathname: `/v1/program/kegiatan${path.slice("/kegiatan".length)}`,
+        searchParams: new URL(request.url()).searchParams,
+        method,
+        body,
+        state: state.kegiatan,
+      });
+      if (hasil) {
+        await route.fulfill({ status: hasil.status ?? 200, contentType: "application/json", body: JSON.stringify(hasil.body ?? hasil) });
+        return;
+      }
+    }
+
     const laporanOf = (pesertaId) => state.laporan.filter((item) => item.peserta === pesertaId).sort((a, b) => a.mingguKe - b.mingguKe);
-    const streak = (pesertaId) => {
-      const met = new Set(laporanOf(pesertaId).filter((item) => item.status === "disetujui" && item.realisasiOmzet >= item.target).map((item) => item.mingguKe));
-      let best = 0;
-      for (const week of met) { let n = 0; while (met.has(week + n)) n += 1; best = Math.max(best, n); }
-      return best;
-    };
-    if (method === "POST" && path === "/klinik/lookup") {
-      if (!body?.captcha) return json(route, 400, "CAPTCHA_INVALID");
-      return json(route, 200, body.nomor === "1234567890123" ? [{ ref: "ref-usaha-01", nama: state.usaha.nama, skala: "micro", kota: state.usaha.kota, kbli: "10794" }] : []);
-    }
-    if (method === "GET" && path === "/klinik/slot") {
-      return json(route, 200, ["09:00", "10:30", "13:00", "14:30"].map((slot) => ({ slot, tersedia: slot !== "09:00" })));
-    }
-    if (method === "POST" && path === "/klinik/tiket") {
-      // Multipart: keep the raw parts so the spec can check what the browser sent.
-      const raw = request.postDataBuffer()?.toString("latin1") ?? "";
-      const part = (name) => raw.split(/--[^\r\n]+/).find((chunk) => chunk.includes(`name="${name}"`))?.split("\r\n\r\n")[1]?.replace(/\r\n$/, "") ?? null;
-      const form = { payload: JSON.parse(part("payload") ?? "{}"), captcha: part("captcha"), files: [...raw.matchAll(/name="lampiran"; filename="([^"]+)"/g)].map((m) => m[1]), contentType: request.headers()["content-type"] };
-      state.tiketForms.push(form);
-      return json(route, 201, { nomor: "KLN-2026-09-0042", poli: "Poli Legalitas & Perizinan", moda: form.payload.moda, tanggal: form.payload.tanggal, slot: form.payload.slot });
-    }
-    if (method === "GET" && path === "/klinik/tiket") return json(route, 200, state.tiket);
-    match = path.match(/^\/klinik\/tiket\/([^/]+)$/);
-    if (method === "PATCH" && match) {
-      const item = state.tiket.find((t) => t.id === match[1]);
-      Object.assign(item, body);
-      if (body.pendamping) item.pendampingNama = "Analis Provinsi";
-      return json(route, 200, item);
+    const streak = (pesertaId) => longestTargetStreak(laporanOf(pesertaId));
+    // ── Klinik Konsultasi: rules come from the endpoint's pure rules, the mock only keeps state ──
+    if (path.startsWith("/klinik/")) {
+      let form = null;
+      if (method === "POST" && path === "/klinik/tiket") {
+        // Multipart: keep the raw parts so the spec can check what the browser sent.
+        const raw = request.postDataBuffer()?.toString("latin1") ?? "";
+        const part = (name) => raw.split(/--[^\r\n]+/).find((chunk) => chunk.includes(`name="${name}"`))?.split("\r\n\r\n")[1]?.replace(/\r\n$/, "") ?? null;
+        form = { payload: JSON.parse(part("payload") ?? "{}"), captcha: part("captcha"), files: [...raw.matchAll(/name="lampiran"; filename="([^"]+)"/g)].map((m) => m[1]), contentType: request.headers()["content-type"] };
+      }
+      const hasil = klinikMockResponse({ method, path, query: Object.fromEntries(new URL(request.url()).searchParams), body, form, state });
+      if (hasil) return hasil.code ? json(route, hasil.status, hasil.code) : json(route, hasil.status, hasil.data);
     }
 
     if (method === "GET" && path === "/passport") {
@@ -144,14 +160,36 @@ export async function installMockProgram(page, state = createProgramState()) {
       state.passport = { id: "99999999-9999-4999-8999-000000000001", kode: PASSPORT_PAYLOAD.kode, status: "aktif", statusBadge: PASSPORT_PAYLOAD.statusBadge, skor: PASSPORT_PAYLOAD.skor, payload: PASSPORT_PAYLOAD, diterbitkanAt: PASSPORT_PAYLOAD.diterbitkanAt };
       return json(route, 201, state.passport);
     }
+    if (method === "GET" && (path === "/passport/pdf/summary" || path === "/passport/pdf/katalog")) {
+      const pdfSample = "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] >>\nendobj\nxref\n0 4\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \ntrailer\n<< /Size 4 /Root 1 0 R >>\nstartxref\n200\n%%EOF";
+      return route.fulfill({
+        status: 200,
+        headers: {
+          "content-type": "application/pdf",
+          "content-disposition": `attachment; filename="${path.endsWith("summary") ? "executive-summary.pdf" : "katalog-ekspor.pdf"}"`,
+        },
+        body: pdfSample,
+      });
+    }
 
     if (method === "GET" && path === "/katalog/usaha") {
       const q = new URL(request.url()).searchParams.get("q") ?? "";
       return json(route, 200, q.length >= 3 ? [{ id: USAHA_ID, nama: state.usaha.nama, nib: state.usaha.nib, kota: state.usaha.kota }] : []);
     }
-    if (method === "GET" && path === "/katalog/produk") return json(route, 200, state.produk);
+    // Cermin katalog/service.js: daftar per usaha, hanya untuk kurator atau pemilik usaha itu (M8).
+    const bisaKelola = (usahaId) => state.usahaSaya === null || state.usahaSaya === usahaId;
+    if (method === "GET" && path === "/katalog/produk") {
+      const usaha = new URL(request.url()).searchParams.get("usaha");
+      if (!UUID.test(usaha ?? "")) return json(route, 400, "INVALID_USAHA_ID");
+      if (!bisaKelola(usaha)) return json(route, 403, "FORBIDDEN");
+      return json(route, 200, state.produk.filter((item) => item.usaha === usaha));
+    }
+    match = path.match(/^\/katalog\/foto\/([^/]+)$/);
+    if (method === "GET" && match) return route.fulfill({ status: 200, contentType: "image/png", body: PNG_1PX });
     if (method === "POST" && path === "/katalog/produk") {
-      const created = { id: `88888888-8888-4888-8888-${String(state.produk.length + 1).padStart(12, "0")}`, ...body, statusKurasi: "menunggu", catatanKurasi: null, dikurasiAt: null, usahaNama: state.usaha.nama, usahaKota: state.usaha.kota, dateCreated: new Date().toISOString(), dateUpdated: new Date().toISOString() };
+      if (!UUID.test(body?.usaha ?? "")) return json(route, 400, "INVALID_USAHA_ID");
+      if (!bisaKelola(body.usaha)) return json(route, 403, "FORBIDDEN");
+      const created = { id: `88888888-8888-4888-8888-${String(state.produk.length + 1).padStart(12, "0")}`, ...body, hargaLabel: hargaRange(body.hargaRetail ?? null, body.hargaGrosir ?? null), statusKurasi: "menunggu", catatanKurasi: null, dikurasiAt: null, usahaNama: state.usaha.nama, usahaKota: state.usaha.kota, dateCreated: new Date().toISOString(), dateUpdated: new Date().toISOString() };
       state.produk.push(created);
       return json(route, 201, created);
     }
@@ -162,19 +200,41 @@ export async function installMockProgram(page, state = createProgramState()) {
     match = path.match(/^\/katalog\/produk\/([^/]+)\/kurasi$/);
     if (method === "POST" && match) {
       const item = state.produk.find((p) => p.id === match[1]);
-      Object.assign(item, { statusKurasi: body.keputusan, catatanKurasi: body.catatan });
+      let keputusan;
+      try {
+        keputusan = validasiKurasi(body ?? {});
+      } catch (error) {
+        return json(route, error.statusCode ?? 400, error.code ?? "INVALID_PAYLOAD");
+      }
+      if (!item) return json(route, 404, "PRODUK_NOT_FOUND");
+      Object.assign(item, { statusKurasi: keputusan.keputusan, catatanKurasi: keputusan.catatan });
       return json(route, 200, item);
     }
     if (method === "GET" && path === "/katalog/loi") return json(route, 200, state.loi);
+    match = path.match(/^\/katalog\/produk\/([^/]+)\/pdf$/);
+    if (method === "GET" && match) {
+      return route.fulfill({
+        status: 200,
+        headers: {
+          "content-type": "application/pdf",
+          "content-disposition": `attachment; filename="spesifikasi-produk.pdf"`,
+        },
+        body: PDF_CONTOH,
+      });
+    }
     if (method === "POST" && path === "/katalog/loi") {
-      state.loi.push(body);
-      return json(route, 201, { diterima: true });
+      if (!body?.persetujuanKontak) return json(route, 400, "PERSETUJUAN_WAJIB");
+      // Urutan server: idempoten dulu (captcha sekali pakai), baru captcha. Duplikat per produk (M7).
+      if (loiDuplikat(state.loi, body)) return json(route, 200, { diterima: true, duplikat: true });
+      if (!body.captcha) return json(route, 400, "CAPTCHA_INVALID");
+      state.loi.push({ ...body, dateCreated: new Date().toISOString() });
+      return json(route, 201, { diterima: true, duplikat: false });
     }
 
     if (method === "GET" && path === "/kpi/peserta") {
       return json(route, 200, state.peserta.map((item) => {
         const own = laporanOf(item.id);
-        return { ...item, laporanTerkirim: own.length, statusMingguIni: own.find((l) => l.mingguKe === item.mingguBerjalan)?.status ?? "belum_mengirim" };
+        return { ...item, laporanTerkirim: own.length, statusMingguIni: item.mingguBerjalan === 0 ? null : (own.find((l) => l.mingguKe === item.mingguBerjalan)?.status ?? "belum_mengirim") };
       }));
     }
     match = path.match(/^\/kpi\/peserta\/([^/]+)$/);
@@ -182,29 +242,44 @@ export async function installMockProgram(page, state = createProgramState()) {
       const peserta = state.peserta.find((item) => item.id === match[1]);
       if (!peserta) return json(route, 404, "PESERTA_NOT_FOUND");
       const best = streak(peserta.id);
-      return json(route, 200, { peserta, laporan: laporanOf(peserta.id), pitching: { streak: best, dibutuhkan: 4, memenuhi: best >= 4 }, akses: { kirim: true, review: true } });
+      return json(route, 200, { peserta, laporan: laporanOf(peserta.id), pitching: { streak: best, dibutuhkan: PITCHING_STREAK, memenuhi: best >= PITCHING_STREAK }, akses: { kirim: true, review: true } });
     }
     match = path.match(/^\/kpi\/peserta\/([^/]+)\/laporan$/);
     if (method === "POST" && match) {
-      const duplicate = state.laporan.find((item) => item.clientUuid === body.clientUuid);
-      if (duplicate) return json(route, 200, duplicate);
+      // Urutan server: peserta aktif → replay clientUuid → minggu valid → satu laporan per minggu.
       const peserta = state.peserta.find((item) => item.id === match[1]);
+      if (!peserta) return json(route, 404, "PESERTA_NOT_FOUND");
+      if (peserta.status !== "aktif") return json(route, 409, "PESERTA_TIDAK_AKTIF");
+      const duplicate = state.laporan.find((item) => item.clientUuid === body.clientUuid);
+      if (duplicate) return duplicate.peserta === peserta.id ? json(route, 200, duplicate) : json(route, 409, "CLIENT_UUID_CONFLICT");
+      if (body.mingguKe > peserta.jumlahMinggu || body.mingguKe > peserta.mingguBerjalan) return json(route, 400, "MINGGU_TIDAK_VALID");
+      const existing = state.laporan.find((item) => item.peserta === peserta.id && item.mingguKe === body.mingguKe);
+      if (existing && existing.status !== "ditolak") return json(route, 409, "LAPORAN_SUDAH_ADA");
+      const now = new Date().toISOString();
+      const fields = {
+        target: peserta.targetMingguan,
+        realisasiOmzet: body.realisasiOmzet,
+        jumlahTransaksi: body.jumlahTransaksi,
+        capaianPersen: capaian(body.realisasiOmzet, peserta.targetMingguan),
+        kendala: body.kendala,
+        bukti: body.bukti,
+        status: "menunggu",
+        clientUuid: body.clientUuid,
+        dateUpdated: now,
+      };
+      // Laporan yang ditolak dikoreksi di tempat (200), bukan dibuat ulang.
+      if (existing) {
+        Object.assign(existing, fields);
+        return json(route, 200, existing);
+      }
       const created = {
         id: `44444444-4444-4444-8444-${String(state.laporan.length + 1).padStart(12, "0")}`,
         peserta: peserta.id,
         mingguKe: body.mingguKe,
-        target: peserta.targetMingguan,
-        realisasiOmzet: body.realisasiOmzet,
-        jumlahTransaksi: body.jumlahTransaksi,
-        capaianPersen: Math.round((body.realisasiOmzet / peserta.targetMingguan) * 1000) / 10,
-        kendala: body.kendala,
-        bukti: body.bukti,
-        status: "menunggu",
+        ...fields,
         catatanPendamping: null,
         direviewAt: null,
-        clientUuid: body.clientUuid,
-        dateCreated: new Date().toISOString(),
-        dateUpdated: new Date().toISOString(),
+        dateCreated: now,
       };
       state.laporan.push(created);
       return json(route, 201, created);
@@ -212,7 +287,7 @@ export async function installMockProgram(page, state = createProgramState()) {
     match = path.match(/^\/kpi\/peserta\/([^/]+)\/pitching$/);
     if (method === "PATCH" && match) {
       const peserta = state.peserta.find((item) => item.id === match[1]);
-      if (body.rekomendasi && streak(peserta.id) < 4) return json(route, 409, "PITCHING_BELUM_MEMENUHI");
+      if (body.rekomendasi && streak(peserta.id) < PITCHING_STREAK) return json(route, 409, "PITCHING_BELUM_MEMENUHI");
       peserta.rekomendasiPitching = body.rekomendasi;
       return json(route, 200, peserta);
     }
@@ -223,15 +298,25 @@ export async function installMockProgram(page, state = createProgramState()) {
     match = path.match(/^\/kpi\/laporan\/([^/]+)\/review$/);
     if (method === "POST" && match) {
       const item = state.laporan.find((l) => l.id === match[1]);
+      if (!item) return json(route, 404, "LAPORAN_NOT_FOUND");
+      if (!["disetujui", "ditolak"].includes(body?.keputusan)) return json(route, 400, "INVALID_PAYLOAD");
+      if (body.keputusan === "ditolak" && !String(body.catatan ?? "").trim()) return json(route, 400, "CATATAN_WAJIB");
+      if (item.status !== "menunggu") return json(route, 409, "LAPORAN_SUDAH_DIREVIEW");
       Object.assign(item, { status: body.keputusan, catatanPendamping: body.catatan, direviewAt: new Date().toISOString() });
       return json(route, 200, item);
     }
 
-    if (method === "GET" && path === `/talent/usaha/${USAHA_ID}`) {
+    if (method === "GET" && path.startsWith("/talent/usaha/")) {
+      if (path !== `/talent/usaha/${USAHA_ID}`) {
+        return json(route, 403, "FORBIDDEN");
+      }
       const latest = state.pengajuan.filter((item) => item.usaha === USAHA_ID).at(-1) ?? null;
       return json(route, 200, { usaha: state.usaha, legalitas: state.legalitas, pengajuan: latest });
     }
     if (method === "POST" && path === "/talent/pengajuan") {
+      if (body.usaha !== USAHA_ID) {
+        return json(route, 403, "FORBIDDEN");
+      }
       if (state.pengajuan.some((item) => item.usaha === body.usaha && ["draft", "dinilai"].includes(item.status))) {
         return json(route, 409, "PENGAJUAN_SUDAH_ADA");
       }
@@ -259,7 +344,15 @@ export async function installMockProgram(page, state = createProgramState()) {
     if (method === "POST" && match) {
       const item = find(match[1]);
       item.status = "dinilai";
-      item.skor = { finansial: 35, pasar: 100, legalitas: 60, sdm: 80, total: 68.75, rubrikVersi: "placeholder-v0" };
+      item.skor = {
+        finansial: 35,
+        pasar: 100,
+        legalitas: 60,
+        sdm: 80,
+        total: 68.75,
+        rubrikVersi: "placeholder-v0",
+        rekomendasi: "Dipertimbangkan",
+      };
       state.usaha.talentStatus = "scouting";
       return json(route, 200, item);
     }

@@ -347,7 +347,7 @@ function addFilter() {
               includeOthers: ($event.target as HTMLInputElement).checked,
             })
           "
-        />
+        >
         Gabungkan sisanya sebagai “Lainnya”
       </label>
 
@@ -406,7 +406,7 @@ function addFilter() {
                     class="h-8 w-full min-w-0 rounded-md border bg-background px-2 pr-12 text-sm"
                     :placeholder="`Cari ${selectedField.label.toLowerCase()}…`"
                     aria-label="Cari nilai filter"
-                  />
+                  >
                   <span
                     v-if="optionPending"
                     class="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground"
@@ -439,7 +439,7 @@ function addFilter() {
                 :placeholder="selectedField.label"
                 aria-label="Nilai filter"
                 @keyup.enter="addFilter"
-              />
+              >
             </div>
             <p
               v-if="cascadeHint"

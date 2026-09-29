@@ -1,4 +1,6 @@
-import { APPLICATION_ROLE_ID } from "../src/lib/utils/auth.js";
+import { createRequire } from "node:module";
+const require = createRequire(import.meta.url);
+const { APPLICATION_ROLE_ID } = require("../../../analytics-shared/cakupan.cjs");
 import assert from "node:assert/strict";
 import test from "node:test";
 import registerRoutes, * as extension from "../src/endpoints/infographic/index.js";
@@ -13,6 +15,7 @@ const provinsiOperatorRows = [
     app_role: "provinsi",
     kota: null,
     kota_nama: null,
+    kota_scope: null,
     usaha: null,
     usaha_nama: null,
     usaha_nib: null,
@@ -24,12 +27,13 @@ const kabkotaOperatorRows = (kota = 7) => [
     app_role: "kabkota",
     kota,
     kota_nama: kota == null ? null : "KABUPATEN SUBANG",
+    kota_scope: kota,
     usaha: null,
     usaha_nama: null,
     usaha_nib: null,
   },
 ];
-const isOperatorQuery = (sql) => sql.includes("FROM directus_users u");
+const isOperatorQuery = (sql) => sql.includes("FROM directus_users");
 
 function captureRoute(raw, logger = { error: () => assert.fail("unexpected query error") }) {
   const handlers = {};
@@ -220,4 +224,21 @@ test("kabkota without an assigned kota is rejected with KOTA_NOT_ASSIGNED", asyn
   assert.equal(nextError.statusCode, 403);
   assert.equal(nextError.extensions.code, "KOTA_NOT_ASSIGNED");
   assert.equal(calls.length, 1, "only the operator lookup may run");
+});
+
+test("kedua route infografis bertanda terjaga provinsi/kabkota (01)", async () => {
+  const { createRequire } = await import("node:module");
+  const require = createRequire(import.meta.url);
+  const cakupan = require("../../../analytics-shared/cakupan.cjs");
+  const handlers = {};
+  registerRoutes({ get: (path, value) => { handlers[path] = value; } }, {
+    database: { raw: async () => ({ rows: [] }) },
+    logger: { error() {} },
+  });
+  assert.deepEqual(Object.keys(handlers).sort(), ["/", "/map"]);
+  for (const path of ["/", "/map"]) {
+    const tanda = cakupan.tandaCakupan(handlers[path]);
+    assert.equal(tanda?.jenis, "terjaga", `GET ${path}`);
+    assert.deepEqual([...tanda.peran].sort(), ["kabkota", "provinsi"], `GET ${path}`);
+  }
 });

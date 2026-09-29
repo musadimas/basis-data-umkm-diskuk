@@ -1,26 +1,7 @@
+import sharedCompiler from "../../../../../analytics-shared/query-compiler.cjs";
 import { AnalyticsApiError } from "./errors.js";
 
-const KOTA_FIELDS = new Set(["kota_id", "kota_kode", "kota_nama"]);
-
-// kabkota: buang filter kota dari klien lalu paksa satu filter kota_id milik
-// wilayah operator, sehingga budget filter tidak bertambah dan hasil selalu
-// terkunci pada kota sendiri. Role lain diteruskan apa adanya.
-function scopeAnalysisRequest(request, operator) {
-  if (operator?.role !== "kabkota") return request ?? {};
-  if (operator.kotaId == null) {
-    throw new AnalyticsApiError(403, "KOTA_NOT_ASSIGNED");
-  }
-  const source = request ?? {};
-  const filters = Array.isArray(source.filters) ? source.filters : [];
-  const kept = filters.filter((filter) => {
-    const key = filter?.fieldId ?? filter?.field;
-    return !KOTA_FIELDS.has(key);
-  });
-  return {
-    ...source,
-    filters: [...kept, { fieldId: "kota_id", operator: "eq", value: String(operator.kotaId) }],
-  };
-}
+const KOTA_FIELDS = sharedCompiler.KOTA_FIELDS;
 
 // Partisi cache aggregate: satu keranjang per kota operator, admin tetap terpisah,
 // dan role-key (bukan UUID role) yang dipakai sebagai bagian kunci.
@@ -49,4 +30,4 @@ async function assertUsahaInScope(database, usahaId, operator) {
   if (!rows.length) throw new AnalyticsApiError(404, "PROFILE_NOT_FOUND");
 }
 
-export { KOTA_FIELDS, scopeAnalysisRequest, permissionScopeOf, assertUsahaInScope };
+export { KOTA_FIELDS, permissionScopeOf, assertUsahaInScope };

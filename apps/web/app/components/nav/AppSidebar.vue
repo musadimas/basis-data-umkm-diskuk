@@ -3,7 +3,7 @@ import type { SidebarProps } from "../ui/sidebar/index";
 import { useSidebar } from "../ui/sidebar/utils";
 import { PanelLeft } from "@lucide/vue";
 import { useAuth } from "~/composables/useAuth";
-import { NAVIGATION_LINKS } from "~/constants";
+import { NAVIGATION_LINKS, isRoleKey } from "~/constants";
 
 const props = withDefaults(defineProps<SidebarProps>(), {
   collapsible: "icon",
@@ -15,9 +15,11 @@ const { toggleSidebar } = useSidebar();
 // Kunci perannya ada di app_role; `role` berisi UUID role Directus. Section yang dipakai
 // harus selaras dengan ROLE_ROUTES di constants/ROLES.ts, yang ditegakkan middleware
 // auth.global.ts.
-const sections = computed(
-  () => NAVIGATION_LINKS[auth.user.value?.app_role ?? "provinsi"],
-);
+// Tanpa app_role yang sah tidak ada menu sama sekali (ADR-009), bukan menu provinsi.
+const sections = computed(() => {
+  const role = auth.user.value?.app_role;
+  return isRoleKey(role) ? NAVIGATION_LINKS[role] : [];
+});
 </script>
 
 <template>

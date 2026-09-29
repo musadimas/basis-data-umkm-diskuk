@@ -2,15 +2,16 @@
 import { updateMe } from "@directus/sdk";
 import { Eye, EyeOff } from "@lucide/vue";
 import { useAuth } from "~/composables/useAuth";
-import { APP_ROLE_BADGES, DEFAULT_APP_ROLE } from "~/constants";
+import { appRoleBadge } from "~/constants";
 import { requestErrorCode } from "~/lib/request-error";
+import type { RuntimeLabelMap } from "~/types/directus";
 
 definePageMeta({ layout: "dashboard" });
 useSeoMeta({ title: "Pengaturan Akun & Keamanan – Dashboard UMKM" });
 
 const PASSWORD_MIN = 10;
 const PASSWORD_TOO_SHORT = `Kata sandi baru minimal ${PASSWORD_MIN} karakter.`;
-const PASSWORD_ERRORS: Record<string, string> = {
+const PASSWORD_ERRORS: RuntimeLabelMap = {
   CURRENT_PASSWORD_REQUIRED: "Kata sandi saat ini wajib diisi.",
   CURRENT_PASSWORD_INVALID: "Kata sandi saat ini tidak sesuai.",
   NEW_PASSWORD_TOO_SHORT: PASSWORD_TOO_SHORT,
@@ -20,7 +21,7 @@ const PASSWORD_ERRORS: Record<string, string> = {
 const auth = useAuth();
 const directus = useDirectus();
 const user = computed(() => auth.user.value);
-const badge = computed(() => APP_ROLE_BADGES[user.value?.app_role ?? DEFAULT_APP_ROLE]);
+const badge = computed(() => appRoleBadge(user.value?.app_role));
 
 const profile = reactive({ firstName: "", lastName: "" });
 const profilePending = ref(false);

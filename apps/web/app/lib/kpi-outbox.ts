@@ -11,6 +11,7 @@ import { uploadFiles } from "@directus/sdk";
 import { endpoint } from "~/lib/directus";
 import { requestErrorCode, requestStatus } from "~/lib/request-error";
 import { kpiOutboxStore } from "~/lib/idb";
+import { pesanKpi } from "~/lib/kpi";
 import type { KpiLaporan, KpiLaporanInput } from "~/types/program";
 
 export interface OutboxPhoto {
@@ -52,13 +53,17 @@ export function discard(clientUuid: string) {
   return kpiOutboxStore.removeItem(clientUuid);
 }
 
-const REJECTION_MESSAGES: Record<string, string> = {
-  LAPORAN_SUDAH_ADA: "Laporan minggu ini sudah terkirim sebelumnya.",
-  MINGGU_TIDAK_VALID: "Minggu laporan belum dimulai.",
-  PESERTA_TIDAK_AKTIF: "Kepesertaan program sudah tidak aktif.",
-  INVALID_REFERENCE: "Foto bukti tidak ditemukan di server.",
-  FORBIDDEN: "Akun ini tidak dapat mengirim laporan untuk usaha tersebut.",
-};
+/**
+ * Hasil pengiriman satu entri lewat `useKpiOutbox.add` (B25): entri hilang dari
+ * antrean berarti terkirim, masih ada tanpa `error` berarti antre, ada dengan
+ * `error` berarti ditolak server.
+ */
+export type HasilKirimOutbox = "terkirim" | "antre" | "ditolak";
+
+export function hasilUntukEntri(entri: OutboxEntry | undefined): HasilKirimOutbox {
+  if (!entri) return "terkirim";
+  return entri.error ? "ditolak" : "antre";
+}
 
 type Directus = ReturnType<typeof useDirectus>;
 
@@ -66,7 +71,7 @@ type Directus = ReturnType<typeof useDirectus>;
  * A failure worth retrying later: offline, timeout, server/proxy error, or an expired session
  * (the report must survive until the user signs in again).
  */
-function retryable(error: unknown) {
+function retryable<E>(error: E): boolean {
   const status = requestStatus(error);
   return status === undefined || status === 401 || status === 408 || status === 429 || status >= 500;
 }
@@ -89,6 +94,7 @@ export async function flushOutbox(directus: Directus): Promise<{ sent: KpiLapora
         const form = new FormData();
         form.append("file", new File([photo.blob], photo.name, { type: photo.type }));
         const uploaded = await directus.request(uploadFiles(form));
+        // SAFETY: uploadFiles hanya mengembalikan berkas Directus yang punya `id`; bentuk lain tidak pernah sampai di sini.
         photo.fileId = (uploaded as { id: string }).id;
         await kpiOutboxStore.setItem(entry.clientUuid, entry);
       }
@@ -110,7 +116,7 @@ export async function flushOutbox(directus: Directus): Promise<{ sent: KpiLapora
     } catch (error) {
       if (retryable(error)) return { sent, failed, offline: true };
       const code = requestErrorCode(error) ?? "UNKNOWN";
-      entry.error = { code, message: REJECTION_MESSAGES[code] ?? "Laporan ditolak server. Periksa isian lalu kirim ulang." };
+      entry.error = { code, message: pesanKpi(code) };
       await kpiOutboxStore.setItem(entry.clientUuid, entry);
       failed += 1;
     }

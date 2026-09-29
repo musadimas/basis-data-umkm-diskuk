@@ -168,8 +168,8 @@ async function removeSaved(id: string) {
 async function renameSaved(payload: { id: string; name: string }) {
   await savedApi.rename(payload.id, payload.name);
 }
-async function startExport(type: AnalyticsExportType) {
-  await exportApi.submit(type, state.applied.value);
+async function startExport(payload: { type: AnalyticsExportType; title?: string }) {
+  await exportApi.submit(payload.type, state.applied.value, { title: payload.title });
 }
 const slidePending = ref(false);
 const slideError = ref<string | null>(null);

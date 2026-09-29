@@ -1,3 +1,4 @@
+import sharedCompiler from "../../directus/analytics-shared/query-compiler.cjs";
 import { withTransaction } from "./db.js";
 import { reconcileGeneration } from "./reconcile.js";
 import { projectRecord, safeProjection } from "./projector.js";
@@ -353,81 +354,16 @@ async function refreshLegacySnapshots(client, dataAsOf) {
   }
 }
 
-// Dimension rollup expressions – MUST stay aligned with DIMENSIONS in
-// services/directus/extensions/analytics/src/endpoints/analysis/query-compiler.js so the API fast path can
-// trust dimension_value/label semantics without re-deriving them.
-const ROLLUP_DIMENSIONS = Object.freeze([
-  [
-    "kota_id",
-    "COALESCE(a.kota_id::text,'unknown')",
-    "COALESCE(a.kota_nama,'Tidak diketahui')",
-  ],
-  [
-    "kota_kode",
-    "COALESCE(a.kota_kode,'unknown')",
-    "COALESCE(a.kota_nama,'Tidak diketahui')",
-  ],
-  [
-    "kota_nama",
-    "COALESCE(a.kota_nama,'Tidak diketahui')",
-    "COALESCE(a.kota_nama,'Tidak diketahui')",
-  ],
-  [
-    "kecamatan_id",
-    "COALESCE(a.kecamatan_id::text,'unknown')",
-    "COALESCE(a.kecamatan_nama,'Tidak diketahui')",
-  ],
-  [
-    "kecamatan_nama",
-    "COALESCE(a.kecamatan_nama,'Tidak diketahui')",
-    "COALESCE(a.kecamatan_nama,'Tidak diketahui')",
-  ],
-  [
-    "kelurahan_id",
-    "COALESCE(a.kelurahan_id::text,'unknown')",
-    "COALESCE(a.kelurahan_nama,'Tidak diketahui')",
-  ],
-  [
-    "kelurahan_nama",
-    "COALESCE(a.kelurahan_nama,'Tidak diketahui')",
-    "COALESCE(a.kelurahan_nama,'Tidak diketahui')",
-  ],
-  [
-    "sektor_kbli",
-    "COALESCE(a.sektor_kbli,'unknown')",
-    "COALESCE(a.sektor_kbli,'Tidak diketahui')",
-  ],
-  [
-    "kbli_kode",
-    "COALESCE(a.kode_kbli,'unknown')",
-    "COALESCE(a.kode_kbli,'Tidak diketahui')",
-  ],
-  [
-    "skala_dilaporkan",
-    "COALESCE(a.skala,'unknown')",
-    "CASE a.skala WHEN 'micro' THEN 'Mikro' WHEN 'small' THEN 'Kecil' WHEN 'medium' THEN 'Menengah' ELSE 'Tidak diketahui' END",
-  ],
-  [
-    "status_hukum",
-    "COALESCE(a.status_hukum,'unknown')",
-    "COALESCE(a.status_hukum,'Tidak diketahui')",
-  ],
-  [
-    "status_usaha",
-    "COALESCE(a.status,'unknown')",
-    "CASE a.status WHEN 'active' THEN 'Aktif' WHEN 'archived' THEN 'Diarsipkan' ELSE 'Tidak diketahui' END",
-  ],
-  [
-    "quality_geography",
-    "CASE WHEN a.kota_id IS NULL OR a.kecamatan_id IS NULL OR a.kelurahan_id IS NULL THEN 'unknown' ELSE 'mapped' END",
-    "CASE WHEN a.kota_id IS NULL OR a.kecamatan_id IS NULL OR a.kelurahan_id IS NULL THEN 'Tidak diketahui' ELSE 'Terpetakan' END",
-  ],
-  [
-    "quality_kbli",
-    "CASE WHEN a.kode_kbli IS NULL THEN 'missing' WHEN a.sektor_kbli IS NULL THEN 'unmapped' ELSE 'mapped' END",
-    "CASE WHEN a.kode_kbli IS NULL THEN 'Tidak ada kode' WHEN a.sektor_kbli IS NULL THEN 'Tidak terpetakan' ELSE 'Terpetakan' END",
-  ],
-]);
+// Kandidat 03 langkah 2c: ekspresi rollup diturunkan dari DIMENSIONS shared
+// (analytics-shared/query-compiler.cjs) supaya fast path API memercayai
+// semantik dimension_value/label yang sama tanpa turunan ganda.
+export const ROLLUP_DIMENSIONS = Object.freeze(
+  Object.entries(sharedCompiler.DIMENSIONS).map(([dimension, definisi]) => [
+    dimension,
+    definisi.key,
+    definisi.label,
+  ]),
+);
 
 const ROLLUP_VALUES_SQL = `COUNT(*)::bigint AS value,
   COALESCE(SUM(a.omzet_tahunan) FILTER (WHERE a.omzet_quality='reported'),0) AS omzet_value,
@@ -583,7 +519,12 @@ export async function rebuildCurrentModel(
   const lock = await pool.query(
     "SELECT pg_try_advisory_lock(hashtext('diskuk.analytics.rebuild')) AS locked",
   );
-  if (!lock.rows[0]?.locked) return { skipped: "rebuild_locked" };
+  // Dilewati diam-diam berarti job tuntas "completed" tanpa generasi (Y05); lempar supaya
+  // antrean menjadwalkan ulang seperti reconcile/activate.
+  if (!lock.rows[0]?.locked)
+    throw Object.assign(new Error("Analytics rebuild is already running"), {
+      code: "REBUILD_LOCKED",
+    });
   let generationId;
   let promoted = false;
   try {

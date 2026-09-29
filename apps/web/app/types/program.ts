@@ -42,6 +42,7 @@ export interface TalentSkor {
   sdm: number;
   total: number;
   rubrikVersi: string;
+  rekomendasi?: string;
 }
 
 export interface TalentPengajuan {
@@ -154,6 +155,13 @@ export interface KpiLaporanInput {
 
 export type KurasiStatus = "menunggu" | "tayang" | "rekomendasi_marketplace" | "ditolak";
 
+/** One valid certificate of the business, copied into the public product record (20260926R). */
+export interface ProdukLegalitas {
+  jenis: JenisLegalitas;
+  nomor: string | null;
+  berlakuHingga: string | null;
+}
+
 /** A published product as the Directus Public policy exposes it (collection `produk`). */
 export interface ProdukPublik {
   id: string;
@@ -163,6 +171,8 @@ export interface ProdukPublik {
   kbli: string | null;
   harga_retail: number | null;
   harga_grosir: number | null;
+  /** Label harga dari server (toProduk.hargaLabel); baris mentah Directus tidak memilikinya. */
+  hargaLabel?: string | null;
   moq: number | null;
   video_url: string | null;
   dimensi: string | null;
@@ -185,6 +195,8 @@ export interface ProdukPublik {
   usaha_kota: number | null;
   usaha_kota_nama: string | null;
   usaha_sertifikasi: string;
+  usaha_nib: string | null;
+  usaha_legalitas: ProdukLegalitas[] | null;
   date_created: string;
 }
 
@@ -198,6 +210,8 @@ export interface Produk {
   kbli: string | null;
   hargaRetail: number | null;
   hargaGrosir: number | null;
+  /** Rentang harga siap tampil dari server ("Rp 12.000 - Rp 15.000"); null bila tanpa harga. */
+  hargaLabel: string | null;
   moq: number | null;
   videoUrl: string | null;
   dimensi: string | null;
@@ -207,6 +221,7 @@ export interface Produk {
   tkdnPersen: number | null;
   kapasitasBulanan: string | null;
   leadTime: string | null;
+  ujiLab: string | null;
   persenBahanLokal: number | null;
   pdnDeklarasi: boolean;
   foto: string[];
@@ -219,7 +234,7 @@ export interface Produk {
   dateUpdated: string;
 }
 
-export type ProdukInput = Omit<Produk, "id" | "usaha" | "statusKurasi" | "catatanKurasi" | "dikurasiAt" | "usahaNama" | "usahaKota" | "dateCreated" | "dateUpdated">;
+export type ProdukInput = Omit<Produk, "id" | "usaha" | "hargaLabel" | "statusKurasi" | "catatanKurasi" | "dikurasiAt" | "usahaNama" | "usahaKota" | "dateCreated" | "dateUpdated">;
 
 export interface UsahaPilihan {
   id: string;
@@ -251,6 +266,26 @@ export interface PassportSkor {
   kinerja: number;
 }
 
+/** A badge on the passport: "terverifikasi" requires recorded evidence, declarations say so. */
+export interface PassportBadge {
+  key: string;
+  label: string;
+  terverifikasi: boolean;
+  sumber: string;
+}
+
+export interface SumberSkor {
+  dimensi: string;
+  sumber: string;
+}
+
+/** Public key of the active Ed25519 signing key, for verification outside the server. */
+export interface PassportPublicKey {
+  kid: string;
+  jwk: { kty: string; crv: string; x: string };
+  sidikJari: string;
+}
+
 /** The signed, public part of a Talent Passport. */
 export interface PassportPayload {
   versi: number;
@@ -259,6 +294,8 @@ export interface PassportPayload {
   statusBadge: string;
   skor: PassportSkor;
   rubrikVersi: string;
+  sumberSkor?: SumberSkor[];
+  badges?: PassportBadge[];
   sertifikasi: JenisLegalitas[];
   pdnTerverifikasi: boolean;
   diterbitkanAt: string;
@@ -267,6 +304,9 @@ export interface PassportPayload {
 export interface Passport {
   id: string;
   kode: string;
+  /** Brief contract `qr_talent_passport_code` — always equal to `kode`. */
+  qrTalentPassportCode?: string;
+  kid?: string | null;
   status: "aktif" | "dicabut";
   statusBadge: string;
   skor: PassportSkor;
@@ -291,40 +331,113 @@ export interface PassportPortfolioItem {
   berat: string | null;
   shelfLife: string | null;
   bahanBaku: string | null;
+  persenBahanLokal: number | string | null;
   tkdnPersen: number | string | null;
   kapasitasBulanan: string | null;
   leadTime: string | null;
+  ujiLab: string | null;
   foto: string[];
 }
 
 export type PassportVerification =
-  | { kode: string; valid: true; status: "aktif"; passport: PassportPayload; portfolio: PassportPortfolioItem[] }
-  | { kode: string; valid: false; status: "tidak_valid" | "dicabut"; dicabutAt?: string };
+  | { kode: string; qrTalentPassportCode?: string; valid: true; status: "aktif"; passport: PassportPayload; portfolio: PassportPortfolioItem[]; publicKey?: PassportPublicKey }
+  | { kode: string; qrTalentPassportCode?: string; valid: false; status: "tidak_valid" | "dicabut"; dicabutAt?: string };
 
-export type KategoriKegiatan = "pelatihan" | "pameran" | "bazar" | "seminar" | "temu_bisnis" | "lainnya";
+export type KategoriKegiatan = "pelatihan" | "sertifikasi" | "pameran" | "akselerasi" | "literasi_digital";
+export type MetodeKegiatan = "luring" | "daring" | "hybrid";
+export type StatusKegiatanAgenda = "berjalan" | "pendaftaran" | "segera" | "selesai";
 
-/** A published event as the Directus Public policy exposes it (collection `kegiatan`). */
-export interface Kegiatan {
+/** The four filters of the public agenda (M7-08). */
+export interface KegiatanFilters {
+  kategori: KategoriKegiatan | "";
+  penyelenggara: string;
+  metode: MetodeKegiatan | "";
+  ramah: boolean;
+}
+
+/** One published event of `GET /v1/program/kegiatan` (Y07/M7-07…M7-10). */
+export interface KegiatanAgenda {
   id: string;
   judul: string;
   ringkasan: string | null;
   kategori: KategoriKegiatan;
+  kategoriLabel: string;
   penyelenggara: string | null;
-  kota_nama: string | null;
-  metode: "luring" | "daring" | "hybrid";
-  ramah_disabilitas: boolean;
-  tanggal_mulai: string;
-  tanggal_selesai: string;
-  batas_registrasi: string | null;
+  kotaNama: string | null;
+  metode: MetodeKegiatan;
+  metodeLabel: string;
+  ramahDisabilitas: boolean;
+  tanggalMulai: string;
+  tanggalSelesai: string;
+  batasRegistrasi: string | null;
   lokasi: string | null;
-  link: string | null;
+  tautanDaring: string | null;
   kuota: number | null;
   terisi: number;
+  sisaKuota: number | null;
+  /** Computed by the server from its own clock (Asia/Jakarta wall time). */
+  status: StatusKegiatanAgenda;
+  statusLabel: string;
   silabus: string | null;
   narasumber: string | null;
   fasilitas: string | null;
-  syarat: string | null;
+  syarat: { skala: string | null; wilayah: string | null; nib: boolean; catatan: string | null };
   poster: string | null;
+  /** Official registration form; null when absent or not https. */
+  registrationUrl: string | null;
+  dokumenUrl: string | null;
+  materiUrl: string | null;
+  /** R03: the event registers through the internal flow instead of an external URL. */
+  pendaftaranInternal: boolean;
+  butuhPaktaIntegritas: boolean;
+}
+
+export interface KegiatanOpsi {
+  kategori: { value: KategoriKegiatan; label: string }[];
+  metode: { value: MetodeKegiatan; label: string }[];
+  penyelenggara: string[];
+}
+
+export interface KegiatanMeta {
+  serverNow: string;
+  jumlah: number;
+  terpotong: boolean;
+  kelompok: Record<StatusKegiatanAgenda, number>;
+  bulan: number | null;
+  tahun: number | null;
+  opsi: KegiatanOpsi;
+}
+
+/**
+ * Body of `GET /v1/program/kegiatan`. The extension nests meta inside `data`
+ * (`{ data: { items, meta } }`) because the Directus SDK unwraps the top-level `data` key.
+ */
+export interface KegiatanListResponse {
+  items: KegiatanAgenda[];
+  meta: KegiatanMeta;
+}
+
+/** Opt-in answer of `POST /v1/program/kegiatan/:id/pengingat`; the target arrives masked. */
+export interface KegiatanPengingat {
+  id: string;
+  kegiatan: { id: string; judul: string };
+  kanal: "email" | "whatsapp";
+  tujuanMasked: string;
+  jadwalKirim: string;
+  /** `menunggu_gateway` is derived by the API (WhatsApp without a gateway); it is not stored. */
+  status: "menunggu" | "menunggu_gateway";
+  batalToken: string;
+}
+
+/** The call-to-action the agenda shows for one event, resolved from its status. */
+export interface TindakanKegiatan {
+  jenis: "presensi" | "daftar" | "pengingat" | "materi";
+  label: string;
+  href?: string | null;
+  /** R03: in-app route (internal registration) instead of an external https link. */
+  internal?: boolean;
+  nonaktif?: boolean;
+  pesan?: string | null;
 }
 
 export interface FaqEntry {
@@ -333,6 +446,8 @@ export interface FaqEntry {
   jawaban: string;
   kategori: string | null;
   sort: number | null;
+  /** Last edit, so the help centre can show how current an answer is. */
+  date_updated?: string | null;
 }
 
 export interface KontakHotline {
@@ -350,21 +465,31 @@ export interface KlinikPoli {
   kode: string;
   nama: string;
   deskripsi: string | null;
-  sort: number | null;
+  /** Editable topics shown under the poli name (e.g. "NIB", "Halal"); empty when the desk has none. */
+  subtopik?: string[];
+  sort?: number | null;
 }
 
-export interface KlinikUsahaDitemukan {
-  /** Short-lived signed reference to the business; the UUID is never exposed publicly. */
-  ref: string;
-  nama: string;
-  skala: string | null;
-  kota: string | null;
-  kbli: string | null;
+/**
+ * Identity prefill for the signed-in visitor (`GET /v1/program/klinik/prefill`). The public form
+ * never looks up NIB/NIK: a business either comes from the
+ * visitor's own account (`sumber: "sidt"`) or is typed by hand and stays unverified.
+ */
+export interface KlinikPrefill {
+  usaha: { nama: string; skala: string | null; kota: string | null; kbli: string | null; sumber: "sidt" } | null;
+  kontak: { nama: string | null; email: string | null; whatsapp: string | null };
 }
 
 export interface KlinikSlot {
   slot: string;
   tersedia: boolean;
+}
+
+export type KlinikNotifikasiStatus = "pending" | "menunggu_gateway" | "mengirim" | "terkirim" | "diterima" | "gagal" | "batal";
+
+export interface KlinikNotifikasi {
+  status: KlinikNotifikasiStatus;
+  label: string;
 }
 
 export interface KlinikTiketDibuat {
@@ -373,6 +498,14 @@ export interface KlinikTiketDibuat {
   moda: "daring" | "luring";
   tanggal: string;
   slot: string;
+  sumberIdentitas: "sidt" | "manual";
+  notifikasi: KlinikNotifikasi;
+}
+
+/** Ticket read-back (`POST /v1/program/klinik/tiket/lacak`) — number plus its WhatsApp number. */
+export interface KlinikTiketLacak extends KlinikTiketDibuat {
+  namaUsaha: string;
+  status: KlinikStatus;
 }
 
 export type KlinikStatus = "masuk" | "dijadwalkan" | "berjalan" | "tindak_lanjut" | "selesai" | "batal";
@@ -396,14 +529,125 @@ export interface KlinikTiket {
   jadwalSlot: string;
   prioritas: KlinikPrioritas;
   status: KlinikStatus;
+  /** Label tahap dari server (bukan peta web); kode yang tak dikenal apa adanya. */
+  statusLabel: string;
+  /** Status berikutnya yang boleh dituju petugas ini; kosong bila tiket di luar hak atau sudah selesai. */
+  transisi: KlinikStatus[];
   pendamping: string | null;
   pendampingNama: string | null;
+  /** Signed-in applicant on the ticket, when the form was filled from an account. */
+  pemohon: string | null;
+  sumberIdentitas: "sidt" | "manual";
+  waConsent: boolean;
   linkMeet: string | null;
   diagnosis: Partial<Record<KlinikAspek, string>>;
   actionPlan: string | null;
   rujukan: KlinikRujukan[];
   catatan: string | null;
   lampiran: string[];
+  /** Latest WhatsApp message for this ticket, with its honest delivery state. */
+  notifikasi: (KlinikNotifikasi & { jenis: string; template: string; attempts: number; lastError: string | null }) | null;
+  /** Aduan PMSE mendesak: advokasi PMSE yang ditandai mendesak (M7-13). */
+  pmseMendesak?: boolean;
+  /**
+   * Opaque version of the row (`date_updated` in microseconds). The panel echoes it back on every
+   * PATCH so two officers cannot overwrite each other's status or notes.
+   */
+  versi: string;
+  /** Actor/time trail of the accepted changes, newest first. */
+  riwayat?: KlinikTiketAudit[];
   dateCreated: string;
   dateUpdated: string;
+}
+
+/** One accepted change of a ticket, as the kanban shows it (Y09/M7-13). */
+export interface KlinikTiketAudit {
+  aksi: "transisi" | "penugasan" | "catatan";
+  statusDari: KlinikStatus | null;
+  statusKe: KlinikStatus | null;
+  perubahan: string[];
+  aktorNama: string | null;
+  dateCreated: string;
+}
+
+// ── R03: pendaftaran kegiatan internal, e-pass/sertifikat, fasilitasi bantuan ──
+
+export type StatusPendaftaran = "menunggu" | "diterima" | "ditolak" | "daftar_tunggu" | "batal";
+
+export interface RegistrasiPrefill {
+  usaha: { id: string; nama: string; skala: string | null; kodeKbli: string | null; kota: string | null; sumber: string };
+  kontak: { nama: string | null; email: string | null; whatsapp: string | null };
+  aksesibilitas: { butuhDisabilitas: boolean };
+}
+
+export interface RegistrasiPendaftaran {
+  id: string;
+  kegiatan: string;
+  usaha: string;
+  status: StatusPendaftaran;
+  skorTalent: number | null;
+  skorRubrik: string | null;
+  administrasiLolos: boolean;
+  alasan: string | null;
+  epassToken: string | null;
+  tugasSelesai: boolean;
+  diputuskanPada: string | null;
+  dateCreated: string;
+}
+
+export interface RegistrasiPendaftarListItem extends RegistrasiPendaftaran {
+  usahaNama: string | null;
+  usahaSkala: string | null;
+  usahaKota: string | null;
+  /** Active certificate of this registration, if issued (R03). */
+  sertifikatId: string | null;
+  sertifikatKode: string | null;
+}
+
+export interface EpassSaya {
+  pendaftaran: string;
+  qr: string;
+  jadwal: string | null;
+  lokasi: string | null;
+  tautan: string | null;
+  metode: string | null;
+}
+
+export interface KeputusanHasil extends RegistrasiPendaftaran {
+  daftarTungguNaik: RegistrasiPendaftaran | null;
+}
+
+export interface SertifikatVerifikasi {
+  kode: string;
+  valid: boolean;
+  status: "aktif" | "dicabut" | "tidak_valid";
+  usaha?: string;
+  kegiatan?: string;
+  dicabutPada?: string | null;
+}
+
+export type BentukBantuan = "penghargaan" | "beasiswa" | "operasional" | "sarpras_produksi" | "sarpras_pemasaran" | "revitalisasi_gedung" | "permodalan" | "lainnya";
+export type JenisBantuan = "uang" | "barang" | "jasa";
+export type StatusPendaftaranBantuan = "dibuka" | "segera" | "ditutup" | "penuh";
+
+export interface BantuanKartu {
+  id: string;
+  bentuk: BentukBantuan;
+  judul: string;
+  ringkasan: string | null;
+  bentukBantuan: JenisBantuan;
+  kuota: number | null;
+  terisi: number;
+  sisaKuota: number | null;
+  pendaftaranMulai: string | null;
+  pendaftaranSelesai: string | null;
+  serverNow: string;
+  statusPendaftaran: StatusPendaftaranBantuan;
+  petunjuk: string | null;
+  kanalResmi: string | null;
+}
+
+export interface BantuanListResponse {
+  items: BantuanKartu[];
+  meta: { serverNow: string; jumlah: number };
 }

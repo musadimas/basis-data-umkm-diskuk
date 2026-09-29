@@ -1,22 +1,22 @@
 import { describe, expect, it } from "vitest";
 import {
   ALL_ROLES,
+  APP_ROLE_BADGES,
   DATA_ROLES,
-  ROLE_BADGE_CLASSES,
   ROLE_HOME,
-  ROLE_LABELS,
   ROLE_ROUTES,
   hasRouteAccess,
   isRoleKey,
   lockedKotaId,
 } from "../../app/constants/ROLES";
 import { ATRIBUT_JABAR } from "../../app/constants/OPERASIONAL";
+import { NAVIGATION_LINKS } from "../../app/constants/NAVIGATION";
 
 describe("matriks role Y01", () => {
-  it("empat role fungsional dengan label dan badge berbeda", () => {
+  it("empat role fungsional dengan badge berbeda", () => {
     expect([...ALL_ROLES]).toEqual(["provinsi", "kabkota", "pendamping", "umkm"]);
-    expect(ROLE_LABELS.provinsi).toBe("Admin Provinsi");
-    expect(new Set(Object.values(ROLE_BADGE_CLASSES)).size).toBe(4);
+    expect(APP_ROLE_BADGES.provinsi.label).toBe("Provinsi");
+    expect(new Set(Object.values(APP_ROLE_BADGES).map((badge) => badge.className)).size).toBe(4);
   });
 
   it("akses route: talent scouting tertutup untuk pendamping/umkm", () => {
@@ -51,7 +51,6 @@ describe("matriks hasRouteAccess Y01", () => {
     expect(hasRouteAccess("provinsi", "/dashboard/spasial")).toBe(true);
     expect(hasRouteAccess("provinsi", "/dashboard/umkm/11111111-1111-4111-8111-000000000001")).toBe(true);
     expect(hasRouteAccess("provinsi", "/dashboard/akun")).toBe(true);
-    expect(hasRouteAccess("provinsi", "/dashboard/audit-sesi")).toBe(true);
     expect(hasRouteAccess("provinsi", "/dashboard/pendampingan")).toBe(true);
     expect(hasRouteAccess("provinsi", "/dashboard/katalog/kurasi")).toBe(true);
     expect(hasRouteAccess("provinsi", "/dashboard/klinik")).toBe(true);
@@ -67,6 +66,8 @@ describe("matriks hasRouteAccess Y01", () => {
     expect(hasRouteAccess("kabkota", "/dashboard/umkm")).toBe(true);
     expect(hasRouteAccess("kabkota", "/dashboard/akun")).toBe(true);
     expect(hasRouteAccess("kabkota", "/dashboard/pendampingan")).toBe(true);
+    // Server: kab/kota adalah petugas klinik untuk tiket usaha di kotanya.
+    expect(hasRouteAccess("kabkota", "/dashboard/klinik")).toBe(true);
     expect(hasRouteAccess("kabkota", "/dashboard/katalog/kurasi")).toBe(false);
     expect(hasRouteAccess("kabkota", "/dashboard/usaha")).toBe(false);
   });
@@ -76,7 +77,6 @@ describe("matriks hasRouteAccess Y01", () => {
     expect(hasRouteAccess("pendamping", "/dashboard/pendampingan/123")).toBe(true);
     expect(hasRouteAccess("pendamping", "/dashboard/klinik")).toBe(true);
     expect(hasRouteAccess("pendamping", "/dashboard/akun")).toBe(true);
-    expect(hasRouteAccess("pendamping", "/dashboard/audit-sesi")).toBe(true);
     expect(hasRouteAccess("pendamping", "/dashboard")).toBe(false);
     expect(hasRouteAccess("pendamping", "/dashboard/analitik")).toBe(false);
     expect(hasRouteAccess("pendamping", "/dashboard/tabular")).toBe(false);
@@ -88,7 +88,6 @@ describe("matriks hasRouteAccess Y01", () => {
     expect(hasRouteAccess("umkm", "/dashboard/usaha/passport")).toBe(true);
     expect(hasRouteAccess("umkm", "/dashboard/klinik")).toBe(true);
     expect(hasRouteAccess("umkm", "/dashboard/akun")).toBe(true);
-    expect(hasRouteAccess("umkm", "/dashboard/audit-sesi")).toBe(true);
     expect(hasRouteAccess("umkm", "/dashboard")).toBe(false);
     expect(hasRouteAccess("umkm", "/dashboard/analitik")).toBe(false);
     expect(hasRouteAccess("umkm", "/dashboard/pendampingan")).toBe(false);
@@ -112,6 +111,21 @@ describe("matriks hasRouteAccess Y01", () => {
       expect(hasRouteAccess(role, ROLE_HOME[role])).toBe(true);
     }
   });
+
+  it("kabkota adalah petugas klinik seperti di server (B16)", () => {
+    expect(hasRouteAccess("kabkota", "/dashboard/klinik")).toBe(true);
+    expect(hasRouteAccess("kabkota", "/dashboard/klinik/abc")).toBe(true);
+  });
+
+  it("setiap menu sidebar lolos penjaga rutenya untuk semua peran (B16)", () => {
+    for (const role of ALL_ROLES) {
+      for (const section of NAVIGATION_LINKS[role]) {
+        for (const item of section.items) {
+          expect(hasRouteAccess(role, item.to)).toBe(true);
+        }
+      }
+    }
+  });
 });
 
 describe("konstanta role Y01", () => {
@@ -120,11 +134,11 @@ describe("konstanta role Y01", () => {
     expect(ROLE_ROUTES.umkm).toContain("/dashboard/usaha");
   });
   it("warna badge solid M1-03 per role", () => {
-    expect(ROLE_BADGE_CLASSES).toEqual({
-      provinsi: "bg-blue-900 text-white",
-      kabkota: "bg-sky-400 text-sky-950",
-      pendamping: "bg-emerald-600 text-white",
-      umkm: "bg-amber-400 text-amber-950",
+    expect(APP_ROLE_BADGES).toEqual({
+      provinsi: { label: "Provinsi", className: "bg-blue-900 text-white" },
+      kabkota: { label: "Kab/Kota", className: "bg-sky-300 text-sky-950" },
+      pendamping: { label: "Pendamping", className: "bg-emerald-600 text-white" },
+      umkm: { label: "UMKM", className: "bg-amber-400 text-amber-950" },
     });
   });
 
@@ -138,12 +152,18 @@ describe("konstanta role Y01", () => {
   });
 
   it("lockedKotaId hanya mengunci kabkota dengan kota", () => {
-    expect(lockedKotaId({ role: "kabkota", kota: { id: 7 } })).toBe("7");
-    expect(lockedKotaId({ role: "kabkota", kota: null })).toBe(null);
-    expect(lockedKotaId({ role: "kabkota" })).toBe(null);
-    expect(lockedKotaId({ role: "provinsi", kota: { id: 7 } })).toBe(null);
-    expect(lockedKotaId({ role: "umkm" })).toBe(null);
+    // Bentuk kanonik pasca-merge: app_role + kota angka (useAuth.ts).
+    expect(lockedKotaId({ app_role: "kabkota", kota: 7 })).toBe("7");
+    expect(lockedKotaId({ app_role: "kabkota", kota: "7" })).toBe("7");
+    expect(lockedKotaId({ app_role: "kabkota", kota: { id: 7 } })).toBe("7");
+    expect(lockedKotaId({ app_role: "kabkota", kota: null })).toBe(null);
+    expect(lockedKotaId({ app_role: "kabkota" })).toBe(null);
+    expect(lockedKotaId({ app_role: "provinsi", kota: 7 })).toBe(null);
+    expect(lockedKotaId({ app_role: "umkm", kota: 7 })).toBe(null);
     expect(lockedKotaId(null)).toBe(null);
+    // Kompatibilitas lama: role kunci + kota objek (E2E pra-merge).
+    expect(lockedKotaId({ role: "kabkota", kota: { id: 7 } })).toBe("7");
+    expect(lockedKotaId({ role: "provinsi", kota: { id: 7 } })).toBe(null);
   });
 
   it("isRoleKey mengenali empat role", () => {

@@ -21,6 +21,7 @@ const pending = ref(false);
 const error = ref("");
 
 async function onChange(event: Event) {
+  // SAFETY: handler ini hanya dipasang pada <input type="file">, sehingga target-nya selalu elemen input.
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0];
   input.value = "";
@@ -35,6 +36,7 @@ async function onChange(event: Event) {
     const form = new FormData();
     form.append("file", file);
     const uploaded = await directus.request(uploadFiles(form));
+    // SAFETY: uploadFiles hanya mengembalikan berkas Directus yang punya `id`.
     model.value = (uploaded as { id: string }).id;
     fileName.value = file.name;
   } catch {

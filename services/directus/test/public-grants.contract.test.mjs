@@ -1,7 +1,7 @@
 // ADR-006 acceptance evidence: every migration grant to the Directus Public policy is a read with
 // an explicit field allowlist, and collections holding personal or analytics data are never public.
 import assert from "node:assert/strict";
-import { readdir, readFile } from "node:fs/promises";
+import { readdir } from "node:fs/promises";
 import test from "node:test";
 
 const MIGRATIONS = new URL("../migrations/", import.meta.url);

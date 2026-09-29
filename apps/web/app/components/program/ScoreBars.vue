@@ -4,6 +4,18 @@ import type { TalentSkor } from "~/types/program";
 
 defineProps<{ skor: TalentSkor }>();
 const format = (value: number) => new Intl.NumberFormat("id-ID", { maximumFractionDigits: 1 }).format(value);
+
+const rekomendasiOf = (total: number) => {
+  if (total >= 75) return "Direkomendasikan Masuk Talent Pool";
+  if (total >= 60) return "Dipertimbangkan";
+  return "Belum Direkomendasikan";
+};
+
+const rekomendasiClass = (total: number) => {
+  if (total >= 75) return "text-emerald-700 dark:text-emerald-400";
+  if (total >= 60) return "text-amber-700 dark:text-amber-400";
+  return "text-slate-600 dark:text-slate-400";
+};
 </script>
 
 <template>
@@ -11,7 +23,13 @@ const format = (value: number) => new Intl.NumberFormat("id-ID", { maximumFracti
     <div class="flex items-end justify-between gap-4">
       <div>
         <p class="text-xs text-muted-foreground">Talent Index</p>
-        <p class="text-4xl font-bold tabular-nums" data-testid="skor-total">{{ format(skor.total) }}</p>
+        <div class="flex items-baseline gap-2">
+          <p class="text-4xl font-bold tabular-nums" data-testid="skor-total">{{ format(skor.total) }}</p>
+          <span class="text-xs text-muted-foreground">/ 100</span>
+        </div>
+        <p class="mt-1 text-xs font-semibold" data-testid="skor-rekomendasi" :class="rekomendasiClass(skor.total)">
+          {{ skor.rekomendasi || rekomendasiOf(skor.total) }}
+        </p>
       </div>
       <p class="text-right text-xs text-muted-foreground">Bobot 25% per dimensi</p>
     </div>

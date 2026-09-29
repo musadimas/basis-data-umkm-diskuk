@@ -53,3 +53,16 @@ export function objectBody(req) {
   }
   return body;
 }
+
+/**
+ * Satu aturan nomor seluler Indonesia untuk klinik, kegiatan, dan LOI katalog (B33).
+ * Menerima 08xxx / +628xxx / 628xxx / 8xxx (tanda baca apa pun diabaikan) dan
+ * mengembalikan bentuk wa.me (62xxxxxxxxx), atau null bila bukan seluler valid.
+ */
+export function normalisasiTeleponSeluler(value) {
+  const digits = String(value ?? "").replace(/\D/g, "");
+  if (digits === "") return null;
+  const normal = digits.startsWith("62") ? digits : digits.startsWith("0") ? `62${digits.slice(1)}` : `62${digits}`;
+  if (!/^628\d{7,12}$/.test(normal)) return null;
+  return normal;
+}

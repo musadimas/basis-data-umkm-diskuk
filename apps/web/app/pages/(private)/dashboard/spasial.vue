@@ -42,6 +42,7 @@ const {
   filters,
   appliedFilters,
   filterOpen,
+  lockedKota,
   optionsError,
   kabupatenOptions,
   kecamatanOptions,
@@ -339,7 +340,7 @@ const mapSelectionLabel = computed(() => {
       <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <div class="space-y-1.5">
           <label for="spasial-kabupaten" class="text-xs font-semibold">Kabupaten/Kota</label>
-          <UiSelect v-model="filters.kabupatenKota">
+          <UiSelect v-model="filters.kabupatenKota" :disabled="Boolean(lockedKota)">
             <UiSelectTrigger id="spasial-kabupaten" size="sm" class="w-full">
               <UiSelectValue placeholder="Semua Kabupaten/Kota" />
             </UiSelectTrigger>

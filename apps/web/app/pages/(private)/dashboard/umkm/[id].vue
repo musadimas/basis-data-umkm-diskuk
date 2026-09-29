@@ -73,11 +73,9 @@ async function restore() {
     await api.restore();
 }
 async function exportPdf() {
-  await exportApi.submit(
-    "profile_pdf",
-    defaultAnalysis,
-    String(route.params.id),
-  );
+  await exportApi.submit("profile_pdf", defaultAnalysis, {
+    profileId: String(route.params.id),
+  });
 }
 function back() {
   router.push(backHref.value);

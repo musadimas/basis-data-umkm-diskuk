@@ -3,15 +3,14 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 const {
-  assertUsahaAccess,
   getUsahaLapangan,
   updateUsahaLapangan,
   verifikasiUsaha,
 } = require("../src/usaha-service.js");
 
 const ID = "11111111-1111-4111-8111-000000000001";
-const KABKOTA = { userId: "u-kab", role: "kabkota", kotaId: 1 };
-const PROVINSI = { userId: "u-prov", role: "provinsi", kotaId: null };
+const KABKOTA = { id: "u-kab", admin: false, peran: "kabkota", kotaId: 1, usahaId: null };
+const PROVINSI = { id: "u-prov", admin: false, peran: "provinsi", kotaId: null, usahaId: null };
 
 function usahaRow(kotaId = 1) {
   return {
@@ -29,10 +28,15 @@ function usahaRow(kotaId = 1) {
   };
 }
 
-function dbWith({ usaha = usahaRow(), detail = null, atribut = null, klasifikasi = null, verifier = null } = {}) {
+function dbWith({ usaha = usahaRow(), kotaTabular = 1, detail = null, atribut = null, klasifikasi = null, verifier = null } = {}) {
   const queries = [];
   const raw = async (sql, params) => {
     queries.push({ sql, params });
+    // pastikanUsaha (Cakupan): keberadaan usaha + kota dari usaha_tabular (K3).
+    if (sql.includes("SELECT id FROM usaha WHERE id")) return { rows: usaha ? [{ id: ID }] : [] };
+    if (sql.includes("SELECT kota_id FROM usaha_tabular")) {
+      return { rows: [{ kota_id: kotaTabular }] };
+    }
     if (sql.includes("FROM usaha u") && sql.includes("pelaku_usaha pu")) {
       return { rows: usaha ? [usaha] : [] };
     }
@@ -62,19 +66,38 @@ function dbWith({ usaha = usahaRow(), detail = null, atribut = null, klasifikasi
 
 test("UUID invalid → 404", async () => {
   const db = dbWith();
-  await assert.rejects(() => assertUsahaAccess(db, "bukan-uuid", PROVINSI), (e) => e.statusCode === 404);
+  await assert.rejects(() => getUsahaLapangan(db, "bukan-uuid", PROVINSI), (e) => e.statusCode === 404);
 });
 
 test("kabkota akses usaha kota lain → 404", async () => {
-  const db = dbWith({ usaha: usahaRow(99) });
-  await assert.rejects(() => assertUsahaAccess(db, ID, KABKOTA), (e) => e.statusCode === 404);
+  const db = dbWith({ kotaTabular: 99 });
+  await assert.rejects(() => getUsahaLapangan(db, ID, KABKOTA), (e) => e.statusCode === 404);
+});
+
+test("kabkota akses usaha tanpa kota di usaha_tabular → 404 (fail-closed)", async () => {
+  const db = dbWith({ kotaTabular: null });
+  await assert.rejects(() => getUsahaLapangan(db, ID, KABKOTA), (e) => e.statusCode === 404);
+});
+
+test("kabkota tanpa penugasan kota → 403 KOTA_NOT_ASSIGNED", async () => {
+  const db = dbWith();
+  await assert.rejects(
+    () => getUsahaLapangan(db, ID, { ...KABKOTA, kotaId: null }),
+    (e) => e.statusCode === 403 && e.code === "KOTA_NOT_ASSIGNED",
+  );
 });
 
 test("kabkota akses usaha kotanya → lolos", async () => {
   const db = dbWith();
-  const out = await assertUsahaAccess(db, ID, KABKOTA);
-  assert.equal(out.nama, "Usaha 01");
-  assert.equal(out.kotaId, 1);
+  const out = await getUsahaLapangan(db, ID, KABKOTA);
+  assert.equal(out.data.sidt.nama, "Usaha 01");
+});
+
+test("PATCH/verifikasi usaha kota lain → 404 sebelum menulis", async () => {
+  const db = dbWith({ kotaTabular: 99 });
+  await assert.rejects(() => updateUsahaLapangan(db, ID, { atribut: { qris: true } }, KABKOTA), (e) => e.statusCode === 404);
+  await assert.rejects(() => verifikasiUsaha(db, ID, KABKOTA), (e) => e.statusCode === 404);
+  assert.ok(!db.queries.some((q) => /UPDATE|INSERT/.test(q.sql)));
 });
 
 test("PATCH nib pendek → 400 fields.nib", async () => {
@@ -127,6 +150,7 @@ test("unique violation nib → 409 NIB_CONFLICT", async () => {
   const queries = [];
   const raw = async (sql) => {
     queries.push(sql);
+    if (sql.includes("SELECT id FROM usaha WHERE id")) return { rows: [{ id: ID }] };
     if (sql.includes("FROM usaha u")) return { rows: [usahaRow()] };
     if (sql.includes("UPDATE usaha SET")) {
       const error = new Error("duplicate");

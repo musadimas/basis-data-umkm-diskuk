@@ -81,6 +81,24 @@ test("migrasi A: himpunan app_role tertutup dan policy aplikasi", () => {
   assert.ok(migrationA.includes(READ_FIELDS_BEFORE), "fields baca awal memuat app_role");
 });
 
+test("migrasi 20260928A: app_role tanpa default, akun tanpa peran tidak punya akses (ADR-009)", () => {
+  const migration = readMigration("20260928A-app-role-tanpa-default.js");
+  const [up, down] = migration.split("export const down");
+  assert.ok(up.includes("ALTER COLUMN app_role DROP DEFAULT"), "default 'provinsi' dibuang");
+  assert.ok(up.includes("ALTER COLUMN app_role DROP NOT NULL"), "NULL berarti tanpa peran");
+  assert.ok(!/UPDATE\s+directus_users/i.test(up), "baris yang ada tidak diubah otomatis");
+  assert.ok(down.includes("ALTER COLUMN app_role SET DEFAULT 'provinsi'"), "rollback mengembalikan default");
+  assert.ok(down.includes("ALTER COLUMN app_role SET NOT NULL"), "rollback mengembalikan NOT NULL");
+  assert.ok(!/UPDATE\s+directus_users/i.test(down), "rollback tidak pernah memberi peran provinsi diam-diam");
+});
+
+test("shared/auth.cjs tidak menawarkan gerbang peran berbasis UUID role (ADR-008)", () => {
+  // Semua akun operasional memakai satu UUID role, jadi roleKeyOf() selalu "provinsi": gerbang
+  // peran di atasnya akan menolak setiap Admin Kab/Kota. Peran hanya dibaca dari app_role.
+  assert.equal(auth.requireRole, undefined, "requireRole dihapus");
+  assert.equal(auth.requireApplicationUser, undefined, "requireApplicationUser dihapus");
+});
+
 test("migrasi D: kontrak kolom penugasan, hak baca, dan policy kata sandi", () => {
   assert.ok(migrationD.includes(APPLICATION_POLICY_ID), "policy aplikasi pada migrasi D");
   assert.ok(
@@ -367,4 +385,67 @@ test("migrasi E: 15 atribut Jabar nullable, cascade, rollback disposable", () =>
   }
   assert.ok(migrationE.includes("REFERENCES usaha(id) ON DELETE CASCADE"));
   assert.ok(migrationE.includes("DROP TABLE IF EXISTS usaha_atribut_jabar"));
+});
+
+// ── R03 (N7-01…N7-03): pendaftaran kegiatan, e-pass/sertifikat, bantuan ──
+const migrationG = readMigration("20260928G-kegiatan-registrasi-bantuan.js");
+
+test("migrasi G: tabel pendaftaran, partial unique aktif, CHECK status, dan dampak bersumber", () => {
+  for (const tabel of [
+    "kegiatan_pendaftaran",
+    "kegiatan_presensi",
+    "kegiatan_keputusan_audit",
+    "kegiatan_sertifikat",
+    "kegiatan_sertifikat_dampak",
+    "bantuan_fasilitasi",
+  ]) {
+    assert.ok(migrationG.includes(`CREATE TABLE IF NOT EXISTS ${tabel}`), `tabel ${tabel}`);
+  }
+  // Partial unique: satu pendaftaran aktif per (kegiatan, usaha) — daftar ulang
+  // setelah batal/ditolak boleh; satu sertifikat aktif per pendaftaran.
+  assert.ok(
+    migrationG.includes("CREATE UNIQUE INDEX IF NOT EXISTS ux_kegiatan_pendaftaran_aktif") &&
+      migrationG.includes("WHERE status IN ('menunggu', 'diterima', 'daftar_tunggu')"),
+    "partial unique pendaftaran aktif",
+  );
+  assert.ok(
+    migrationG.includes("CREATE UNIQUE INDEX IF NOT EXISTS ux_kegiatan_sertifikat_aktif") &&
+      migrationG.includes("ON kegiatan_sertifikat (pendaftaran) WHERE status = 'aktif'"),
+    "partial unique sertifikat aktif",
+  );
+  assert.ok(
+    migrationG.includes("CHECK (status IN ('menunggu', 'diterima', 'ditolak', 'daftar_tunggu', 'batal'))"),
+    "CHECK status pendaftaran",
+  );
+  assert.ok(
+    migrationG.includes("CHECK (status IN ('aktif', 'dicabut'))"),
+    "CHECK status sertifikat",
+  );
+  // Presensi idempotent per sesi.
+  assert.ok(migrationG.includes("UNIQUE (pendaftaran, sesi_ke)"), "presensi unik per sesi");
+  // Dampak IP-UMKM membawa sumber/versi dan bisa dinonaktifkan saat dicabut.
+  for (const kolom of ["aktif BOOLEAN NOT NULL DEFAULT TRUE", "sumber VARCHAR(64) NOT NULL DEFAULT 'kegiatan_sertifikat'", "versi INTEGER NOT NULL DEFAULT 1"]) {
+    assert.ok(migrationG.includes(kolom), `kolom dampak ${kolom.split(" ")[0]}`);
+  }
+  // Delapan bentuk bantuan di-seed idempoten tanpa grant Public.
+  assert.equal((migrationG.match(/\["([a-z_]+)", "[^"]+"\]/g) ?? []).length, 8, "delapan bentuk bantuan");
+  assert.ok(migrationG.includes("WHERE NOT EXISTS (SELECT 1 FROM bantuan_fasilitasi WHERE bentuk = ?)"), "seed idempoten per bentuk");
+  assert.ok(!migrationG.includes("directus_policies"), "tanpa grant Public");
+});
+
+test("migrasi G: down membalik tabel dan kolom kegiatan", () => {
+  const [, down] = migrationG.split("export const down");
+  for (const tabel of [
+    "bantuan_fasilitasi",
+    "kegiatan_sertifikat_dampak",
+    "kegiatan_sertifikat",
+    "kegiatan_keputusan_audit",
+    "kegiatan_presensi",
+    "kegiatan_pendaftaran",
+  ]) {
+    assert.ok(down.includes(`DROP TABLE IF EXISTS ${tabel};`), `drop ${tabel}`);
+  }
+  for (const kolom of ["pendaftaran_internal", "butuh_pakta_integritas", "jumlah_sesi", "butuh_tugas"]) {
+    assert.ok(down.includes(`ALTER TABLE kegiatan DROP COLUMN IF EXISTS ${kolom};`), `drop kolom ${kolom}`);
+  }
 });

@@ -390,4 +390,173 @@ FROM atribut a
 JOIN usaha u ON u.id = a.usaha
 WHERE NOT EXISTS (SELECT 1 FROM usaha_atribut_jabar j WHERE j.usaha = a.usaha);
 
+-- ── Y03: Program Akselerasi & Peserta Dummy ───────────────────────────────
+WITH pendamping AS (
+  SELECT id FROM directus_users WHERE email = 'dummy_coach.pendamping@jabarprov.go.id' LIMIT 1
+)
+INSERT INTO program_peserta (
+  id, usaha, batch, fase, pendamping, tanggal_mulai, jumlah_minggu, target_mingguan, status
+)
+SELECT
+  'd1000000-0000-4000-8000-000000000001'::uuid,
+  'd0000000-0000-4000-8000-000000000001'::uuid,
+  '2026-1',
+  'akselerasi',
+  p.id,
+  (CURRENT_DATE - INTERVAL '35 days')::date,
+  12,
+  18000000,
+  'aktif'
+FROM pendamping p
+ON CONFLICT (usaha, batch) DO UPDATE
+SET pendamping = EXCLUDED.pendamping,
+    tanggal_mulai = EXCLUDED.tanggal_mulai,
+    target_mingguan = EXCLUDED.target_mingguan;
+
+-- Laporan historis minggu 1-3 disetujui (streak 3), minggu 4 menunggu review pendamping
+WITH pendamping AS (
+  SELECT id FROM directus_users WHERE email = 'dummy_coach.pendamping@jabarprov.go.id' LIMIT 1
+),
+umkm AS (
+  SELECT id FROM directus_users WHERE email = 'dummy_wawan.leathercraft@gmail.com' LIMIT 1
+),
+laporan_histori(minggu, target, realisasi, trx, kendala, cuuid, status, direview) AS (
+  VALUES
+    (1, 18000000::bigint, 19500000::bigint, 35, NULL, '55555555-5555-4555-8555-000000000001'::uuid, 'disetujui', TRUE),
+    (2, 18000000::bigint, 18200000::bigint, 30, NULL, '55555555-5555-4555-8555-000000000002'::uuid, 'disetujui', TRUE),
+    (3, 18000000::bigint, 21000000::bigint, 42, NULL, '55555555-5555-4555-8555-000000000003'::uuid, 'disetujui', TRUE),
+    (4, 18000000::bigint, 20500000::bigint, 38, 'Permintaan pasar ekspor meningkat', '55555555-5555-4555-8555-000000000004'::uuid, 'menunggu', FALSE)
+)
+INSERT INTO kpi_laporan (
+  peserta, minggu_ke, target, realisasi_omzet, jumlah_transaksi, kendala, client_uuid,
+  status, direview_oleh, direview_at, dikirim_oleh
+)
+SELECT
+  'd1000000-0000-4000-8000-000000000001'::uuid,
+  h.minggu,
+  h.target,
+  h.realisasi,
+  h.trx,
+  h.kendala,
+  h.cuuid,
+  h.status,
+  CASE WHEN h.direview THEN (SELECT id FROM pendamping) ELSE NULL END,
+  CASE WHEN h.direview THEN NOW() - INTERVAL '14 days' ELSE NULL END,
+  (SELECT id FROM umkm)
+FROM laporan_histori h
+ON CONFLICT (peserta, minggu_ke) DO NOTHING;
+
+-- ── Y06: Referensi 27 Kabupaten/Kota + produk katalog dummy ───────────────
+-- Tabel `kota` adalah sumber filter wilayah katalog publik (grant 20260926R). Wilayah dummy yang
+-- sudah dipakai akun/usaha dinormalkan ke nama resmi lebih dulu, lalu 22 sisanya dilengkapi supaya
+-- stack disposable benar-benar memuat 27 kabupaten/kota Jawa Barat.
+UPDATE kota SET nama = 'Kabupaten Subang',   kode = 'dummy_3213' WHERE kode = 'dummy_kota_subang';
+UPDATE kota SET nama = 'Kabupaten Sumedang', kode = 'dummy_3211' WHERE kode = 'dummy_kota_sumedang';
+UPDATE kota SET nama = 'Kabupaten Garut',    kode = 'dummy_3205' WHERE kode = 'dummy_kota_garut';
+UPDATE kota SET nama = 'Kota Cimahi',        kode = 'dummy_3277' WHERE kode = 'dummy_kota_cimahi';
+UPDATE kota SET nama = 'Kabupaten Karawang', kode = 'dummy_3215' WHERE kode = 'dummy_kota_karawang';
+
+WITH wilayah(kode, nama) AS (
+  VALUES ('dummy_3201','Kabupaten Bogor'), ('dummy_3202','Kabupaten Sukabumi'), ('dummy_3203','Kabupaten Cianjur'),
+         ('dummy_3204','Kabupaten Bandung'), ('dummy_3206','Kabupaten Tasikmalaya'), ('dummy_3207','Kabupaten Ciamis'),
+         ('dummy_3208','Kabupaten Kuningan'), ('dummy_3209','Kabupaten Cirebon'), ('dummy_3210','Kabupaten Majalengka'),
+         ('dummy_3212','Kabupaten Indramayu'), ('dummy_3214','Kabupaten Purwakarta'), ('dummy_3216','Kabupaten Bekasi'),
+         ('dummy_3217','Kabupaten Bandung Barat'), ('dummy_3218','Kabupaten Pangandaran'),
+         ('dummy_3271','Kota Bogor'), ('dummy_3272','Kota Sukabumi'), ('dummy_3273','Kota Bandung'),
+         ('dummy_3274','Kota Cirebon'), ('dummy_3275','Kota Bekasi'), ('dummy_3276','Kota Depok'),
+         ('dummy_3278','Kota Tasikmalaya'), ('dummy_3279','Kota Banjar')
+), provinsi AS (
+  SELECT id FROM provinsi WHERE lower(nama) = 'jawa barat' LIMIT 1
+)
+INSERT INTO kota (nama, kode, provinsi)
+SELECT w.nama, w.kode, p.id
+  FROM wilayah w CROSS JOIN provinsi p
+ WHERE NOT EXISTS (SELECT 1 FROM kota k WHERE k.kode = w.kode);
+
+-- Kontak penjualan terverifikasi, tahap talenta, PDN terverifikasi, dan satu sertifikat terbit:
+-- bahan untuk badge, CTA WhatsApp, dan nomor legalitas di halaman detail.
+UPDATE usaha
+   SET nomor_whatsapp = '081200000005', talent_status = 'champion', pdn_terverifikasi = TRUE
+ WHERE id = 'd0000000-0000-4000-8000-000000000005';
+
+INSERT INTO usaha_legalitas (usaha, jenis, nomor, status, berlaku_hingga)
+SELECT 'd0000000-0000-4000-8000-000000000005'::uuid, 'halal', 'ID3210000123456', 'terbit', '2030-01-01'::date
+ WHERE NOT EXISTS (
+   SELECT 1 FROM usaha_legalitas WHERE usaha = 'd0000000-0000-4000-8000-000000000005' AND jenis = 'halal'
+ );
+
+-- Satu produk tayang dan satu draft: gate Y06 memastikan hanya yang tayang yang muncul.
+INSERT INTO produk (id, usaha, nama, deskripsi, kategori, kbli, harga_retail, harga_grosir, moq, dimensi, berat,
+                    tkdn_persen, kapasitas_bulanan, lead_time, persen_bahan_lokal, pdn_deklarasi, status_kurasi)
+VALUES
+  ('e1000000-0000-4000-8000-000000000001', 'd0000000-0000-4000-8000-000000000005', 'Keripik Nanas Subang Premium',
+   'Keripik nanas dari kebun Subang, renyah tanpa pengawet.', 'makanan', '10794', 18000, 15000, 24,
+   '20 x 15 x 6 cm', '250 g', 82.50, '4.000 pcs', '5 hari', 95.00, TRUE, 'tayang'),
+  ('e1000000-0000-4000-8000-000000000002', 'd0000000-0000-4000-8000-000000000005', 'Keripik Nanas Subang Uji Coba',
+   'Produk uji coba yang belum boleh tayang.', 'makanan', '10794', 17000, NULL, 12, NULL, NULL,
+   NULL, NULL, NULL, NULL, FALSE, 'menunggu')
+ON CONFLICT (id) DO UPDATE SET
+  nama = EXCLUDED.nama, deskripsi = EXCLUDED.deskripsi, status_kurasi = EXCLUDED.status_kurasi,
+  harga_retail = EXCLUDED.harga_retail, harga_grosir = EXCLUDED.harga_grosir, moq = EXCLUDED.moq,
+  dimensi = EXCLUDED.dimensi, berat = EXCLUDED.berat, tkdn_persen = EXCLUDED.tkdn_persen,
+  kapasitas_bulanan = EXCLUDED.kapasitas_bulanan, lead_time = EXCLUDED.lead_time;
+
+-- ── Y07: Agenda kegiatan publik (status per hari relatif NOW(), jadi selalu segar) ─────────────
+-- Lima kategori brief, tautan resmi, syarat skala/wilayah/NIB, materi setelah acara, dan satu baris
+-- dibatalkan yang tidak boleh pernah tampil publik.
+INSERT INTO kegiatan (id, judul, ringkasan, kategori, penyelenggara, kota_nama, metode, ramah_disabilitas,
+                      tanggal_mulai, tanggal_selesai, batas_registrasi, lokasi, link, kuota, terisi,
+                      silabus, narasumber, fasilitas, syarat, syarat_skala, syarat_wilayah, syarat_nib,
+                      registration_url, dokumen_url, materi_url, status_publikasi)
+VALUES
+  ('f1000000-0000-4000-8000-000000000001', 'Pelatihan Pemasaran Digital UMKM',
+   'Kelas daring pemasaran digital untuk pelaku UMKM Jawa Barat.', 'literasi_digital',
+   'Dinas KUKM Provinsi Jawa Barat', NULL, 'daring', FALSE,
+   NOW() - INTERVAL '1 day', NOW() + INTERVAL '1 day', NULL, NULL,
+   'https://streaming.example.invalid/pemasaran-digital', 100, 37,
+   'Media sosial, marketplace, dan iklan berbayar.', 'Praktisi pemasaran digital',
+   'Sertifikat dan modul digital', 'Mengikuti seluruh sesi daring.', 'Mikro, Kecil', 'Jawa Barat', FALSE,
+   NULL, NULL, NULL, 'terbit'),
+  ('f1000000-0000-4000-8000-000000000002', 'Sertifikasi Halal Gratis Gelombang 3',
+   'Pendampingan berkas dan audit dapur untuk sertifikasi halal.', 'sertifikasi',
+   'Dinas KUMKM Kabupaten Subang', 'Kabupaten Subang', 'luring', TRUE,
+   NOW() + INTERVAL '10 days', NOW() + INTERVAL '12 days', NOW() + INTERVAL '8 days',
+   'Aula Dinas KUMKM Kabupaten Subang', NULL, 50, 10,
+   'Alur sertifikasi halal dan audit dapur.', 'BPJPH dan pendamping halal',
+   'Pendampingan berkas dan sertifikat', 'Menyerahkan fotokopi NIB dan KTP.', 'Mikro, Kecil', 'Kabupaten Subang', TRUE,
+   'https://daftar.example.invalid/halal-gelombang-3', 'https://dokumen.example.invalid/panduan-halal.pdf', NULL, 'terbit'),
+  ('f1000000-0000-4000-8000-000000000003', 'Pameran Produk Unggulan Jawa Barat',
+   'Pameran produk unggulan dengan calon pembeli regional.', 'pameran',
+   'Dinas KUKM Provinsi Jawa Barat', 'Kota Bandung', 'luring', TRUE,
+   NOW() + INTERVAL '20 days', NOW() + INTERVAL '22 days', NOW() + INTERVAL '18 days',
+   'Gedung Sate, Bandung', NULL, 60, 12,
+   NULL, NULL, 'Stan pameran dan materi promosi', 'Memiliki NIB dan produk siap jual.', 'Mikro, Kecil, Menengah', NULL, TRUE,
+   NULL, NULL, NULL, 'terbit'),
+  ('f1000000-0000-4000-8000-000000000004', 'Temu Bisnis Ekspor Rempah',
+   'Pertemuan dengan pembeli ekspor untuk komoditas rempah.', 'akselerasi',
+   'Kementerian/Lembaga', NULL, 'hybrid', FALSE,
+   NOW() + INTERVAL '5 days', NOW() + INTERVAL '5 days', NOW() - INTERVAL '2 days', NULL, NULL, 40, 40,
+   NULL, NULL, NULL, 'Peserta program akselerasi.', 'Kecil, Menengah', 'Jawa Barat', TRUE,
+   NULL, NULL, NULL, 'terbit'),
+  ('f1000000-0000-4000-8000-000000000005', 'Seminar Literasi Digital Batch 2',
+   'Seminar daring literasi digital dan keamanan data usaha.', 'literasi_digital',
+   'Mitra Kampus', NULL, 'daring', TRUE,
+   NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days', NULL, NULL, NULL, NULL, 0,
+   NULL, NULL, NULL, NULL, NULL, NULL, FALSE,
+   NULL, NULL, 'https://materi.example.invalid/seminar-literasi-batch-2', 'terbit'),
+  ('f1000000-0000-4000-8000-000000000006', 'Pelatihan yang Dibatalkan Kurator',
+   'Baris uji: ditarik dari publik setelah kurasi.', 'pelatihan',
+   'Dinas KUKM Provinsi Jawa Barat', NULL, 'luring', FALSE,
+   NOW() + INTERVAL '3 days', NOW() + INTERVAL '4 days', NULL, NULL, NULL, NULL, 0,
+   NULL, NULL, NULL, NULL, NULL, NULL, FALSE,
+   NULL, NULL, NULL, 'dibatalkan')
+ON CONFLICT (id) DO UPDATE SET
+  judul = EXCLUDED.judul, kategori = EXCLUDED.kategori, metode = EXCLUDED.metode,
+  tanggal_mulai = EXCLUDED.tanggal_mulai, tanggal_selesai = EXCLUDED.tanggal_selesai,
+  batas_registrasi = EXCLUDED.batas_registrasi, kuota = EXCLUDED.kuota, terisi = EXCLUDED.terisi,
+  registration_url = EXCLUDED.registration_url, dokumen_url = EXCLUDED.dokumen_url,
+  materi_url = EXCLUDED.materi_url, status_publikasi = EXCLUDED.status_publikasi,
+  syarat_skala = EXCLUDED.syarat_skala, syarat_wilayah = EXCLUDED.syarat_wilayah, syarat_nib = EXCLUDED.syarat_nib;
+
 COMMIT;
+

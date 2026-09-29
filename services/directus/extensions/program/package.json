@@ -25,11 +25,6 @@
     "entries": [
       {
         "type": "endpoint",
-        "name": "v1/program/legalitas",
-        "source": "src/endpoints/legalitas/index.js"
-      },
-      {
-        "type": "endpoint",
         "name": "v1/program/talent",
         "source": "src/endpoints/talent/index.js"
       },
@@ -55,8 +50,33 @@
       },
       {
         "type": "endpoint",
+        "name": "v1/program/kegiatan",
+        "source": "src/endpoints/kegiatan/index.js"
+      },
+      {
+        "type": "hook",
+        "name": "notifikasi",
+        "source": "src/hooks/notifikasi.js"
+      },
+      {
+        "type": "endpoint",
         "name": "v1/program/peta",
         "source": "src/endpoints/peta/index.js"
+      },
+      {
+        "type": "endpoint",
+        "name": "v1/program/executive",
+        "source": "src/endpoints/executive/index.js"
+      },
+      {
+        "type": "endpoint",
+        "name": "v1/program/registrasi",
+        "source": "src/endpoints/registrasi/index.js"
+      },
+      {
+        "type": "endpoint",
+        "name": "v1/program/fasilitasi",
+        "source": "src/endpoints/fasilitasi/index.js"
       }
     ],
     "host": "^11.0.0"
@@ -65,13 +85,15 @@
     "build": "directus-extension build",
     "dev": "directus-extension build -w --no-minify",
     "validate": "directus-extension validate",
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js",
+    "test:pg": "node --test test/pg/*.test.js"
   },
   "devDependencies": {
     "@directus/extensions-sdk": "18.0.5"
   },
   "dependencies": {
     "altcha": "3.2.3",
-    "busboy": "1.6.0"
+    "busboy": "1.6.0",
+    "uqr": "0.1.3"
   }
 }

@@ -1,12 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import registerKlinik from "../src/endpoints/klinik/index.js";
-import { nomorTiket, sniffType, tanggalTidakValid } from "../src/endpoints/klinik/rules.js";
-import { readRef, signRef } from "../src/endpoints/klinik/service.js";
+import { kunciPesan, normalisasiTelepon, nomorTiket, pesanPembatalan, pesanStatusBerubah, pesanTiket, sniffType, tanggalTidakValid } from "../src/endpoints/klinik/rules.js";
 import { mountEndpoint } from "./helpers.js";
 
-const env = { SECRET: "unit-test-secret" };
-const ID = "5b0c3a52-6c1f-4f8e-9a54-0c6f1f2d7a11";
+const env = { SECRET: "unit-test-secret", OPERASIONAL_INTERNAL_SECRET: "receipt-secret" };
+const FILE = "11111111-2222-4333-8444-555555555555";
 
 test("bookable dates are weekdays from tomorrow to 30 days ahead, in Jakarta time", () => {
   const now = new Date("2026-09-25T18:00:00Z"); // Saturday 26 Sep 01:00 WIB
@@ -32,35 +31,119 @@ test("attachments are recognised by content, not by name", () => {
   assert.equal(sniffType(Buffer.from("<html><script>")), null);
 });
 
-test("business references are signed, expire and cannot be forged", () => {
-  const ref = signRef(env, ID, 1_000);
-  assert.equal(readRef(env, ref, 2_000), ID);
-  assert.equal(readRef(env, ref, 1_000 + 31 * 60_000), null);
-  assert.equal(readRef({ SECRET: "other" }, ref, 2_000), null);
-  const [id, exp, mac] = Buffer.from(ref, "base64url").toString().split(".");
-  assert.equal(readRef(env, Buffer.from(`${"6" + id.slice(1)}.${exp}.${mac}`).toString("base64url"), 2_000), null);
-  assert.equal(readRef(env, "garbage", 2_000), null);
+test("WhatsApp numbers are normalised to the wa.me form, others are refused", () => {
+  assert.equal(normalisasiTelepon("0812-3456-7890"), "6281234567890");
+  assert.equal(normalisasiTelepon("+62 812 3456 7890"), "6281234567890");
+  assert.equal(normalisasiTelepon("6281234567890"), "6281234567890");
+  assert.equal(normalisasiTelepon("021-555"), null);
+  assert.equal(normalisasiTelepon("81234"), null);
+  assert.equal(normalisasiTelepon(null), null);
 });
 
-test("only the kanban routes require a session", async () => {
+test("WhatsApp messages carry the ticket facts and no personal identifiers", () => {
+  const tiket = { id: FILE, nomor: "KLN-2026-09-0007", poli_nama: "Legalitas & Standardisasi Produk", jadwal_tanggal: "2026-09-28", jadwal_slot: "09:00", moda: "daring" };
+  const dibuat = pesanTiket(tiket);
+  assert.equal(dibuat.template, "klinik_tiket_dibuat");
+  assert.deepEqual(dibuat.payload.params, { nomor: "KLN-2026-09-0007", poli: "Legalitas & Standardisasi Produk", tanggal: "2026-09-28", slot: "09:00", moda: "daring (video call)" });
+  assert.match(dibuat.payload.text, /KLN-2026-09-0007/);
+  const berubah = pesanStatusBerubah(tiket, "dijadwalkan");
+  assert.equal(berubah.template, "klinik_status_berubah");
+  assert.match(berubah.payload.text, /jadwal ditetapkan/);
+  assert.doesNotMatch(berubah.payload.text, /\b08\d{8,}/);
+});
+
+test("pembatalan memakai template status berubah dan teks pembatalan, bukan tiket diterima (B14)", () => {
+  const batal = pesanPembatalan({ id: FILE, nomor: "KLN-2026-09-0007" });
+  assert.equal(batal.template, "klinik_status_berubah");
+  assert.deepEqual(batal.payload.params, { nomor: "KLN-2026-09-0007", status: "batal", label: "dibatalkan" });
+  assert.match(batal.payload.text, /dibatalkan/);
+  assert.doesNotMatch(batal.payload.text, /sudah kami terima/);
+});
+
+test("kunci pesan: satu per tiket, jenis, status tujuan dan versi (B15)", () => {
+  assert.equal(kunciPesan(FILE, "tiket_dibuat"), `tiket_dibuat:${FILE}`);
+  assert.equal(kunciPesan(FILE, "status_berubah", "dijadwalkan"), `status_berubah:${FILE}:dijadwalkan`);
+  assert.notEqual(kunciPesan(FILE, "status_berubah", "dijadwalkan"), kunciPesan(FILE, "status_berubah", "selesai"));
+  assert.notEqual(kunciPesan(FILE, "pembatalan", "batal", "v1"), kunciPesan(FILE, "pembatalan", "batal", "v2"));
+});
+
+test("there is no public NIB/NIK lookup left to act as an identity oracle", async () => {
+  const { routes } = mountEndpoint(registerKlinik, { env });
+  assert.equal(routes.some((route) => /lookup|nib|nik/i.test(route.path)), false);
+  assert.deepEqual(
+    routes.map(({ method, path }) => `${method} ${path}`),
+    [
+      "GET /poli",
+      "GET /prefill",
+      "GET /slot",
+      "POST /tiket",
+      "POST /tiket/lacak",
+      "GET /tiket",
+      "PATCH /tiket/:id",
+      "GET /lampiran/:fileId",
+      "POST /notifikasi/receipt",
+    ],
+  );
+});
+
+test("only the kanban, prefill and attachment routes require a session", async () => {
   const { call, routes } = mountEndpoint(registerKlinik, { env });
-  const guarded = routes.filter((route) => route.path.startsWith("/tiket") && !(route.method === "POST" && route.path === "/tiket"));
-  assert.equal(guarded.length, 2);
-  for (const { method, path } of guarded) {
-    const { nextError } = await call(method, path.replace(/:\w+/g, ID), { accountability: null });
-    assert.equal(nextError?.statusCode, 401, `${method} ${path}`);
+  const publik = new Set(["POST /tiket", "POST /tiket/lacak", "POST /notifikasi/receipt", "GET /poli", "GET /slot"]);
+  for (const { method, path } of routes) {
+    if (publik.has(`${method} ${path}`)) continue;
+    const { nextError, res } = await call(method, path.replace(/:\w+/g, FILE), { accountability: null });
+    const status = nextError?.statusCode ?? res.statusCode;
+    assert.equal(status, 401, `${method} ${path}`);
   }
 });
 
 test("public inputs are validated before the captcha or any query", async () => {
   const { call, queries } = mountEndpoint(registerKlinik, { env });
-  let { res } = await call("POST", "/lookup", { accountability: null, body: { jenis: "nib", nomor: "12" } });
-  assert.equal(res.body.errors[0].extensions.code, "NOMOR_TIDAK_VALID");
-  ({ res } = await call("POST", "/lookup", { accountability: null, body: { jenis: "email", nomor: "x" } }));
-  assert.equal(res.statusCode, 400);
+  let { res } = await call("POST", "/tiket/lacak", { accountability: null, body: { nomor: "bukan-nomor", whatsapp: "081234567890" } });
+  assert.equal(res.statusCode, 404);
+  // A well-formed number still needs a solved captcha, so read-back cannot be used as an oracle.
+  ({ res } = await call("POST", "/tiket/lacak", { accountability: null, body: { nomor: "KLN-2026-09-0007", whatsapp: "081234567890" } }));
+  assert.equal(res.body.errors[0].extensions.code, "CAPTCHA_INVALID");
+  ({ res } = await call("POST", "/tiket/lacak", { accountability: null, body: {} }));
+  assert.equal(res.statusCode, 404);
   ({ res } = await call("GET", "/slot", { accountability: null, query: { poli: "1", tanggal: "kemarin" } }));
   assert.equal(res.body.errors[0].extensions.code, "TANGGAL_TIDAK_VALID");
   ({ res } = await call("POST", "/tiket", { accountability: null, headers: { "content-type": "application/json" } }));
   assert.equal(res.statusCode, 400);
   assert.equal(queries.length, 0);
+});
+
+test("the receipt callback refuses a missing or wrong shared secret", async () => {
+  const { call } = mountEndpoint(registerKlinik, { env });
+  let { res } = await call("POST", "/notifikasi/receipt", { headers: {} });
+  assert.equal(res.statusCode, 401);
+  assert.equal(res.body.errors[0].extensions.code, "FORBIDDEN");
+  ({ res } = await call("POST", "/notifikasi/receipt", { headers: { "x-diskuk-secret": "salah" } }));
+  assert.equal(res.statusCode, 401);
+});
+
+test("semua route klinik bertanda terjaga/publik dengan peran yang tepat (01)", async () => {
+  const { createRequire } = await import("node:module");
+  const require = createRequire(import.meta.url);
+  const cakupan = require("../../../analytics-shared/cakupan.cjs");
+  const { routes } = mountEndpoint(registerKlinik, { env });
+  assert.equal(routes.length, 9);
+  const ekspektasi = [
+    ["GET", "/poli", "publik", []],
+    ["GET", "/prefill", "terjaga", ["kabkota", "pendamping", "provinsi", "umkm"]],
+    ["GET", "/slot", "publik", []],
+    ["POST", "/tiket", "publik", []],
+    ["POST", "/tiket/lacak", "publik", []],
+    ["GET", "/tiket", "terjaga", ["kabkota", "pendamping", "provinsi"]],
+    ["PATCH", "/tiket/:id", "terjaga", ["kabkota", "pendamping", "provinsi"]],
+    ["GET", "/lampiran/:fileId", "terjaga", ["kabkota", "pendamping", "provinsi", "umkm"]],
+    ["POST", "/notifikasi/receipt", "publik", []],
+  ];
+  for (const [method, path, jenis, peran] of ekspektasi) {
+    const route = routes.find((r) => r.method === method && r.path === path);
+    assert.ok(route, `${method} ${path} terdaftar`);
+    const tanda = cakupan.tandaCakupan(route.handler);
+    assert.equal(tanda?.jenis, jenis, `${method} ${path}`);
+    assert.deepEqual([...(tanda.peran ?? [])].sort(), peran, `${method} ${path}`);
+  }
 });

@@ -67,7 +67,7 @@ if (!BASE_URL) {
     assert.equal(query.status, 401);
     assert.equal(errorCode(query.body), "AUTHENTICATION_REQUIRED");
     const status = await api("/v1/analytics/analysis/status");
-    assert.equal(status.status, 401);
+    assert.equal(status.status, 200, "status publik tanpa sesi (DAFTAR_PUBLIK)");
   });
 
   test("authenticated session reads metadata, templates and generation status", async () => {

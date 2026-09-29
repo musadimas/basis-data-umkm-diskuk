@@ -1,5 +1,5 @@
 import { useOnline } from "@vueuse/core";
-import { discard, enqueue, flushOutbox, listOutbox, type OutboxEntry } from "~/lib/kpi-outbox";
+import { discard, enqueue, flushOutbox, hasilUntukEntri, listOutbox, type HasilKirimOutbox, type OutboxEntry } from "~/lib/kpi-outbox";
 
 /**
  * Reactive view of the KPI outbox for one participant. Syncs on mount, whenever the browser
@@ -7,7 +7,9 @@ import { discard, enqueue, flushOutbox, listOutbox, type OutboxEntry } from "~/l
  */
 export function useKpiOutbox(pesertaId: Ref<string | null>, onSent?: () => void) {
   const directus = useDirectus();
-  const online = useOnline();
+  const networkOnline = useOnline();
+  const demoConnection = useDemoConnection();
+  const online = computed(() => networkOnline.value && !(demoConnection.enabled.value && demoConnection.simulatedOffline.value));
   const entries = ref<OutboxEntry[]>([]);
   const syncing = ref(false);
 
@@ -28,10 +30,12 @@ export function useKpiOutbox(pesertaId: Ref<string | null>, onSent?: () => void)
     }
   }
 
-  async function add(entry: Parameters<typeof enqueue>[0]) {
+  async function add(entry: Parameters<typeof enqueue>[0]): Promise<HasilKirimOutbox> {
     await enqueue(entry);
     await reload();
     await sync();
+    const sesudah = (await listOutbox(entry.pesertaId)).find((item) => item.clientUuid === entry.clientUuid);
+    return hasilUntukEntri(sesudah);
   }
 
   async function remove(clientUuid: string) {
@@ -53,5 +57,5 @@ export function useKpiOutbox(pesertaId: Ref<string | null>, onSent?: () => void)
 
   const pending = computed(() => entries.value.filter((entry) => !entry.error));
   const refused = computed(() => entries.value.filter((entry) => entry.error));
-  return { online, entries, pending, refused, syncing, add, remove, sync };
+  return { online, networkOnline, simulatedOffline: demoConnection.simulatedOffline, demoEnabled: demoConnection.enabled, entries, pending, refused, syncing, add, remove, sync };
 }

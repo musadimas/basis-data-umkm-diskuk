@@ -41,7 +41,10 @@ if (action === "seed" && (!demoPassword || demoPassword.length < 12 || demoPassw
 async function request(path, options = {}) {
   const response = await fetch(`${base}${path}`, {
     ...options,
-    headers: { accept: "application/json", ...options.headers },
+    // NOTE Y01 disposable: seed memakai Origin Directus agar lolos
+    // AUTH_CAPTCHA_EXEMPT_ORIGINS (admin tooling). Login web (origin :3000)
+    // tetap wajib ALTCHA untuk bukti Y01.
+    headers: { accept: "application/json", origin: new URL(base).origin, ...options.headers },
   });
   const body = await response.json().catch(() => null);
   if (!response.ok) {

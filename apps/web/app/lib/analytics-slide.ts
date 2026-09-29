@@ -4,6 +4,7 @@
  * aggregates leave the page, the same data the PNG/PDF aggregate exports contain.
  */
 import type { AnalyticsFilter, AnalyticsGroup, AnalyticsMetric } from "~/types/analytics";
+import { INSTANSI } from "~/constants/OPERASIONAL";
 
 export interface SlideInput {
   metric: AnalyticsMetric;
@@ -17,13 +18,13 @@ export interface SlideInput {
 }
 
 const MAX_TABLE_ROWS = 15;
-const OPERATOR: Record<AnalyticsFilter["operator"], string> = {
+const OPERATOR = {
   eq: "=",
   neq: "≠",
   in: "∈",
   contains: "memuat",
   starts_with: "diawali",
-};
+} satisfies Record<AnalyticsFilter["operator"], string>;
 
 export function formatMetric(value: number, metric: AnalyticsMetric) {
   return metric.unit === "IDR"
@@ -72,6 +73,7 @@ const STYLE_PROPS = [
 export async function svgToPng(svg: SVGSVGElement, scale = 2): Promise<string | null> {
   const box = svg.getBoundingClientRect();
   if (!box.width || !box.height) return null;
+  // SAFETY: cloneNode(true) milik elemen <svg> selalu menghasilkan elemen dengan namespace yang sama.
   const clone = svg.cloneNode(true) as SVGSVGElement;
   const source = [svg, ...svg.querySelectorAll("*")];
   const target = [clone, ...clone.querySelectorAll("*")];
@@ -117,7 +119,7 @@ export async function downloadSlideDeck(input: SlideInput) {
   const asOf = input.dataAsOf
     ? new Intl.DateTimeFormat("id-ID", { dateStyle: "long", timeZone: "Asia/Jakarta" }).format(new Date(input.dataAsOf))
     : "tanggal data belum tersedia";
-  const footer = `Sumber: Dashboard UMKM DISKUK Jawa Barat · data per ${asOf}`;
+  const footer = `Sumber: Dashboard UMKM ${INSTANSI} · data per ${asOf}`;
 
   const cover = pptx.addSlide();
   cover.background = { color: "0F3D91" };
@@ -138,15 +140,18 @@ export async function downloadSlideDeck(input: SlideInput) {
   const table = pptx.addSlide();
   table.addText(`Tabel agregasi · ${title}`, { x: 0.5, y: 0.3, w: 12.3, h: 0.6, fontSize: 22, bold: true, color: "0F3D91" });
   const rows = slideTableRows(input).map((row, index) =>
-    row.map((text, column) => ({
-      text,
-      options: {
-        bold: index === 0,
-        fill: { color: index === 0 ? "0F3D91" : index % 2 ? "FFFFFF" : "F1F5F9" },
-        color: index === 0 ? "FFFFFF" : "1F2937",
-        align: (column === 0 ? "left" : "right") as "left" | "right",
-      },
-    })),
+    row.map((text, column) => {
+      const align: "left" | "right" = column === 0 ? "left" : "right";
+      return {
+        text,
+        options: {
+          bold: index === 0,
+          fill: { color: index === 0 ? "0F3D91" : index % 2 ? "FFFFFF" : "F1F5F9" },
+          color: index === 0 ? "FFFFFF" : "1F2937",
+          align,
+        },
+      };
+    }),
   );
   table.addTable(rows, { x: 0.5, y: 1.1, w: 12.3, colW: [6.3, 4, 2], fontSize: 12, border: { type: "solid", pt: 0.5, color: "CBD5E1" }, autoPage: false });
   table.addText(footer, { x: 0.5, y: 6.8, w: 12.3, h: 0.4, fontSize: 10, color: "666666" });

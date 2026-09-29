@@ -27,7 +27,19 @@ function originOf(value) {
 function originList(configured, env) {
   if (configured === undefined || configured === null || configured === "") {
     const publicOrigin = originOf(env?.PUBLIC_URL);
-    return publicOrigin ? [publicOrigin] : [];
+    if (!publicOrigin) return [];
+    try {
+      const u = new URL(publicOrigin);
+      if (u.hostname === "127.0.0.1") {
+        return [publicOrigin, `${u.protocol}//localhost:${u.port || (u.protocol === "https:" ? 443 : 80)}`];
+      }
+      if (u.hostname === "localhost") {
+        return [publicOrigin, `${u.protocol}//127.0.0.1:${u.port || (u.protocol === "https:" ? 443 : 80)}`];
+      }
+    } catch {
+      // ignore
+    }
+    return [publicOrigin];
   }
   if (String(configured).trim().toLowerCase() === "none") return [];
   return String(configured)

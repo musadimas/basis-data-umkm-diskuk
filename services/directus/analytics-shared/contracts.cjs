@@ -24,6 +24,7 @@ const JOB_STATUSES = Object.freeze([
   "completed",
   "dead",
   "cancelled",
+  "expired",
 ]);
 const GENERATION_STATUSES = Object.freeze([
   "candidate",

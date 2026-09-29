@@ -16,6 +16,8 @@ const TABS: { value: PengajuanStatus; label: string }[] = [
 ];
 
 const directus = useDirectus();
+const auth = useAuth();
+const isProvinsi = computed(() => auth.user.value?.app_role === "provinsi");
 const tab = ref<PengajuanStatus>("dinilai");
 const selected = ref<string[]>([]);
 
@@ -113,7 +115,7 @@ const date = (value: string) => new Intl.DateTimeFormat("id-ID", { dateStyle: "m
           Pilih pengajuan yang sudah dinilai, lalu terbitkan Berita Acara untuk memasukkannya ke Talent Pool.
         </p>
       </div>
-      <UiButton v-if="tab === 'dinilai'" :disabled="selected.length === 0" @click="dialogOpen = true">
+      <UiButton v-if="tab === 'dinilai' && isProvinsi" :disabled="selected.length === 0" @click="dialogOpen = true">
         <FileCheck2 class="size-4" />
         Terbitkan Berita Acara &amp; Masukkan ke Talent Pool ({{ selected.length }})
       </UiButton>
@@ -147,7 +149,7 @@ const date = (value: string) => new Intl.DateTimeFormat("id-ID", { dateStyle: "m
         <table v-else class="w-full min-w-[56rem] text-sm">
           <thead class="border-b bg-muted/40 text-left text-xs text-muted-foreground">
             <tr>
-              <th v-if="tab === 'dinilai'" class="w-10 px-4 py-3">
+              <th v-if="tab === 'dinilai' && isProvinsi" class="w-10 px-4 py-3">
                 <UiCheckbox :model-value="allSelected" aria-label="Pilih semua" @update:model-value="toggleAll" />
               </th>
               <th class="px-4 py-3">Usaha</th>
@@ -160,7 +162,7 @@ const date = (value: string) => new Intl.DateTimeFormat("id-ID", { dateStyle: "m
           </thead>
           <tbody>
             <tr v-for="row in rows" :key="row.id" class="border-b last:border-0">
-              <td v-if="tab === 'dinilai'" class="px-4 py-3">
+              <td v-if="tab === 'dinilai' && isProvinsi" class="px-4 py-3">
                 <UiCheckbox :model-value="selected.includes(row.id)" :aria-label="`Pilih ${row.usahaInfo.nama}`" @update:model-value="(value) => toggle(row.id, value)" />
               </td>
               <td class="px-4 py-3">

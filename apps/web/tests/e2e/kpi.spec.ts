@@ -49,7 +49,7 @@ test.describe("Modul 5 · Monitoring KPI mingguan", () => {
     await page.getByLabel("Kendala minggu ini").fill("Hujan deras");
     await page.getByRole("button", { name: "Kirim Laporan" }).click();
 
-    await expect(page.getByText("disimpan di ponsel")).toBeVisible();
+    await expect(page.getByText("antre dan akan dikirim saat terhubung")).toBeVisible();
     await expect(page.getByText("1 laporan menunggu sinkronisasi")).toBeVisible();
     expect(state.requests.filter((request) => request.path.endsWith("/laporan"))).toHaveLength(0);
 

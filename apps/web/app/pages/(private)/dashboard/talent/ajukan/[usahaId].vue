@@ -11,6 +11,7 @@ import {
 import { endpoint } from "~/lib/directus";
 import { formatAnalyticsCurrency } from "~/lib/analytics-format";
 import { requestErrorCode } from "~/lib/request-error";
+import type { RuntimeLabelMap } from "~/types/directus";
 import type {
   JenisLegalitas,
   KesiapanLegalitas,
@@ -22,7 +23,7 @@ import type {
 definePageMeta({ layout: "dashboard" });
 useSeoMeta({ title: "Ajukan ke Talent Scouting – Dashboard UMKM" });
 
-const ERRORS: Record<string, string> = {
+const ERRORS: RuntimeLabelMap = {
   PENGAJUAN_SUDAH_ADA: "Usaha ini sudah memiliki pengajuan yang masih terbuka.",
   PENGAJUAN_CLOSED: "Pengajuan ini sudah diputuskan dan tidak dapat diubah.",
   INVALID_REFERENCE: "Berkas surat komitmen tidak ditemukan. Unggah ulang berkasnya.",
@@ -38,15 +39,27 @@ const { data, error, refresh } = await useAsyncData(`talent:usaha:${usahaId}`, (
 );
 
 const pengajuan = ref<TalentPengajuan | null>(null);
+
+/** Isian formulir; tipe eksplisit agar nilai awal tidak perlu assertion. */
+interface FormPengajuan {
+  kapasitasProduksi: string;
+  satuan: string;
+  literasiQris: boolean;
+  literasiPembukuanDigital: boolean;
+  suratKomitmen: string | null;
+  catatan: string;
+  kesiapanLegalitas: Record<JenisLegalitas, KesiapanLegalitas>;
+}
+
 // Text inputs bind strings; payload() converts them to the API shape.
-const form = reactive({
+const form = reactive<FormPengajuan>({
   kapasitasProduksi: "",
   satuan: "",
   literasiQris: false,
   literasiPembukuanDigital: false,
-  suratKomitmen: null as string | null,
+  suratKomitmen: null,
   catatan: "",
-  kesiapanLegalitas: { halal: "belum", pirt: "belum", bpom: "belum", hki: "belum", sni: "belum", umku: "belum" } as Record<JenisLegalitas, KesiapanLegalitas>,
+  kesiapanLegalitas: { halal: "belum", pirt: "belum", bpom: "belum", hki: "belum", sni: "belum", umku: "belum" },
 });
 const suratName = ref<string | null>(null);
 
@@ -76,8 +89,9 @@ const message = ref<{ tone: "success" | "error"; text: string } | null>(null);
 
 function payload(): TalentPengajuanInput {
   const kesiapan: TalentPengajuanInput["kesiapanLegalitas"] = {};
-  for (const [jenis, status] of Object.entries(form.kesiapanLegalitas)) {
-    if (status !== "belum") kesiapan[jenis as JenisLegalitas] = status;
+  for (const { value: jenis } of JENIS_LEGALITAS) {
+    const status = form.kesiapanLegalitas[jenis];
+    if (status !== "belum") kesiapan[jenis] = status;
   }
   const kapasitas = String(form.kapasitasProduksi).trim();
   return {

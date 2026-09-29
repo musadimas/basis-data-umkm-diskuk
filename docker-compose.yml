@@ -157,6 +157,15 @@ services:
       ANALYTICS_REDIS_URL: ${ANALYTICS_REDIS_URL:-redis://redis:6379/0}
       ANALYTICS_REDIS_TTL_SECONDS: ${ANALYTICS_REDIS_TTL_SECONDS:-300}
       OPERASIONAL_INTERNAL_SECRET: ${OPERASIONAL_INTERNAL_SECRET:-}
+      # WhatsApp gateway for clinic ticket notifications (fase Y08). Without a URL the outbox keeps
+      # messages as `pending` and the API reports "not provider-proven" instead of claiming a send.
+      WHATSAPP_GATEWAY_URL: ${WHATSAPP_GATEWAY_URL:-}
+      WHATSAPP_GATEWAY_TOKEN: ${WHATSAPP_GATEWAY_TOKEN:-}
+      WHATSAPP_GATEWAY_PROVIDER: ${WHATSAPP_GATEWAY_PROVIDER:-}
+      WHATSAPP_SENDER: ${WHATSAPP_SENDER:-}
+      WHATSAPP_REQUIRE_CALLBACK: ${WHATSAPP_REQUIRE_CALLBACK:-true}
+      WHATSAPP_RECEIPT_SECRET: ${WHATSAPP_RECEIPT_SECRET:-}
+      WHATSAPP_DISPATCH_MS: ${WHATSAPP_DISPATCH_MS:-60000}
       # Brute-force protection per client IP (ADR-0007); IP_TRUST_PROXY keeps the real client
       # address visible through Caddy -> web:3000 -> Directus.
       RATE_LIMITER_ENABLED: ${RATE_LIMITER_ENABLED:-true}
@@ -178,15 +187,18 @@ services:
       # Empty = PUBLIC_URL's origin, which is also the web's origin behind Caddy.
       AUTH_ALLOWED_ORIGINS: ${AUTH_ALLOWED_ORIGINS:-}
       ALTCHA_HMAC_SECRET: ${ALTCHA_HMAC_SECRET:-}
-      # Talent Passport HMAC key (min. 32 chars). Empty = derived from SECRET; rotating either
-      # invalidates every issued passport, so re-issue them afterwards.
-      PASSPORT_SIGNING_SECRET: ${PASSPORT_SIGNING_SECRET:-}
+      # Talent Passport Ed25519 private key (base64 of the PEM; generate with
+      # `openssl genpkey -algorithm ed25519 | base64 | tr -d '\n'`). kid identifies the active key;
+      # PASSPORT_SIGNING_PRIVATE_KEY_PREVIOUS_B64 optionally keeps the previous key verifying during
+      # a rotation window. Rotating invalidates passports signed by retired keys — re-issue them.
+      PASSPORT_SIGNING_PRIVATE_KEY_B64: ${PASSPORT_SIGNING_PRIVATE_KEY_B64:-}
+      PASSPORT_SIGNING_KID: ${PASSPORT_SIGNING_KID:-}
+      PASSPORT_SIGNING_PRIVATE_KEY_PREVIOUS_B64: ${PASSPORT_SIGNING_PRIVATE_KEY_PREVIOUS_B64:-}
+      PASSPORT_SIGNING_KID_PREVIOUS: ${PASSPORT_SIGNING_KID_PREVIOUS:-}
       # ADR-006: the public catalogue reads through the Directus Public policy, so every route is
       # limited per client IP. Caddy sets X-Forwarded-For and the web's /panel proxy passes it on.
-      RATE_LIMITER_ENABLED: ${RATE_LIMITER_ENABLED:-true}
-      RATE_LIMITER_STORE: memory
-      RATE_LIMITER_POINTS: ${RATE_LIMITER_POINTS:-100}
-      RATE_LIMITER_DURATION: ${RATE_LIMITER_DURATION:-1}
+      # NOTE Y01: Directus rate limiter is global (single RATE_LIMITER_* set); public catalogue
+      # uses the same 60/10s budget as auth until per-route limits exist.
       AUTH_PASSWORD_RESET_URL: ${AUTH_PASSWORD_RESET_URL:-}
       PASSWORD_RESET_URL_ALLOW_LIST: ${AUTH_PASSWORD_RESET_URL:-}
       EMAIL_FROM: ${EMAIL_FROM:-no-reply@diskuk.jabarprov.go.id}
@@ -205,6 +217,9 @@ services:
       args:
         # Directus address baked into the /panel/** route rule at build time.
         PANEL_URL: ${PANEL_URL:-http://directus:8055}
+        DEMO_MODE: ${DEMO_MODE:-false}
+        DEMO_DISPOSABLE: ${DEMO_DISPOSABLE:-false}
+        SSO_JABAR_ENABLED: ${SSO_JABAR_ENABLED:-false}
     restart: unless-stopped
     logging: *default-logging
     ports:
@@ -213,7 +228,14 @@ services:
       - directus
     environment:
       ANALYTICS_ENABLE_WORKFORCE: ${ANALYTICS_ENABLE_WORKFORCE:-false}
+      PANEL_URL: ${PANEL_URL:-http://directus:8055}
       OPERASIONAL_INTERNAL_SECRET: ${OPERASIONAL_INTERNAL_SECRET:-}
+      DEMO_MODE: ${DEMO_MODE:-false}
+      DEMO_DISPOSABLE: ${DEMO_DISPOSABLE:-false}
+      DEMO_ACCOUNT_PASSWORD: ${DEMO_ACCOUNT_PASSWORD:-}
+      DIRECTUS_SESSION_COOKIE_NAME: ${DIRECTUS_SESSION_COOKIE_NAME:-diskuk_session}
+      SSO_JABAR_ENABLED: ${SSO_JABAR_ENABLED:-false}
+      SSO_WEB_ORIGIN: ${SSO_WEB_ORIGIN:-}
     networks: [diskuk_net]
 
   analytics-worker:

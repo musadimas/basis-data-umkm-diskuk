@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { installMockDirectus, loginMock, waitForCaptchaForm } from "../fixtures/mock-directus.mjs";
+import { installMockDirectus, loginMock, waitForCaptchaForm, waitForHydration } from "../fixtures/mock-directus.mjs";
 
 type CapturedRequest = { method: string; path: string; body: { email?: string; captcha?: string; password?: string; mode?: string } | null };
 
@@ -12,7 +12,9 @@ test.describe("Modul 1 · autentikasi & akun", () => {
     await page.getByLabel("Email atau NIB").fill("1234567890123");
     await page.getByRole("textbox", { name: "Kata sandi" }).fill("not-a-real-secret");
     await page.getByRole("button", { name: "Masuk ke Dashboard" }).click();
-    await expect(page).toHaveURL(/\/dashboard\/akun$/);
+    // Cek pathname, bukan regex: URL /sign-in?returnTo=/dashboard/akun juga berakhir "/dashboard/akun"
+    // sehingga regex akan lolos sebelum login selesai.
+    await expect(page).toHaveURL((url) => url.pathname === "/dashboard/akun");
     const logins = requests.filter((request) => request.path === "/panel/auth/login");
     expect(logins).toHaveLength(1);
     expect(logins[0]!.body?.email).toBe("1234567890123");
@@ -59,7 +61,8 @@ test.describe("Modul 1 · autentikasi & akun", () => {
     await waitForCaptchaForm(page);
     await page.getByLabel("Email atau NIB").fill("analyst@example.invalid");
     await page.getByRole("button", { name: "Kirim Tautan Reset" }).click();
-    await expect(page.getByRole("status")).toContainText("Bila akun terdaftar");
+    // NuxtRouteAnnouncer juga memakai role=status; pilih kotak pesan (div), bukan judul halaman (span).
+    await expect(page.locator('div[role="status"]')).toContainText("Bila akun terdaftar");
     const sent = requests.find((request) => request.path === "/panel/auth/password/request");
     expect(sent?.body?.email).toBe("analyst@example.invalid");
     expect(sent?.body?.captcha).toBeTruthy();
@@ -69,11 +72,11 @@ test.describe("Modul 1 · autentikasi & akun", () => {
     const requests: CapturedRequest[] = [];
     await installMockDirectus(page, { requests });
     await page.goto("/reset-kata-sandi?token=reset-token");
-    await page.waitForLoadState("networkidle");
+    await waitForHydration(page);
     await page.getByLabel("Kata sandi baru", { exact: true }).fill("kata-sandi-baru-123");
     await page.getByLabel("Ulangi kata sandi baru").fill("kata-sandi-baru-123");
     await page.getByRole("button", { name: "Simpan Kata Sandi" }).click();
-    await expect(page.getByRole("status")).toContainText("Kata sandi berhasil diperbarui");
+    await expect(page.locator('div[role="status"]')).toContainText("Kata sandi berhasil diperbarui");
     expect(requests.find((request) => request.path === "/panel/auth/password/reset")?.body).toEqual({
       token: "reset-token",
       password: "kata-sandi-baru-123",

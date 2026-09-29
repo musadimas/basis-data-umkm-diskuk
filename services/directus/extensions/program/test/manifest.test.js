@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import test from "node:test";
 import manifest from "../package.json" with { type: "json" };
 
@@ -21,10 +21,17 @@ test("every entry source exists and default-exports a register function", async 
   }
 });
 
-test("the dashboard guard is identical to the other bundles' copies", () => {
-  const own = readFileSync(new URL("../src/lib/utils/auth.js", import.meta.url), "utf8");
-  for (const bundle of ["analytics", "authentication"]) {
-    const other = readFileSync(new URL(`../../${bundle}/src/lib/utils/auth.js`, import.meta.url), "utf8");
-    assert.equal(own, other, `${bundle}/src/lib/utils/auth.js has drifted`);
+test("salinan lib/utils/auth.js program/analytics sudah dilebur ke module cakupan", async () => {
+  // §2.5 langkah 6: ketiga salinan identik (md5 sama) digabung ke module Cakupan
+  // Pemanggil; program dan analytics mengimpor dari sana. Salinan authentication
+  // tetap ada (wilayah agen paralel) sehingga tidak dicek di sini.
+  for (const bundle of ["program", "analytics"]) {
+    const url = new URL(`../../${bundle}/src/lib/utils/auth.js`, import.meta.url);
+    assert.equal(existsSync(url), false, `${bundle}/src/lib/utils/auth.js harus sudah dihapus`);
   }
+  const { createRequire } = await import("node:module");
+  const require = createRequire(import.meta.url);
+  const cakupan = require("../../../analytics-shared/cakupan.cjs");
+  assert.equal(cakupan.APPLICATION_ROLE_ID, "7d6d493c-1a6d-4c59-9e74-40d42a7862eb");
+  assert.equal(typeof cakupan.sanitizeError, "function");
 });

@@ -1,4 +1,5 @@
 import { customEndpoint, withOptions } from "@directus/sdk";
+import type { KontakHotline } from "~/types/program";
 
 type EndpointQuery = Record<string, string | number | boolean | null | undefined>;
 
@@ -55,4 +56,12 @@ export function fromEnvelope<T extends { meta: object; data: object }>(payload: 
  */
 export function endpointForm<TOutput>(path: string, form: FormData) {
   return customEndpoint<TOutput>({ path, method: "POST", body: form, headers: { "Content-Type": "multipart/form-data" } });
+}
+
+/**
+ * Singleton `kontak_hotline` bisa datang sebagai objek kosong sebelum barisnya diisi; guard ini
+ * memastikan field yang dipakai halaman benar-benar ada dan menolak nilai non-objek saat runtime.
+ */
+export function isKontakHotline(value: KontakHotline | null | undefined): value is KontakHotline {
+  return value !== null && typeof value === "object" && "nama_layanan" in value;
 }

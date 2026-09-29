@@ -57,7 +57,7 @@ function commit(id: string) {
               class="h-8 min-w-0 flex-1 rounded-md border px-2"
               aria-label="Nama analisis baru"
               @keyup.enter="commit(item.id)"
-            />
+            >
             <button
               type="button"
               class="text-xs font-semibold underline"

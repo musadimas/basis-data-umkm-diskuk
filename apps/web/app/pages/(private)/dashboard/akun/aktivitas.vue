@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { endpoint } from "~/lib/directus";
+import type { RuntimeLabelMap } from "~/types/directus";
 
 definePageMeta({ layout: "dashboard" });
 useSeoMeta({ title: "Log Aktivitas Sesi – Dashboard UMKM" });
@@ -18,7 +19,7 @@ type ActivityPage = { items: ActivityRow[]; meta: { page: number; limit: number;
 
 const PAGE_SIZE = 20;
 const directus = useDirectus();
-const ACTION_LABELS: Record<string, string> = {
+const ACTION_LABELS: RuntimeLabelMap = {
   login: "Masuk berhasil",
   login_failed: "Percobaan masuk gagal",
   create: "Membuat data",
@@ -26,7 +27,7 @@ const ACTION_LABELS: Record<string, string> = {
   delete: "Menghapus data",
   comment: "Menambah komentar",
 };
-const REASON_LABELS: Record<string, string> = {
+const REASON_LABELS: RuntimeLabelMap = {
   INVALID_CREDENTIALS: "kredensial tidak sesuai",
   CAPTCHA_MISSING: "captcha tidak ada",
   CAPTCHA_INVALID: "captcha tidak valid",

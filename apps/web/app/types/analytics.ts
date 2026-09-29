@@ -154,6 +154,9 @@ export type AnalyticsExportType =
   | "detail_csv"
   | "aggregate_png"
   | "aggregate_pdf"
+  | "aggregate_pptx"
+  | "passport_pdf"
+  | "katalog_pdf"
   | "profile_pdf";
 export interface AnalyticsExportStatus {
   meta: AnalyticsMeta;

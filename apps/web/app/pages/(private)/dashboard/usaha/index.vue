@@ -4,6 +4,7 @@ import { FASE_LABEL, LAPORAN_STATUS, assetUrl } from "~/constants";
 import { useKpiOutbox } from "~/composables/useKpiOutbox";
 import { formatAnalyticsCurrency } from "~/lib/analytics-format";
 import { endpoint } from "~/lib/directus";
+import { isQueryString } from "~/lib/utils";
 import type { KpiLaporan, KpiPesertaDetail, KpiPesertaListItem } from "~/types/program";
 
 definePageMeta({ layout: "dashboard" });
@@ -22,7 +23,7 @@ const { data: pesertaList, error: listError } = await useAsyncData("kpi:peserta"
 );
 
 const pesertaId = computed<string | null>(() => {
-  const requested = typeof route.query.peserta === "string" ? route.query.peserta : null;
+  const requested = isQueryString(route.query.peserta) ? route.query.peserta : null;
   const list = pesertaList.value ?? [];
   if (requested && list.some((item) => item.id === requested)) return requested;
   return list.length === 1 ? list[0]!.id : null;
@@ -74,6 +75,7 @@ function stepClass(week: number) {
 }
 
 function addPhotos(event: Event) {
+  // SAFETY: handler ini hanya dipasang pada <input type="file">, sehingga target-nya selalu elemen input.
   const input = event.target as HTMLInputElement;
   const files = [...(input.files ?? [])];
   input.value = "";
@@ -121,8 +123,9 @@ async function submit() {
   submitting.value = true;
   try {
     const week = form.mingguKe;
-    await outbox.add({
-      clientUuid: crypto.randomUUID(),
+    const clientUuid = crypto.randomUUID();
+    const hasil = await outbox.add({
+      clientUuid,
       pesertaId: pesertaId.value,
       mingguKe: week,
       realisasiOmzet: omzet,
@@ -130,14 +133,20 @@ async function submit() {
       kendala: form.kendala.trim() || null,
       photos: photos.value.map(({ file }) => ({ name: file.name, type: file.type, blob: file, fileId: null })),
     });
+    if (hasil === "ditolak") {
+      const entri = outbox.entries.value.find((item) => item.clientUuid === clientUuid);
+      formError.value = entri?.error?.message || "Laporan ditolak server. Periksa isian lalu kirim ulang.";
+      return;
+    }
     for (const photo of photos.value) URL.revokeObjectURL(photo.url);
     photos.value = [];
     form.realisasiOmzet = "";
     form.jumlahTransaksi = "";
     form.kendala = "";
-    saved.value = outbox.online.value
-      ? `Laporan minggu ke-${week} dikirim.`
-      : `Laporan minggu ke-${week} disimpan di ponsel dan akan dikirim saat terhubung.`;
+    saved.value =
+      hasil === "terkirim"
+        ? `Laporan minggu ke-${week} terkirim.`
+        : `Laporan minggu ke-${week} antre dan akan dikirim saat terhubung.`;
   } catch {
     formError.value = "Laporan tidak dapat disimpan di perangkat ini.";
   } finally {
@@ -194,8 +203,10 @@ const history = computed<KpiLaporan[]>(() => [...(detail.value?.laporan ?? [])].
       >
         <Wifi v-if="outbox.online.value" class="size-4" />
         <CloudOff v-else class="size-4" />
-        {{ outbox.online.value ? "Terhubung - Data Real-Time" : "Mode Offline Aktif - Laporan Akan Disimpan di Memori Ponsel" }}
+        {{ outbox.simulatedOffline.value && outbox.demoEnabled.value ? "Simulasi Offline Aktif - Laporan Disimpan di Perangkat" : outbox.online.value ? "Terhubung - Data Real-Time" : "Mode Offline Aktif - Laporan Akan Disimpan di Memori Ponsel" }}
       </div>
+
+      <DemoDemoKoneksiToggle :syncing="outbox.syncing.value" />
 
       <div class="grid gap-5 p-5">
         <section aria-label="Progres mingguan">

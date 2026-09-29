@@ -2,6 +2,7 @@ import { defineConfig } from "oxlint";
 
 export default defineConfig({
   ignorePatterns: [
+    "docs/**/artifacts/**",
     ".agent/**",
     ".agents/**",
     ".claude/**",

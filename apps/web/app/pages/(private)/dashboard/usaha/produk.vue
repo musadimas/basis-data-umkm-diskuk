@@ -1,42 +1,34 @@
 <script setup lang="ts">
 import { Check, Plus, Search } from "@lucide/vue";
 import { KURASI_STATUS } from "~/constants";
-import { endpoint } from "~/lib/directus";
-import { requestErrorCode } from "~/lib/request-error";
-import type { KurasiStatus, Produk, ProdukInput, UsahaPilihan } from "~/types/program";
+import { KURASI_TAHAP, KatalogError, isTayang, katalogApi, kurasiLabel, tahapKurasiSelesai } from "~/lib/katalog";
+import { isQueryString } from "~/lib/utils";
+import type { Produk, ProdukInput } from "~/types/program";
 
 definePageMeta({ layout: "dashboard" });
 useSeoMeta({ title: "Produk Katalog – Dashboard UMKM" });
 
-const ERRORS: Record<string, string> = {
-  FOTO_TIDAK_VALID: "Foto harus diunggah ulang melalui formulir ini.",
-  INVALID_PAYLOAD: "Periksa kembali isian formulir (mis. tautan video harus https).",
-  FORBIDDEN: "Akun ini tidak dapat mengelola produk usaha tersebut.",
-};
-const STEPS: { status: KurasiStatus; label: string }[] = [
-  { status: "menunggu", label: "Menunggu kurasi" },
-  { status: "tayang", label: "Tayang di katalog" },
-  { status: "rekomendasi_marketplace", label: "Rekomendasi marketplace" },
-];
+const STEPS = KURASI_TAHAP.map((status) => ({ status, label: kurasiLabel(status) }));
 
 const route = useRoute();
 const router = useRouter();
-const directus = useDirectus();
+const api = katalogApi(useDirectus());
 
 // UMKM accounts get their own business; the super admin searches for one.
 const q = ref("");
 const { data: usahaList, refresh: searchUsaha } = await useAsyncData("katalog:usaha", () =>
-  directus.request(endpoint<UsahaPilihan[]>("/v1/program/katalog/usaha", { query: { q: q.value } })),
+  api.cariUsaha(q.value),
 );
 const usahaId = computed(() => {
-  if (typeof route.query.usaha === "string") return route.query.usaha;
-  return usahaList.value?.length === 1 && !q.value ? usahaList.value[0]!.id : null;
+  if (isQueryString(route.query.usaha)) return route.query.usaha;
+  const daftar = Array.isArray(usahaList.value) ? usahaList.value : [];
+  return daftar.length === 1 && !q.value ? daftar[0]!.id : null;
 });
-const usahaNama = computed(() => usahaList.value?.find((item) => item.id === usahaId.value)?.nama ?? null);
+const usahaNama = computed(() => (Array.isArray(usahaList.value) ? usahaList.value : []).find((item) => item.id === usahaId.value)?.nama ?? null);
 
 const { data: produkList, refresh } = await useAsyncData(
   "katalog:produk-usaha",
-  () => (usahaId.value ? directus.request(endpoint<Produk[]>("/v1/program/katalog/produk", { query: { usaha: usahaId.value } })) : Promise.resolve([])),
+  () => (usahaId.value ? api.produkUsaha(usahaId.value) : Promise.resolve([])),
   { watch: [usahaId] },
 );
 
@@ -50,29 +42,18 @@ async function save(input: ProdukInput) {
   message.value = null;
   try {
     const current = editing.value;
-    if (current && current !== "baru") {
-      await directus.request(endpoint<Produk, ProdukInput>(`/v1/program/katalog/produk/${current.id}`, { method: "PATCH", body: input }));
-    } else {
-      await directus.request(
-        endpoint<Produk, ProdukInput & { usaha: string }>("/v1/program/katalog/produk", { method: "POST", body: { ...input, usaha: usahaId.value } }),
-      );
-    }
+    await api.simpanProduk(usahaId.value, input, current && current !== "baru" ? current.id : undefined);
     editing.value = null;
     message.value = { tone: "success", text: "Produk diajukan ke kurasi DISKUK." };
     await refresh();
   } catch (cause) {
-    const code = requestErrorCode(cause);
-    message.value = { tone: "error", text: (code && ERRORS[code]) || "Produk tidak dapat disimpan. Coba lagi." };
+    message.value = { tone: "error", text: cause instanceof KatalogError ? cause.pesan : "Produk tidak dapat disimpan. Coba lagi." };
   } finally {
     saving.value = false;
   }
 }
 
-function stepState(produk: Produk, step: KurasiStatus) {
-  const order: KurasiStatus[] = ["menunggu", "tayang", "rekomendasi_marketplace"];
-  if (produk.statusKurasi === "ditolak") return step === "menunggu" ? "done" : "todo";
-  return order.indexOf(step) <= order.indexOf(produk.statusKurasi) ? "done" : "todo";
-}
+const stepState = (produk: Produk, step: Produk["statusKurasi"]) => (tahapKurasiSelesai(produk.statusKurasi, step) ? "done" : "todo");
 
 function pilih(id: string) {
   void router.replace({ query: { ...route.query, usaha: id } });
@@ -133,7 +114,7 @@ function pilih(id: string) {
               <ProgramStatusPill :meta="KURASI_STATUS[produk.statusKurasi]" />
             </div>
             <div class="flex gap-3 text-sm">
-              <NuxtLink v-if="produk.statusKurasi === 'tayang' || produk.statusKurasi === 'rekomendasi_marketplace'" :to="`/katalog/${produk.id}`" class="font-semibold underline">Lihat di katalog</NuxtLink>
+              <NuxtLink v-if="isTayang(produk.statusKurasi)" :to="`/katalog/${produk.id}`" class="font-semibold underline">Lihat di katalog</NuxtLink>
               <button type="button" class="font-semibold underline" @click="editing = produk">Ubah</button>
             </div>
           </div>

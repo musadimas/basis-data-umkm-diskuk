@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import registerRoutes, * as extension from "../src/endpoints/tabular/index.js";
+import registerRoutes from "../src/endpoints/tabular/index.js";
 
 /** Akun Application User provinsi: id harus UUID karena resolver membaca barisnya. */
 const PROVINSI_USER = "33333333-3333-4333-8333-333333333333";
@@ -59,8 +59,8 @@ const run = async (routes, path, query, request = {}) => {
 const rows = (list) => ({ rows: list });
 
 /**
- * Baris operator provinsi: role dibaca dari kolom app_role, jadi setiap mock yang
- * menyimulasikan Application User biasa perlu menjawab query resolusi operator.
+ * Baris pemanggil provinsi: peran dibaca dari kolom app_role via module
+ * cakupan (`SELECT id, app_role, usaha, kota_scope FROM directus_users`).
  */
 const PROVINSI_OPERATOR_ROWS = [
   {
@@ -68,12 +68,13 @@ const PROVINSI_OPERATOR_ROWS = [
     app_role: "provinsi",
     kota: null,
     kota_nama: null,
+    kota_scope: null,
     usaha: null,
     usaha_nama: null,
     usaha_nib: null,
   },
 ];
-const isOperatorQuery = (sql) => sql.includes("FROM directus_users u");
+const isOperatorQuery = (sql) => sql.includes("FROM directus_users");
 
 const runWithError = async (routes, path, query, request = {}) => {
   const res = fakeResponse();
@@ -425,15 +426,24 @@ test("tabular: returns kelurahan for a kecamatan", async () => {
 
 test("tabular: requires kecamatan param for kelurahan", async () => {
   const router = captureRouter();
+  let calls = 0;
   registerRoutes(router, {
-    database: { raw: async () => ({ rows: [] }) },
-    logger: { error: () => assert.fail("no errors expected") },
+    database: {
+      raw: async (sql) => {
+        calls += 1;
+        if (isOperatorQuery(sql)) return rows(PROVINSI_OPERATOR_ROWS);
+        assert.fail("no data query may run when kecamatan is missing");
+      },
+    },
+    logger: { error() {} },
   });
 
   const res = await run(router.routes, "/kelurahan", {});
-
+  // Penolakan 400 terjadi setelah gerbang auth (401 anonim sudah diuji
+  // terpisah); di sini memakai pemanggil provinsi sah.
   assert.equal(res.statusCode, 400);
   assert.ok(res.body.errors[0].message.includes("kecamatan"));
+  assert.equal(calls, 1, "hanya lookup pemanggil yang boleh jalan");
 });
 
 test("tabular: private reads do not join mutable source tables", async () => {
@@ -522,6 +532,7 @@ const kabkotaOperatorRows = (kota = 7) => [
     app_role: "kabkota",
     kota,
     kota_nama: kota == null ? null : "KABUPATEN SUBANG",
+    kota_scope: kota,
     usaha: null,
     usaha_nama: null,
     usaha_nib: null,
@@ -533,7 +544,7 @@ test("tabular: kabkota is scoped to its own kota regardless of client filters", 
   const rawCalls = [];
   const raw = async (sql, params = []) => {
     rawCalls.push({ sql, params });
-    if (sql.includes("FROM directus_users u")) return rows(kabkotaOperatorRows());
+    if (isOperatorQuery(sql)) return rows(kabkotaOperatorRows());
     if (sql.includes("COUNT(*)"))
       return rows([{ filterCount: "42", mikro: "10", kecil: "5", menengah: "2" }]);
     if (sql.includes("payload -> 'scales'")) return rows([]);
@@ -562,7 +573,7 @@ test("tabular: kabkota is scoped to its own kota regardless of client filters", 
   // `meta` berada di dalam `data` (envelope SDK) pada rute analytics.
   assert.equal(res.body.data.meta.filterCount, 42);
   const operatorCalls = rawCalls.filter((c) =>
-    c.sql.includes("FROM directus_users u"),
+    isOperatorQuery(c.sql),
   );
   assert.equal(operatorCalls.length, 1);
   assert.deepEqual(operatorCalls[0].params, [KABKOTA_USER]);
@@ -594,7 +605,7 @@ test("tabular: kabkota tileset is null without touching the snapshot", async () 
   const rawCalls = [];
   const raw = async (sql, params = []) => {
     rawCalls.push({ sql, params });
-    if (sql.includes("FROM directus_users u")) return rows(kabkotaOperatorRows());
+    if (isOperatorQuery(sql)) return rows(kabkotaOperatorRows());
     return rows([]);
   };
   registerRoutes(router, {
@@ -664,7 +675,7 @@ test("tabular: kabkota filter options are scoped to the assigned kota", async ()
     kbli: [{ kode: "47112", kategori: "PERDAGANGAN" }],
   };
   const raw = async (sql) => {
-    if (sql.includes("FROM directus_users u")) return rows(kabkotaOperatorRows());
+    if (isOperatorQuery(sql)) return rows(kabkotaOperatorRows());
     if (sql.includes("payload -> 'options'")) return rows([{ options }]);
     return rows([]);
   };
@@ -692,7 +703,7 @@ test("tabular: kabkota without an assigned kota is rejected with KOTA_NOT_ASSIGN
   const rawCalls = [];
   const raw = async (sql) => {
     rawCalls.push(sql);
-    if (sql.includes("FROM directus_users u")) return rows(kabkotaOperatorRows(null));
+    if (isOperatorQuery(sql)) return rows(kabkotaOperatorRows(null));
     return rows([]);
   };
   registerRoutes(router, {
@@ -710,7 +721,7 @@ test("tabular: kabkota without an assigned kota is rejected with KOTA_NOT_ASSIGN
   assert.equal(error.statusCode, 403);
   assert.equal(error.extensions.code, "KOTA_NOT_ASSIGNED");
   assert.ok(
-    rawCalls.every((sql) => sql.includes("FROM directus_users u")),
+    rawCalls.every((sql) => isOperatorQuery(sql)),
     "no data query may run when the kota assignment is missing",
   );
 });
@@ -790,8 +801,8 @@ test("tabular: rejects anonymous and wrong-role requests before any query", asyn
     },
     logger: { error() {} },
   });
+  // GET /status kini publik (DAFTAR_PUBLIK): tanpa sesi tetap boleh baca.
   for (const path of [
-    "/status",
     "/",
     "/spasial",
     "/spasial/authorize",
@@ -811,4 +822,135 @@ test("tabular: rejects anonymous and wrong-role requests before any query", asyn
     assert.equal(wrongRole.error.statusCode, 403, path);
   }
   assert.equal(calls, 0);
+});
+
+test("tabular: GET /status publik tanpa sesi (DAFTAR_PUBLIK)", async () => {
+  const router = captureRouter();
+  let calls = 0;
+  registerRoutes(router, {
+    database: {
+      raw: async () => {
+        calls += 1;
+        return { rows: [{ refreshedAt: null, total: 0 }] };
+      },
+    },
+    logger: { error() {} },
+  });
+  const res = fakeResponse();
+  await router.routes["/status"]({}, res, (error) => {
+    throw error instanceof Error ? error : new Error(String(error));
+  });
+  assert.deepEqual(res.body, { data: { refreshedAt: null, total: 0 } });
+  assert.equal(calls, 1);
+});
+
+test("tabular: provinsi non-admin ditolak publish 403 (adminOnly)", async () => {
+  const router = captureRouter();
+  const rawCalls = [];
+  registerRoutes(router, {
+    database: {
+      raw: async (sql) => {
+        rawCalls.push(sql);
+        if (isOperatorQuery(sql)) return rows(PROVINSI_OPERATOR_ROWS);
+        return { rows: [] };
+      },
+    },
+    logger: { error() {} },
+  });
+  const { error } = await runWithError(
+    router.routes,
+    "/publish",
+    {},
+    { accountability: { user: PROVINSI_USER, role: APPLICATION_ROLE_ID, admin: false } },
+  );
+  assert.equal(error.statusCode, 403);
+  assert.ok(
+    rawCalls.every((sql) => isOperatorQuery(sql)),
+    "hanya lookup pemanggil yang boleh jalan sebelum penolakan admin",
+  );
+});
+
+test("tabular: POST /query reads filters including q from the body (B08-web)", async () => {
+  const router = captureRouter();
+  const rawCalls = [];
+  const raw = async (sql, params = []) => {
+    rawCalls.push({ sql, params });
+    if (isOperatorQuery(sql)) return rows(PROVINSI_OPERATOR_ROWS);
+    if (sql.includes("COUNT(*)"))
+      return rows([{ filterCount: "3", mikro: "3", kecil: "0", menengah: "0" }]);
+    if (sql.includes("payload -> 'scales'")) return rows([]);
+    return rows([
+      {
+        id: "u1",
+        nama: "Wawan Leathercraft",
+        skala: "micro",
+        produkUtama: "Jaket Kulit",
+        kegiatanUtama: "Produksi pakaian",
+        kodeKbli: "15121",
+        kategoriKbli: "INDUSTRI PENGOLAHAN",
+        kota: "KAB. BOGOR",
+        kecamatan: "CIBINONG",
+        kelurahan: "PAKANSARI",
+      },
+    ]);
+  };
+  registerRoutes(router, {
+    database: { raw },
+    logger: { error: () => assert.fail("no errors expected") },
+  });
+  assert.ok(router.routes["/query"], "POST /query route exists");
+
+  const res = await run(router.routes, "/query", {}, { body: { q: "leather", page_size: "5" } });
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.data.meta.filterCount, 3);
+  assert.equal(res.body.data.rows[0].nama, "Wawan Leathercraft");
+  const selectCall = rawCalls.find(
+    (c) => /ORDER BY t\.nama, t\.id/.test(c.sql) && c.sql.includes("LIMIT"),
+  );
+  assert.ok(selectCall, "select query found");
+  assert.match(selectCall.sql, /ILIKE/, "body q must reach the search predicate");
+});
+
+test("ketiga belas route tabular bertanda cakupan (01)", async () => {
+  const { createRequire } = await import("node:module");
+  const require = createRequire(import.meta.url);
+  const cakupan = require("../../../analytics-shared/cakupan.cjs");
+  const tercatat = [];
+  const router = {
+    get: (path, handler) => tercatat.push({ method: "GET", path, handler }),
+    post: (path, handler) => tercatat.push({ method: "POST", path, handler }),
+  };
+  registerRoutes(router, {
+    database: { raw: async () => ({ rows: [] }) },
+    logger: { error() {} },
+  });
+  const kunci = (m, p) => `${m} ${p}`;
+  const peta = new Map(tercatat.map((r) => [kunci(r.method, r.path), r.handler]));
+  // 13 route: 1 publik + 12 terjaga (POST /export dan GET /export beda method,
+  // GET / dan POST /query berbagi handler daftarBaris B08-web).
+  const ekspektasi = [
+    ["GET", "/status", "publik", []],
+    ["POST", "/publish", "terjaga", ["provinsi"]],
+    ["GET", "/options", "terjaga", ["provinsi", "kabkota"]],
+    ["GET", "/kelurahan", "terjaga", ["provinsi", "kabkota"]],
+    ["GET", "/", "terjaga", ["provinsi", "kabkota"]],
+    ["POST", "/query", "terjaga", ["provinsi", "kabkota"]],
+    ["POST", "/export", "terjaga", ["provinsi", "kabkota"]],
+    ["GET", "/export/:jobId", "terjaga", ["provinsi", "kabkota"]],
+    ["GET", "/export/:jobId/download", "terjaga", ["provinsi", "kabkota"]],
+    ["GET", "/export", "terjaga", ["provinsi", "kabkota"]],
+    ["GET", "/spasial/authorize", "terjaga", ["provinsi", "kabkota"]],
+    ["GET", "/spasial/tileset", "terjaga", ["provinsi", "kabkota"]],
+    ["GET", "/spasial", "terjaga", ["provinsi", "kabkota"]],
+  ];
+  assert.equal(tercatat.length, 13, `tercatat ${tercatat.length} route`);
+  for (const [method, path, jenis, peran] of ekspektasi) {
+    const handler = peta.get(kunci(method, path));
+    assert.ok(handler, `route ${method} ${path} terdaftar`);
+    const tanda = cakupan.tandaCakupan(handler);
+    assert.equal(tanda?.jenis, jenis, `${method} ${path}`);
+    if (jenis === "terjaga") {
+      assert.deepEqual([...tanda.peran].sort(), [...peran].sort(), `${method} ${path}`);
+    }
+  }
 });

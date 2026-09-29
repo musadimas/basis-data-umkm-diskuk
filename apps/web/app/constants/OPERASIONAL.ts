@@ -20,3 +20,6 @@ export const ATRIBUT_JABAR: AtributJabarItem[] = [
   { key: "rantaiPasokIndustri", label: "Rantai Pasok Industri" },
   { key: "kontrakOfftaker", label: "Kontrak Offtaker" },
 ];
+
+/** Satu nama instansi untuk seluruh dokumen web (B38). */
+export const INSTANSI = "Dinas Koperasi dan Usaha Kecil Provinsi Jawa Barat";

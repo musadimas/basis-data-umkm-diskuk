@@ -1,5 +1,6 @@
 "use strict";
 
+const { pastikanUsaha } = require("../../../analytics-shared/cakupan.cjs");
 const { OperasionalError, validationFailed } = require("./errors.js");
 
 const ATRIBUT_COLUMNS = [
@@ -38,9 +39,6 @@ const ATRIBUT_CAMEL = {
   kontrakOfftaker: "kontrak_offtaker",
 };
 
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 const rowsOf = (result) => result?.rows ?? result?.[0] ?? result ?? [];
 
 function toCamelAtribut(row) {
@@ -53,49 +51,8 @@ function toCamelAtribut(row) {
   return out;
 }
 
-async function assertUsahaAccess(database, usahaId, operator) {
-  if (!UUID_PATTERN.test(String(usahaId || ""))) {
-    throw new OperasionalError(404, "NOT_FOUND", "Data usaha tidak ditemukan atau di luar wilayah Anda.");
-  }
-  const result = await database.raw(
-    `SELECT u.id, u.nama, u.nib, u.skala, u.omzet_tahunan, u.total_aset,
-            ko.id AS kota_id, ko.nama AS kota_nama,
-            kc.nama AS kecamatan_nama, kl.nama AS kelurahan_nama,
-            pu.nama_lengkap AS pemilik_nama
-     FROM usaha u
-     LEFT JOIN alamat a ON a.id = u.alamat
-     LEFT JOIN kelurahan kl ON kl.id = a.kelurahan
-     LEFT JOIN kecamatan kc ON kc.id = kl.kecamatan
-     LEFT JOIN kota ko ON ko.id = kc.kota
-     LEFT JOIN pelaku_usaha pu ON pu.id = u.pelaku_usaha
-     WHERE u.id = ?
-     LIMIT 1`,
-    [usahaId],
-  );
-  const row = rowsOf(result)[0];
-  if (!row) {
-    throw new OperasionalError(404, "NOT_FOUND", "Data usaha tidak ditemukan atau di luar wilayah Anda.");
-  }
-  if (operator?.role === "kabkota" && Number(row.kota_id) !== Number(operator.kotaId)) {
-    throw new OperasionalError(404, "NOT_FOUND", "Data usaha tidak ditemukan atau di luar wilayah Anda.");
-  }
-  return {
-    id: row.id,
-    nama: row.nama,
-    nib: row.nib ?? null,
-    kotaId: row.kota_id ?? null,
-    kotaNama: row.kota_nama ?? null,
-    kecamatanNama: row.kecamatan_nama ?? null,
-    kelurahanNama: row.kelurahan_nama ?? null,
-    omzetTahunan: row.omzet_tahunan === null || row.omzet_tahunan === undefined ? null : Number(row.omzet_tahunan),
-    totalAset: row.total_aset === null || row.total_aset === undefined ? null : Number(row.total_aset),
-    skala: row.skala ?? null,
-    pemilikNama: row.pemilik_nama ?? null,
-  };
-}
-
-async function getUsahaLapangan(database, usahaId, operator) {
-  const akses = await assertUsahaAccess(database, usahaId, operator);
+async function getUsahaLapangan(database, usahaId, pemanggil) {
+  await pastikanUsaha(database, pemanggil, usahaId);
   const detail = await database.raw(
     `SELECT u.id, u.nama, u.nib, u.kegiatan_utama, u.produk_utama, u.skala,
             u.omzet_tahunan, u.total_aset, u.latitude, u.longitude, u.status,
@@ -136,9 +93,9 @@ async function getUsahaLapangan(database, usahaId, operator) {
   }
   return {
     data: {
-      id: akses.id,
+      id: usahaId,
       sidt: {
-        nama: row.nama ?? akses.nama,
+        nama: row.nama ?? null,
         nib: row.nib ?? null,
         kegiatanUtama: row.kegiatan_utama ?? null,
         produkUtama: row.produk_utama ?? null,
@@ -151,12 +108,12 @@ async function getUsahaLapangan(database, usahaId, operator) {
         status: row.status ?? null,
       },
       wilayah: {
-        kota: row.kota_nama ?? akses.kotaNama,
+        kota: row.kota_nama ?? null,
         kecamatan: row.kecamatan_nama ?? null,
         kelurahan: row.kelurahan_nama ?? null,
         alamatJalan: row.alamat_jalan ?? null,
       },
-      pemilik: { nama: row.pemilik_nama ?? akses.pemilikNama },
+      pemilik: { nama: row.pemilik_nama ?? null },
       atribut: toCamelAtribut(atributRow),
       verifikasi: {
         terverifikasiOleh: verifikator,
@@ -258,8 +215,8 @@ const SIDT_COLUMN = {
   longitude: "longitude",
 };
 
-async function updateUsahaLapangan(database, usahaId, body = {}, operator) {
-  await assertUsahaAccess(database, usahaId, operator);
+async function updateUsahaLapangan(database, usahaId, body = {}, pemanggil) {
+  await pastikanUsaha(database, pemanggil, usahaId);
   const sidt = body.sidt ?? {};
   const atribut = body.atribut ?? {};
   const s = validateSidt(sidt);
@@ -305,7 +262,7 @@ async function updateUsahaLapangan(database, usahaId, body = {}, operator) {
     }
     const atributCols = Object.keys(a.clean);
     if (atributCols.length > 0) {
-      const cols = ["usaha", ...atributCols, "diperbarui_oleh", "date_updated"];
+      const cols = ["usaha", ...atributCols, "diperbarui_oleh"];
       const placeholders = cols.map(() => "?").join(", ");
       const updates = atributCols.map((c) => `${c} = EXCLUDED.${c}`).join(", ");
       await trx.raw(
@@ -314,7 +271,7 @@ async function updateUsahaLapangan(database, usahaId, body = {}, operator) {
            diperbarui_oleh = EXCLUDED.diperbarui_oleh,
            date_updated = NOW(),
            terverifikasi_oleh = NULL, terverifikasi_pada = NULL`,
-        [usahaId, ...atributCols.map((c) => a.clean[c]), operator?.userId ?? null],
+        [usahaId, ...atributCols.map((c) => a.clean[c]), pemanggil?.id ?? null],
       );
     }
   };
@@ -324,11 +281,11 @@ async function updateUsahaLapangan(database, usahaId, body = {}, operator) {
   } else {
     await run(database);
   }
-  return getUsahaLapangan(database, usahaId, operator);
+  return getUsahaLapangan(database, usahaId, pemanggil);
 }
 
-async function verifikasiUsaha(database, usahaId, operator) {
-  await assertUsahaAccess(database, usahaId, operator);
+async function verifikasiUsaha(database, usahaId, pemanggil) {
+  await pastikanUsaha(database, pemanggil, usahaId);
   const existing = await database.raw(`SELECT usaha FROM usaha_atribut_jabar WHERE usaha = ? LIMIT 1`, [
     usahaId,
   ]);
@@ -338,7 +295,7 @@ async function verifikasiUsaha(database, usahaId, operator) {
   const run = async (trx) => {
     await trx.raw(
       `UPDATE usaha_atribut_jabar SET terverifikasi_oleh = ?, terverifikasi_pada = NOW(), date_updated = NOW() WHERE usaha = ?`,
-      [operator?.userId ?? null, usahaId],
+      [pemanggil?.id ?? null, usahaId],
     );
   };
   if (typeof database.transaction === "function") {
@@ -346,13 +303,12 @@ async function verifikasiUsaha(database, usahaId, operator) {
   } else {
     await run(database);
   }
-  return getUsahaLapangan(database, usahaId, operator);
+  return getUsahaLapangan(database, usahaId, pemanggil);
 }
 
 module.exports = {
   ATRIBUT_COLUMNS,
   ATRIBUT_CAMEL,
-  assertUsahaAccess,
   getUsahaLapangan,
   updateUsahaLapangan,
   verifikasiUsaha,

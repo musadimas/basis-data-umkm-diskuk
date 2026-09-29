@@ -1,12 +1,18 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createRequire } from "node:module";
 import activity from "../src/endpoints/activity/index.js";
 import captcha from "../src/endpoints/captcha/index.js";
 import { APPLICATION_ROLE_ID, TEST_ENV, call, mountEndpoints, silentLogger } from "./helpers.js";
 
-function setup({ activityRows = [] } = {}) {
+const { tandaCakupan, ALL_ROLES } = createRequire(import.meta.url)("../../../analytics-shared/cakupan.cjs");
+
+function setup({ activityRows = [], appRole = "umkm" } = {}) {
   const database = {
     raw: async (sql, bindings = []) => {
+      if (sql.includes("FROM directus_users WHERE id")) {
+        return { rows: [{ id: bindings[0], app_role: appRole, usaha: null, kota_scope: null }] };
+      }
       if (sql.includes("FROM auth_login_audit")) {
         const [, , limit, offset] = bindings;
         return { rows: activityRows.slice(offset, offset + limit) };
@@ -42,4 +48,17 @@ test("activity log requires authentication and paginates", async () => {
   assert.deepEqual(first.res.body.data.meta, { page: 1, limit: 2, hasMore: true });
   const second = await call(routes, "GET /v1/auth/activity", { ...signedIn, query: { limit: "2", page: "2" } });
   assert.deepEqual(second.res.body.data.meta, { page: 2, limit: 2, hasMore: false });
+});
+
+test("routes are marked by the Cakupan adapters (captcha publik, activity terjaga untuk semua peran)", () => {
+  const routes = setup();
+  assert.equal(tandaCakupan(routes["GET /v1/auth/captcha/challenge"])?.jenis, "publik");
+  assert.deepEqual(tandaCakupan(routes["GET /v1/auth/activity"]), { jenis: "terjaga", peran: ALL_ROLES });
+});
+
+test("activity log rejects an account without app_role (fail-closed, no default role)", async () => {
+  const routes = setup({ appRole: null });
+  const { res, nextError } = await call(routes, "GET /v1/auth/activity", signedIn);
+  assert.equal(nextError.statusCode, 403);
+  assert.equal(res.body, undefined);
 });

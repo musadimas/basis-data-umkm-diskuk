@@ -16,8 +16,11 @@ import {
   Filter,
   LoaderCircle,
   MoreHorizontal,
+  Pencil,
   RotateCcw,
+  Search,
   Sparkles,
+  X,
 } from "@lucide/vue";
 
 import type { ScaleStatItem, SkalaUsaha, TabularUmkmItem } from "~/types/dashboard";
@@ -30,6 +33,7 @@ import type {
   TabularSkalaApi,
 } from "~/types/tabular";
 import { DASHBOARD_SECTIONS } from "~/constants/DASHBOARD";
+import { applyLockedKota, useLockedKota } from "~/composables/useTabularFilters";
 import { endpoint, endpointFromPanelUrl } from "~/lib/directus";
 import { requestStatus } from "~/lib/request-error";
 
@@ -86,6 +90,14 @@ const defaultFilters = (): TabularFilters => ({
 
 const filters = reactive<TabularFilters>({ ...defaultFilters(), ...props.syncFilters });
 const appliedFilters = reactive<TabularFilters>({ ...defaultFilters(), ...props.syncFilters });
+
+// Y01: kunci wilayah kabkota ke kota_scope-nya. Server menegakkan via
+// scopeTabularQuery; UI mengunci dropdown. Aturan kunci tinggal di
+// useTabularFilters.ts supaya sama dengan halaman spasial dan infografis.
+const lockedKota = useLockedKota();
+watch(lockedKota, (locked) => {
+  applyLockedKota(filters, appliedFilters, locked);
+}, { immediate: true });
 
 // ── Data opsi filter (dari Directus, dimuat sekali) ───────────────────────
 const directus = useDirectus();
@@ -207,6 +219,38 @@ const cursorStack = ref<string[]>([]);
 const nextCursor = computed(() => rowsData.value?.meta?.nextCursor ?? null);
 const hasNext = computed(() => Boolean(rowsData.value?.meta?.hasNext));
 
+// ── Pencarian global server-side (q) ─────────────────────────────────────
+const searchInput = ref("");
+const appliedSearch = ref("");
+const searchError = ref<string | null>(null);
+
+const doSearch = () => {
+  const q = searchInput.value.trim();
+  if (!q) {
+    clearSearch();
+    return;
+  }
+  const isDigits = /^\d+$/.test(q);
+  if (!isDigits && q.length < 3) {
+    searchError.value = "Kata kunci minimal 3 karakter";
+    return;
+  }
+  if (isDigits && q.length !== 16 && q.length !== 13 && q.length !== 5 && q.length < 3) {
+    searchError.value = "Kata kunci minimal 3 karakter";
+    return;
+  }
+  searchError.value = null;
+  appliedSearch.value = q;
+  resetPagination();
+};
+
+const clearSearch = () => {
+  searchInput.value = "";
+  appliedSearch.value = "";
+  searchError.value = null;
+  resetPagination();
+};
+
 const filterQuery = computed(() => ({
   kota: appliedFilters.kabupatenKota !== "semua" ? appliedFilters.kabupatenKota : undefined,
   kecamatan: appliedFilters.kecamatan !== "semua" ? appliedFilters.kecamatan : undefined,
@@ -215,6 +259,7 @@ const filterQuery = computed(() => ({
   skala: appliedFilters.skala !== "semua" ? skalaToApi[appliedFilters.skala as SkalaUsaha] : undefined,
   kegiatan: appliedFilters.kegiatanUsaha !== "semua" ? appliedFilters.kegiatanUsaha : undefined,
   kbli: appliedFilters.kodeKbli !== "semua" ? appliedFilters.kodeKbli : undefined,
+  q: appliedSearch.value || undefined,
 }));
 
 interface TabularRowsQuery {
@@ -224,6 +269,7 @@ interface TabularRowsQuery {
   skala?: string | undefined;
   kegiatan?: string | undefined;
   kbli?: string | undefined;
+  q?: string | undefined;
   page_size: number;
   page?: number;
   cursor?: string;
@@ -249,7 +295,9 @@ const {
   refresh: refreshRows,
 } = useAsyncData(
   "tabular:rows",
-  () => directus.request(endpoint<TabularRowsResponse>("/v1/analytics/tabular/", { query: { ...rowsQuery.value } })),
+  // B08-web (ADR-004 #10): seluruh parameter — termasuk pencarian `q` yang bisa
+  // memuat NIK — dikirim lewat body POST agar tidak masuk URL/log.
+  () => directus.request(endpoint<TabularRowsResponse, TabularRowsQuery>("/v1/analytics/tabular/query", { method: "POST", body: { ...rowsQuery.value } })),
   { watch: [rowsQuery], lazy: true },
 );
 
@@ -310,7 +358,7 @@ const lastVisibleRow = computed(() => Math.min(
   totalData.value,
 ));
 const activeFilterCount = computed(() =>
-  Object.values(appliedFilters).filter((value) => value !== "semua").length,
+  Object.values(appliedFilters).filter((value) => value !== "semua").length + (appliedSearch.value ? 1 : 0),
 );
 const filtersAreDirty = computed(() => {
   // SAFETY: filters adalah reactive<TabularFilters>, jadi Object.keys menghasilkan
@@ -401,6 +449,7 @@ const applyFilters = () => {
 };
 
 const resetFilters = () => {
+  clearSearch();
   Object.assign(filters, defaultFilters());
   applyFilters();
 };
@@ -494,11 +543,46 @@ const exportCsv = async () => {
       <span>Data tabular belum dapat dimuat. Silakan coba lagi.</span>
       <UiButton variant="outline" size="sm" @click="refreshRows()">Coba lagi</UiButton>
     </div>
+    <!-- Form pencarian global -->
+    <form role="search" class="mb-2 flex flex-wrap items-center gap-2" @submit.prevent="doSearch">
+      <div class="relative min-w-64 flex-1">
+        <UiInput
+          v-model="searchInput"
+          type="search"
+          aria-label="Cari NIK, NIB, nama usaha, atau nama pemilik"
+          placeholder="Cari NIK (16 digit), NIB (13 digit), nama usaha, atau nama pemilik"
+          class="h-9 w-full text-xs"
+        />
+      </div>
+      <UiButton
+        type="submit"
+        size="sm"
+        class="gap-1 rounded-md bg-brand-green text-xs font-semibold text-brand-green-foreground hover:bg-brand-green/90"
+        :disabled="rowsPending"
+      >
+        <Search class="h-3.5 w-3.5" />
+        <span>Cari</span>
+      </UiButton>
+      <UiButton
+        type="button"
+        variant="outline"
+        size="sm"
+        class="gap-1 rounded-md text-xs"
+        :disabled="!searchInput && !appliedSearch"
+        @click="clearSearch"
+      >
+        <X class="h-3.5 w-3.5" />
+        <span>Hapus</span>
+      </UiButton>
+    </form>
+    <p v-if="searchError" class="mb-2 text-xs text-destructive" role="alert">
+      {{ searchError }}
+    </p>
 
     <!-- Filter strip: langsung di atas tabel, tanpa panel/card -->
     <div class="mb-2 flex flex-wrap items-center gap-2">
       <div class="min-w-36 flex-1 basis-36">
-        <UiSelect v-model="filters.kabupatenKota" :disabled="optionsPending || Boolean(optionsError)">
+        <UiSelect v-model="filters.kabupatenKota" :disabled="optionsPending || Boolean(optionsError) || Boolean(lockedKota)">
           <UiSelectTrigger aria-label="Kabupaten/Kota" size="sm" class="w-full">
             <UiSelectValue placeholder="Semua Kabupaten/Kota" />
           </UiSelectTrigger>
@@ -725,6 +809,12 @@ const exportCsv = async () => {
                     </NuxtLink>
                   </UiDropdownMenuItem>
                   <UiDropdownMenuItem as-child>
+                    <NuxtLink :to="`/dashboard/data-lapangan/${r.id}`" class="cursor-pointer">
+                      <Pencil class="mr-2 h-4 w-4" />
+                      Ubah Data Lapangan
+                    </NuxtLink>
+                  </UiDropdownMenuItem>
+                  <UiDropdownMenuItem as-child>
                     <NuxtLink :to="`/dashboard/talent/ajukan/${r.id}`" class="cursor-pointer">
                       <Sparkles class="mr-2 h-4 w-4" />
                       Ajukan ke Talent Scouting
@@ -737,7 +827,7 @@ const exportCsv = async () => {
           <!-- Empty state -->
           <tr v-if="!rowsPending && pagedRows.length === 0" class="bg-white dark:bg-card">
             <td colspan="10" class="px-3 py-10 text-center text-sm text-muted-foreground">
-              Tidak ada data UMKM yang cocok dengan filter yang dipilih.
+              {{ appliedSearch ? "Tidak ada UMKM yang cocok dengan pencarian." : "Tidak ada data UMKM yang cocok dengan filter yang dipilih." }}
             </td>
           </tr>
         </tbody>

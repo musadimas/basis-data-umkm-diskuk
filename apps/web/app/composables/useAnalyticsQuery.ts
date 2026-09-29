@@ -1,5 +1,6 @@
 import type {
   AnalysisConfig,
+  AnalyticsFilter,
   AnalyticsQueryResponse,
   AnalyticsRecordsResponse,
 } from "~/types/analytics";
@@ -20,17 +21,29 @@ import { isAbortError, isUnauthorized } from "~/lib/request-error";
 const ANALYTICS_STALE_MS = 60_000;
 const ANALYTICS_GC_MS = 15 * 60_000;
 
+/** Badan permintaan `analysis/query`: konfigurasi kanvas yang diterapkan plus batas kelompok. */
+type QueryRequestBody = AnalysisConfig & { limit: number };
+
+/** Badan permintaan `analysis/records`: filter+sort halaman pertama atau lanjutan. */
+type RecordsRequestBody = {
+  schemaVersion: number;
+  filters: AnalyticsFilter[];
+  pageSize: number;
+  sort: AnalysisConfig["sort"];
+  cursor?: string | undefined;
+};
+
 export function useAnalyticsQuery(config: Readonly<{ value: AnalysisConfig }>) {
   // Captured synchronously during setup: queryFn runs outside the Nuxt context.
   // The client forwards the session cookie itself during SSR.
   const directus = useDirectus();
-  const postQuery = (body: object, signal: AbortSignal) =>
+  const postQuery = (body: QueryRequestBody, signal: AbortSignal) =>
     directus
-      .request(endpoint<Enveloped<AnalyticsQueryResponse>, object>("/v1/analytics/analysis/query", { method: "POST", body, signal }))
+      .request(endpoint<Enveloped<AnalyticsQueryResponse>, QueryRequestBody>("/v1/analytics/analysis/query", { method: "POST", body, signal }))
       .then((payload) => fromEnvelope<AnalyticsQueryResponse>(payload));
-  const postRecords = (body: object, signal: AbortSignal) =>
+  const postRecords = (body: RecordsRequestBody, signal: AbortSignal) =>
     directus
-      .request(endpoint<Enveloped<AnalyticsRecordsResponse>, object>("/v1/analytics/analysis/records", { method: "POST", body, signal }))
+      .request(endpoint<Enveloped<AnalyticsRecordsResponse>, RecordsRequestBody>("/v1/analytics/analysis/records", { method: "POST", body, signal }))
       .then((payload) => fromEnvelope<AnalyticsRecordsResponse>(payload));
 
   // The signal lets vue-query cancel in-flight requests when the applied

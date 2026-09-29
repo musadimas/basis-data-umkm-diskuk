@@ -4,7 +4,10 @@
   "type": "module",
   "scripts": {
     "dev:direct": "bash scripts/dev-direct.sh",
-    "lint:oxlint": "oxlint"
+    "lint:oxlint": "oxlint --disable-nested-config"
+  },
+  "engines": {
+    "node": "^20.0.0 || ^22.0.0"
   },
   "devDependencies": {
     "@oxlint/plugins": "1.78.0",

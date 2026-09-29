@@ -46,8 +46,44 @@ defineExpose({ solve, reset });
     type="checkbox"
     auto="onfocus"
     language="id"
-    class="block"
+    class="block w-full"
     @verified="onVerified"
     @expired="onExpired"
   />
 </template>
+
+<style>
+altcha-widget {
+  --altcha-border-radius: 0.75rem !important;
+  --altcha-border-color: var(--border) !important;
+  --altcha-border-width: 1px !important;
+  --altcha-color-base: var(--muted) !important;
+  --altcha-color-base-content: var(--foreground) !important;
+  --altcha-color-primary: var(--primary) !important;
+  --altcha-max-width: 100% !important;
+}
+
+altcha-widget .altcha,
+altcha-widget .altcha * {
+  font-family: var(--font-sans) !important;
+}
+
+altcha-widget .altcha-main {
+  border-radius: 0.75rem !important;
+  border-color: var(--border) !important;
+  background-color: var(--muted) !important;
+  padding: 0.75rem 1rem !important;
+}
+
+altcha-widget .altcha-label {
+  font-size: 0.875rem !important;
+  font-weight: 500 !important;
+  color: var(--foreground) !important;
+}
+
+altcha-widget .altcha-footer,
+altcha-widget .altcha-footer * {
+  font-size: 0.6875rem !important;
+  color: var(--muted-foreground) !important;
+}
+</style>

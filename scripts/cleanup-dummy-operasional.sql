@@ -8,6 +8,14 @@ UPDATE directus_users SET usaha = NULL, kota_scope = NULL WHERE email LIKE 'dumm
 
 -- Fase berikutnya menambah DELETE tabel domainnya di bagian ini (sebelum delete usaha).
 
+-- Y07: agenda dummy dan opt-in pengingatnya (cascade dari kegiatan_pengingat → kegiatan).
+DELETE FROM kegiatan_pengingat WHERE kegiatan IN (
+  'f1000000-0000-4000-8000-000000000001', 'f1000000-0000-4000-8000-000000000002',
+  'f1000000-0000-4000-8000-000000000003', 'f1000000-0000-4000-8000-000000000004',
+  'f1000000-0000-4000-8000-000000000005', 'f1000000-0000-4000-8000-000000000006'
+);
+DELETE FROM kegiatan WHERE id::text LIKE 'f1000000-0000-4000-8000-%';
+
 -- Y02: atribut ikut cascade dari usaha di bawah.
 DELETE FROM directus_files WHERE filename_download LIKE 'dummy\_%';
 

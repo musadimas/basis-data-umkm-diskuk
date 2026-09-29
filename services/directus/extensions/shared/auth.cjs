@@ -34,7 +34,10 @@ function roleKeyOf(accountability) {
 class DashboardAuthError extends Error {
   constructor(statusCode, code, message) {
     super(message);
-    this.name = "DashboardAuthError";
+    // NOTE Y01: Directus only renders status from errors with name "DirectusError"
+    // (see analytics OperatorError); otherwise 401/403 become 500.
+    this.name = "DirectusError";
+    this.status = statusCode;
     this.statusCode = statusCode;
     this.code = code;
     this.extensions = { code, status: statusCode };
@@ -54,14 +57,6 @@ function requireDashboardAccountability(req, { adminOnly = false, roles = ["prov
     throw new DashboardAuthError(403, "FORBIDDEN", "Dashboard access is not permitted");
   }
   return accountability;
-}
-
-function requireRole(req, roles) {
-  return requireDashboardAccountability(req, { roles });
-}
-
-function requireApplicationUser(req) {
-  return requireDashboardAccountability(req);
 }
 
 function routeGuard(req, next, options) {
@@ -88,8 +83,6 @@ module.exports = {
   roleKeyOf,
   DashboardAuthError,
   requireDashboardAccountability,
-  requireRole,
-  requireApplicationUser,
   routeGuard,
   sanitizeError,
 };

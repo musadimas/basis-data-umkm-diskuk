@@ -1,8 +1,8 @@
-import { routeGuard } from "../../lib/utils/auth.js";
-import { OperatorError, resolveOperator } from "../../lib/utils/operator.js";
+import cakupan from "../../../../../analytics-shared/cakupan.cjs";
+import { OperatorError } from "../../lib/utils/operator.js";
 import { correlation } from "./meta.js";
 import { AnalyticsApiError, sendError } from "./errors.js";
-import { assertUsahaInScope, permissionScopeOf, scopeAnalysisRequest, } from "./scope.js";
+import { assertUsahaInScope, permissionScopeOf, } from "./scope.js";
 import { getMetadata, getOptions } from "./metadata.js";
 import { listTemplates } from "./templates.js";
 import { getStatus } from "./status-service.js";
@@ -10,14 +10,45 @@ import { queryAnalytics } from "./query-service.js";
 import { listRecords } from "./records-service.js";
 import { getProfile, UUID } from "./profile-service.js";
 import { submitExport, getExportStatus, downloadExport, } from "./exports-service.js";
+
+const { terjaga, publik } = cakupan;
+
+// Seluruh bundel analytics hanya untuk dashboard provinsi/kabkota (DATA_ROLES);
+// pendamping/umkm memakai endpoint operasional. Kandidat 01: gerbang peran di
+// adapter, scope wilayah via compiler shared/assertUsahaInScope dari
+// peran + kota pemanggil. GET /metadata, /templates, /status adalah
+// pengecualian publik (DAFTAR_PUBLIK, data non-PII agregat).
+const DATA = { peran: ["provinsi", "kabkota"] };
+
 const signals = { requests: 0, errors: 0, timeouts: 0, durations: [] };
+
+const operatorDariPemanggil = (pemanggil) => {
+  if (
+    pemanggil?.peran === "kabkota" &&
+    pemanggil?.kotaId == null &&
+    pemanggil?.admin !== true
+  ) {
+    throw new OperatorError(403, "KOTA_NOT_ASSIGNED", "Dashboard access is not permitted");
+  }
+  return {
+    userId: pemanggil?.id ?? null,
+    role: pemanggil?.peran ?? null,
+    kotaId: pemanggil?.kotaId ?? null,
+    kotaNama: null,
+    admin: pemanggil?.admin === true,
+    usahaId: pemanggil?.usahaId ?? null,
+  };
+};
+
 /**
  * Error resolver/guard wilayah harus AnalyticsApiError: `sanitizedError` di errors.js
  * hanya mempertahankan tipe itu, tipe lain diratakan menjadi 500.
+ * Dipertahankan dari implementasi lama (yang memetakan resolveOperator);
+ * kini sumbernya pemanggil dari adapter `terjaga`, bukan query operator.
  */
-async function resolveScopedOperator(database, accountability) {
+function resolveScopedOperator(pemanggil) {
   try {
-    return await resolveOperator(database, accountability);
+    return operatorDariPemanggil(pemanggil);
   } catch (error) {
     if (error instanceof OperatorError) {
       throw new AnalyticsApiError(error.statusCode, error.code, error.message);
@@ -44,12 +75,14 @@ function finish(res, payload, requestId, status = 200) {
   res.setHeader?.("X-Request-Id", requestId);
   res.status(status).json(envelope(payload));
 }
-function wrap(req, res, next, task) {
-  if (!routeGuard(req, next)) return;
+// Kandidat 01: guard peran sudah di adapter `terjaga`/`publik` (muatPemanggil +
+// wajibPeran, tanpa query tambahan di sini). Fungsi ini hanya mencatat sinyal,
+// membungkus envelope, dan memetakan error config (B30) — jangan tambah gate di sini.
+function wrap(req, res, task, next) {
   const requestId = correlation(req);
   const started = Date.now();
   signals.requests++;
-  Promise.resolve()
+  return Promise.resolve()
     .then(task)
     .then((result) => {
       signals.durations.push(Date.now() - started);
@@ -64,104 +97,124 @@ function wrap(req, res, next, task) {
     });
 }
 function finishError(res, error, requestId, next) {
+  // Config ekspor yang ditolak `assertSafeAnalysisConfig` adalah permintaan buruk, bukan
+  // kegagalan server (B30): error itu membawa kode tetapi tidak membawa status HTTP.
   const safe = error?.statusCode
     ? error
-    : Object.assign(new Error("internal"), { statusCode: 500 });
+    : error?.code === "INVALID_ANALYSIS_CONFIG"
+      ? new AnalyticsApiError(400, "INVALID_ANALYSIS_CONFIG", error.message)
+      : Object.assign(new Error("internal"), { statusCode: 500 });
   if (safe.statusCode) {
     sendError(res, safe, requestId);
-  } else next(error);
+  } else if (typeof next === "function") {
+    next(error);
+  } else {
+    throw error;
+  }
 }
 // Mounted by the bundle entry "v1/analytics/analysis" (see package.json).
 export default function registerAnalysisRoutes(router, { database }) {
-  router.get("/metadata", (req, res, next) =>
-    wrap(req, res, next, () => getMetadata(database)),
-  );
-  router.get("/metadata/options", (req, res, next) =>
-    wrap(req, res, next, async () =>
+  router.get("/metadata", publik((ctx) => (req, res, next) =>
+    wrap(req, res, () => getMetadata(ctx.database), next),
+  )({ database }));
+  router.get("/metadata/options", terjaga(DATA, (ctx) => async (req, res, pemanggil) => {
+    await wrap(req, res, () =>
       getOptions(
-        database,
+        ctx.database,
         req.query || {},
-        await resolveScopedOperator(database, req.accountability),
+        resolveScopedOperator(pemanggil),
       ),
-    ),
-  );
-  router.get("/templates", (req, res, next) =>
-    wrap(req, res, next, () => ({
+    );
+  })({ database }));
+  router.get("/templates", publik(() => (req, res, next) =>
+    wrap(req, res, () => ({
       schemaVersion: 1,
       templates: listTemplates(),
-    })),
-  );
-  router.get("/status", (req, res, next) =>
-    wrap(req, res, next, () => getStatus(database)),
-  );
-  router.post("/query", (req, res, next) =>
-    wrap(req, res, next, async () => {
-      const operator = await resolveScopedOperator(database, req.accountability);
-      return queryAnalytics(database, scopeAnalysisRequest(jsonBody(req), operator), {
-        user: req.accountability?.user,
+    }), next),
+  )({ database }));
+  router.get("/status", publik((ctx) => (req, res, next) =>
+    wrap(req, res, () => getStatus(ctx.database), next),
+  )({ database }));
+  router.post("/query", terjaga(DATA, (ctx) => async (req, res, pemanggil) => {
+    await wrap(req, res, () => {
+      const operator = resolveScopedOperator(pemanggil);
+      return queryAnalytics(ctx.database, jsonBody(req), {
+        user: pemanggil.id,
+        operator,
         permissionScope: permissionScopeOf(operator),
       });
-    }),
-  );
-  router.post("/records", (req, res, next) =>
-    wrap(req, res, next, async () => {
-      const operator = await resolveScopedOperator(database, req.accountability);
-      return listRecords(database, scopeAnalysisRequest(jsonBody(req), operator), {
-        user: req.accountability?.user,
+    });
+  })({ database }));
+  router.post("/records", terjaga(DATA, (ctx) => async (req, res, pemanggil) => {
+    await wrap(req, res, () => {
+      const operator = resolveScopedOperator(pemanggil);
+      return listRecords(ctx.database, jsonBody(req), {
+        user: pemanggil.id,
+        operator,
       });
-    }),
-  );
-  router.get("/umkm/:id", (req, res, next) =>
-    wrap(req, res, next, async () => {
+    });
+  })({ database }));
+  router.get("/umkm/:id", terjaga(DATA, (ctx) => async (req, res, pemanggil) => {
+    await wrap(req, res, async () => {
       const id = req.params?.id;
-      // Id tidak valid ditolak lebih dulu supaya tidak ada akses database sama sekali.
+      // Id tidak valid ditolak lebih dulu supaya tidak ada akses database selain
+      // lookup pemanggil milik adapter.
       if (!UUID.test(String(id ?? ""))) {
         throw new AnalyticsApiError(404, "PROFILE_NOT_FOUND");
       }
-      const operator = await resolveScopedOperator(database, req.accountability);
-      await assertUsahaInScope(database, id, operator);
-      return getProfile(database, id, operator);
-    }),
-  );
-  router.post("/exports", (req, res, next) =>
-    wrap(req, res, next, async () => {
-      const operator = await resolveScopedOperator(database, req.accountability);
+      const operator = resolveScopedOperator(pemanggil);
+      await assertUsahaInScope(ctx.database, id, operator);
+      return getProfile(ctx.database, id, operator);
+    });
+  })({ database }));
+  router.post("/exports", terjaga(DATA, (ctx) => async (req, res, pemanggil) => {
+    await wrap(req, res, async () => {
+      const operator = resolveScopedOperator(pemanggil);
       const body = jsonBody(req);
       // Config ekspor tidak boleh menyebut kota lain; profile_pdf juga dibatasi wilayahnya.
       if ((body.exportType ?? body.type) === "profile_pdf") {
-        await assertUsahaInScope(database, body.profileId, operator);
+        await assertUsahaInScope(ctx.database, body.profileId, operator);
       }
       return submitExport(
-        database,
-        { ...body, config: scopeAnalysisRequest(body.config ?? {}, operator) },
-        req.accountability.user,
+        ctx.database,
+        {
+          ...body,
+          config: body.config ?? {},
+          // Snapshot scope saat submit; unduhan menolak bila peran/wilayah pemanggil berubah (B36).
+          permissionScope: permissionScopeOf(operator),
+        },
+        pemanggil.id,
+        operator,
       );
-    }),
-  );
-  router.get("/exports/:jobId", (req, res, next) =>
-    wrap(req, res, next, () =>
+    });
+  })({ database }));
+  router.get("/exports/:jobId", terjaga(DATA, (ctx) => async (req, res, pemanggil) => {
+    await wrap(req, res, () =>
       getExportStatus(
-        database,
+        ctx.database,
         req.params?.jobId,
-        req.accountability.user,
-        Boolean(req.accountability.admin),
+        pemanggil.id,
+        Boolean(pemanggil.admin),
       ),
-    ),
-  );
-  router.get("/exports/:jobId/download", (req, res, next) => {
-    if (!routeGuard(req, next)) return;
+    );
+  })({ database }));
+  router.get("/exports/:jobId/download", terjaga(DATA, (ctx) => async (req, res, pemanggil) => {
     const requestId = correlation(req);
-    Promise.resolve(
-      downloadExport(
-        database,
+    try {
+      const operator = resolveScopedOperator(pemanggil);
+      await downloadExport(
+        ctx.database,
         req.params?.jobId,
-        req.accountability.user,
+        pemanggil.id,
         req.query || {},
         res,
-        Boolean(req.accountability.admin),
-      ),
-    ).catch((error) => sendError(res, error, requestId));
-  });
+        Boolean(pemanggil.admin),
+        permissionScopeOf(operator),
+      );
+    } catch (error) {
+      sendError(res, error, requestId);
+    }
+  })({ database }));
   return {
     signals,
     flushSignals: async () => {

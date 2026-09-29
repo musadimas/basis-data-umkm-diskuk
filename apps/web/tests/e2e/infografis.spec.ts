@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { installMockDirectus, loginMock } from "../fixtures/mock-directus.mjs";
+import { installMockDirectus, loginMock, waitForHydration } from "../fixtures/mock-directus.mjs";
 
 test("infografis renders the combined scale summary with NIB and marketing breakdowns", async ({
   page,
@@ -101,6 +101,8 @@ test("infografis keeps the filter FAB interactive after a full reload", async ({
   await installMockDirectus(page, { authenticated: true });
   await loginMock(page, "/dashboard");
   await page.reload();
+  // The FAB only opens once Vue listeners are attached to the server-rendered page.
+  await waitForHydration(page);
 
   await page.getByRole("button", { name: "Buka filter data" }).click();
   await expect(page.getByRole("dialog")).toBeVisible();

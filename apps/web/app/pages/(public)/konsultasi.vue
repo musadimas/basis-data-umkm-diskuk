@@ -1,94 +1,104 @@
 <script setup lang="ts">
-import { readItems } from "@directus/sdk";
-import { Check, CheckCircle2, Paperclip, Search, X } from "@lucide/vue";
+import { Check, CheckCircle2, Paperclip, X } from "@lucide/vue";
 import { SKALA_LABEL } from "~/constants";
-import { endpoint, endpointForm } from "~/lib/directus";
-import { requestErrorCode } from "~/lib/request-error";
-import type { KlinikPoli, KlinikSlot, KlinikTiketDibuat, KlinikUsahaDitemukan } from "~/types/program";
+import { useAuth } from "~/composables/useAuth";
+import { KlinikError, MAX_LAMPIRAN, MAX_LAMPIRAN_MB as MAX_MB, PESAN_KLINIK, daftarPoli, pesanTiket, prefillSaya, slotTersedia } from "~/lib/klinik";
+import type { KlinikPrefill, KlinikSlot, KlinikTiketDibuat } from "~/types/program";
 
 definePageMeta({ layout: "landing" });
 useSeoMeta({
   title: "Klinik Konsultasi UMKM – Diskuk Jawa Barat",
-  description: "Ajukan konsultasi gratis dengan pendamping DISKUK Jawa Barat: legalitas, keuangan, pemasaran, produksi, SDM, dan ekspor.",
+  description: "Ajukan konsultasi gratis dengan pendamping DISKUK Jawa Barat: legalitas, keuangan, pemasaran, advokasi PMSE, bantuan pemerintah, dan inklusif disabilitas.",
 });
 
 const STEPS = ["Identitas", "Permasalahan", "Jadwal", "Konfirmasi"];
-const MAX_LAMPIRAN = 3;
-const MAX_MB = 5;
 const ACCEPT = "application/pdf,image/jpeg,image/png,image/webp";
-const ERRORS: Record<string, string> = {
-  CAPTCHA_INVALID: "Captcha kedaluwarsa. Centang ulang lalu coba lagi.",
-  NOMOR_TIDAK_VALID: "Periksa jumlah digit NIB (13) atau NIK (16).",
-  SLOT_PENUH: "Slot ini baru saja dipesan orang lain. Pilih slot lain.",
-  REF_KEDALUWARSA: "Data usaha perlu dicari ulang di langkah 1.",
-  LAMPIRAN_TIDAK_DIDUKUNG: "Lampiran harus berupa PDF, JPG, PNG, atau WebP.",
-  LAMPIRAN_TERLALU_BESAR: `Setiap lampiran maksimal ${MAX_MB} MB.`,
-  TANGGAL_AKHIR_PEKAN: "Konsultasi hanya tersedia Senin–Jumat.",
-  TANGGAL_DI_LUAR_RENTANG: "Pilih tanggal mulai besok hingga 30 hari ke depan.",
-  INVALID_PAYLOAD: "Periksa kembali isian formulir.",
-};
 
 const directus = useDirectus();
+const auth = useAuth();
 const { data: poliList } = await useAsyncData("klinik:poli", async () => {
   try {
-    const items = await directus.request(readItems("konsultasi_poli", { fields: ["id", "kode", "nama", "deskripsi", "sort"], sort: ["sort"] } as never));
-    return (Array.isArray(items) ? items : []) as KlinikPoli[];
+    return await daftarPoli(directus);
   } catch {
     return [];
   }
 });
 
 const step = ref(0);
-const form = reactive({
-  jenis: "nib" as "nib" | "nik",
-  nomor: "",
-  usaha: null as KlinikUsahaDitemukan | null,
+/** Pengantar, formulir, atau lacak tiket: the visitor picks, and nothing sits behind a login. */
+const tampilan = ref<"ajukan" | "lacak">("ajukan");
+function keForm() {
+  tampilan.value = "ajukan";
+  if (import.meta.client) nextTick(() => document.getElementById("form-klinik")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+}
+const tersalin = ref(false);
+async function salinNomor() {
+  if (!tiket.value || !import.meta.client) return;
+  try {
+    await navigator.clipboard.writeText(tiket.value.nomor);
+    tersalin.value = true;
+    setTimeout(() => (tersalin.value = false), 2_000);
+  } catch {
+    tersalin.value = false;
+  }
+}
+/** Isian formulir empat langkah; tipe eksplisit agar nilai awal tidak perlu assertion. */
+interface FormKonsultasi {
+  usaha: KlinikPrefill["usaha"] | null;
+  namaUsaha: string;
+  namaKontak: string;
+  whatsapp: string;
+  email: string;
+  poli: number | null;
+  deskripsi: string;
+  moda: "daring" | "luring";
+  tanggal: string;
+  slot: string;
+  consent: boolean;
+}
+
+const form = reactive<FormKonsultasi>({
+  usaha: null,
   namaUsaha: "",
   namaKontak: "",
   whatsapp: "",
   email: "",
-  poli: null as number | null,
+  poli: null,
   deskripsi: "",
-  moda: "daring" as "daring" | "luring",
+  moda: "daring",
   tanggal: "",
   slot: "",
+  consent: true,
 });
 const lampiran = ref<File[]>([]);
 const error = ref("");
 
-// ── Step 1: identity lookup ──────────────────────────────────────────────────
+// ── Step 1: identity from the visitor's own account, never a NIB/NIK lookup ──
+// The public form deliberately has no NIB/NIK search: a business is either already on the
+// signed-in account (verified against SIDT) or typed by hand and stored as unverified.
 type CaptchaRef = { solve: () => Promise<string | null>; reset: () => void };
-const lookupCaptcha = useTemplateRef<CaptchaRef>("lookupCaptcha");
-const found = ref<KlinikUsahaDitemukan[] | null>(null);
-const searching = ref(false);
-
-async function cariUsaha() {
-  error.value = "";
-  searching.value = true;
-  try {
-    const token = await lookupCaptcha.value?.solve();
-    if (!token) {
-      error.value = "Verifikasi captcha belum selesai.";
-      return;
-    }
-    found.value = await directus.request(
-      endpoint<KlinikUsahaDitemukan[], { jenis: string; nomor: string; captcha: string }>("/v1/program/klinik/lookup", {
-        method: "POST",
-        body: { jenis: form.jenis, nomor: form.nomor.replace(/\D/g, ""), captcha: token },
-      }),
-    );
-    form.usaha = found.value.length === 1 ? found.value[0]! : null;
-  } catch (cause) {
-    const code = requestErrorCode(cause);
-    error.value = (code && ERRORS[code]) || "Pencarian gagal. Coba lagi.";
-  } finally {
-    lookupCaptcha.value?.reset();
-    searching.value = false;
+const prefillSelesai = ref(false);
+onMounted(async () => {
+  if (!auth.user.value?.id) {
+    prefillSelesai.value = true;
+    return;
   }
-}
+  try {
+    const data = await prefillSaya(directus);
+    form.usaha = data?.usaha ?? null;
+    form.namaKontak ||= data?.kontak.nama ?? "";
+    form.email ||= data?.kontak.email ?? "";
+    form.whatsapp ||= data?.kontak.whatsapp ?? "";
+  } catch {
+    form.usaha = null;
+  } finally {
+    prefillSelesai.value = true;
+  }
+});
 
 // ── Step 2: attachments ─────────────────────────────────────────────────────
 function addLampiran(event: Event) {
+  // SAFETY: handler ini hanya dipasang pada <input type="file">, sehingga target-nya selalu elemen input.
   const input = event.target as HTMLInputElement;
   error.value = "";
   for (const file of input.files ?? []) {
@@ -97,7 +107,7 @@ function addLampiran(event: Event) {
       break;
     }
     if (file.size > MAX_MB * 1024 * 1024) {
-      error.value = ERRORS.LAMPIRAN_TERLALU_BESAR!;
+      error.value = PESAN_KLINIK.LAMPIRAN_TERLALU_BESAR!;
       continue;
     }
     lampiran.value.push(file);
@@ -123,11 +133,10 @@ watch(
     if (!poli || !tanggal) return;
     slotsPending.value = true;
     try {
-      slots.value = await directus.request(endpoint<KlinikSlot[]>("/v1/program/klinik/slot", { query: { poli, tanggal } }));
+      slots.value = await slotTersedia(directus, poli, tanggal);
       error.value = "";
     } catch (cause) {
-      const code = requestErrorCode(cause);
-      error.value = (code && ERRORS[code]) || "Slot tidak dapat dimuat.";
+      error.value = cause instanceof KlinikError ? cause.pesan : "Slot tidak dapat dimuat.";
     } finally {
       slotsPending.value = false;
     }
@@ -137,7 +146,7 @@ watch(
 // ── Navigation ──────────────────────────────────────────────────────────────
 function validate(index: number): string {
   if (index === 0) {
-    if (!form.usaha && !form.namaUsaha.trim()) return "Cari usaha lewat NIB/NIK, atau isi nama usaha bila belum terdaftar.";
+    if (!form.usaha && !form.namaUsaha.trim()) return "Isi nama usaha bila belum terdaftar.";
     if (!form.namaKontak.trim()) return "Isi nama narahubung.";
     if (!/^(\+?62|0)8\d{7,12}$/.test(form.whatsapp.replace(/[\s-]/g, ""))) return "Isi nomor WhatsApp yang valid, mis. 0812xxxxxxx.";
   }
@@ -168,11 +177,14 @@ async function kirim() {
       error.value = "Verifikasi captcha belum selesai.";
       return;
     }
-    const body = new FormData();
-    body.append(
-      "payload",
-      JSON.stringify({
-        usahaRef: form.usaha?.ref ?? null,
+    if (!form.poli) {
+      error.value = "Pilih poli konsultasi.";
+      step.value = 1;
+      return;
+    }
+    tiket.value = await pesanTiket(
+      directus,
+      {
         namaUsaha: form.usaha ? null : form.namaUsaha.trim(),
         namaKontak: form.namaKontak.trim(),
         whatsapp: form.whatsapp.trim(),
@@ -182,16 +194,14 @@ async function kirim() {
         moda: form.moda,
         tanggal: form.tanggal,
         slot: form.slot,
-      }),
+        consent: form.consent,
+      },
+      lampiran.value,
+      token,
     );
-    body.append("captcha", token);
-    for (const file of lampiran.value) body.append("lampiran", file, file.name);
-    tiket.value = await directus.request(endpointForm<KlinikTiketDibuat>("/v1/program/klinik/tiket", body));
   } catch (cause) {
-    const code = requestErrorCode(cause);
-    error.value = (code && ERRORS[code]) || "Tiket tidak dapat dikirim. Coba lagi.";
-    if (code === "SLOT_PENUH") step.value = 2;
-    if (code === "REF_KEDALUWARSA") step.value = 0;
+    error.value = cause instanceof KlinikError ? cause.pesan : "Tiket tidak dapat dikirim. Coba lagi.";
+    if (cause instanceof KlinikError && cause.code === "SLOT_PENUH") step.value = 2;
   } finally {
     submitCaptcha.value?.reset();
     submitting.value = false;
@@ -205,16 +215,38 @@ const tanggalPanjang = (value: string) => new Intl.DateTimeFormat("id-ID", { dat
   <div class="min-h-dvh">
     <LandingHeaderMask title="Klinik Konsultasi" subtitle="Konsultasi" badge-color="#cbd5e1" />
 
+    <!-- Landing klinik: the six desks, the four-step flow and the narahubung, before the form. -->
+    <div v-if="!tiket && tampilan === 'ajukan' && step === 0" class="mx-auto max-w-7xl px-3 pb-10 | lg:px-12 xl:px-0">
+      <KlinikPengantarKlinik :poli="poliList ?? []" @mulai="keForm" @lacak="tampilan = 'lacak'" />
+    </div>
+
     <div class="mx-auto max-w-3xl px-3 pb-20 | lg:px-0">
       <div v-if="tiket" role="status" class="grid justify-items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-8 text-center text-emerald-950">
         <CheckCircle2 class="size-12 text-emerald-600" aria-hidden="true" />
         <h2 class="text-xl font-bold">Tiket konsultasi terkirim</h2>
         <p class="font-mono text-2xl font-bold tracking-wider" data-testid="nomor-tiket">{{ tiket.nomor }}</p>
         <p class="text-sm">{{ tiket.poli }} · {{ tiket.moda === "daring" ? "Daring" : "Luring" }} · {{ tanggalPanjang(tiket.tanggal) }}, {{ tiket.slot }} WIB</p>
+        <p class="text-xs text-emerald-800" data-testid="status-notifikasi">
+          Notifikasi WhatsApp: {{ tiket.notifikasi.label }}<template v-if="tiket.notifikasi.status === 'pending'"> · pesan dikirim setelah gateway aktif</template>
+        </p>
         <p class="max-w-md text-sm">Simpan nomor tiket ini. Pendamping DISKUK akan menghubungi Anda melalui WhatsApp untuk konfirmasi jadwal.</p>
+        <div class="flex flex-wrap items-center justify-center gap-2">
+          <UiButton type="button" variant="outline" size="sm" @click="salinNomor">{{ tersalin ? "Nomor tersalin" : "Salin nomor tiket" }}</UiButton>
+          <UiButton type="button" variant="outline" size="sm" @click="(tampilan = 'lacak'), (tiket = null)">Lacak status tiket</UiButton>
+        </div>
+        <p class="max-w-md text-xs">Baca ulang kapan saja lewat tab <strong>Lacak tiket</strong>, dengan nomor tiket dan nomor WhatsApp di atas.</p>
+        <p v-if="tiket.sumberIdentitas === 'manual'" class="max-w-md text-xs">Usaha ini dicatat sebagai <strong>belum terverifikasi</strong>; petugas dapat mencocokkannya ke data SIDT saat konsultasi.</p>
       </div>
 
       <template v-else>
+        <div v-if="step === 0" class="mb-6 flex justify-center gap-2" role="group" aria-label="Tampilan klinik">
+          <button type="button" class="rounded-md border px-3 py-1.5 text-sm" :class="tampilan === 'ajukan' ? 'bg-muted font-semibold' : 'hover:bg-muted'" :aria-pressed="tampilan === 'ajukan'" @click="tampilan = 'ajukan'">Ajukan konsultasi</button>
+          <button type="button" class="rounded-md border px-3 py-1.5 text-sm" :class="tampilan === 'lacak' ? 'bg-muted font-semibold' : 'hover:bg-muted'" :aria-pressed="tampilan === 'lacak'" @click="tampilan = 'lacak'">Lacak tiket</button>
+        </div>
+
+        <KlinikLacakTiket v-if="tampilan === 'lacak'" />
+
+        <template v-else>
         <ol class="mb-8 grid grid-cols-4 gap-2" aria-label="Langkah formulir">
           <li v-for="(label, index) in STEPS" :key="label" class="grid justify-items-center gap-1 text-center text-xs" :aria-current="index === step ? 'step' : undefined">
             <span class="grid size-8 place-items-center rounded-full text-sm font-bold" :class="index < step ? 'bg-emerald-600 text-white' : index === step ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'">
@@ -224,36 +256,27 @@ const tanggalPanjang = (value: string) => new Intl.DateTimeFormat("id-ID", { dat
           </li>
         </ol>
 
-        <form class="grid gap-5 rounded-2xl border bg-card p-5 shadow-sm sm:p-8" novalidate @submit.prevent="step === 3 ? kirim() : next()">
+        <form id="form-klinik" class="grid gap-5 rounded-2xl border bg-card p-5 shadow-sm sm:p-8" novalidate @submit.prevent="step === 3 ? kirim() : next()">
           <!-- Step 1 -->
           <template v-if="step === 0">
             <h2 class="text-lg font-bold">Identitas usaha</h2>
-            <fieldset class="grid gap-3">
-              <legend class="mb-2 text-sm font-medium">Cari data usaha Anda di SIDT</legend>
-              <div class="flex gap-4 text-sm">
-                <label class="flex items-center gap-2"><input v-model="form.jenis" type="radio" value="nib" name="jenis"> NIB</label>
-                <label class="flex items-center gap-2"><input v-model="form.jenis" type="radio" value="nik" name="jenis"> NIK pemilik</label>
-              </div>
-              <div class="flex gap-2">
-                <UiInput v-model="form.nomor" inputmode="numeric" :maxlength="form.jenis === 'nib' ? 13 : 16" :placeholder="form.jenis === 'nib' ? '13 digit NIB' : '16 digit NIK'" aria-label="Nomor NIB atau NIK" autocomplete="off" />
-                <UiButton type="button" variant="outline" :disabled="searching" @click="cariUsaha"><Search class="size-4" /> {{ searching ? "Mencari…" : "Cari" }}</UiButton>
-              </div>
-              <AuthCaptcha ref="lookupCaptcha" />
-            </fieldset>
-
-            <div v-if="found && found.length" class="grid gap-2" role="radiogroup" aria-label="Usaha ditemukan">
-              <label v-for="item in found" :key="item.ref" class="flex cursor-pointer items-start gap-3 rounded-lg border p-3 text-sm" :class="form.usaha?.ref === item.ref && 'border-primary bg-primary/5'">
-                <input v-model="form.usaha" type="radio" :value="item" name="usaha" class="mt-1">
-                <span>
-                  <span class="font-semibold">{{ item.nama }}</span><br>
-                  <span class="text-xs text-muted-foreground">{{ SKALA_LABEL[item.skala ?? ""] || "—" }} · {{ item.kota || "—" }} · KBLI {{ item.kbli || "—" }}</span>
-                </span>
-              </label>
+            <div v-if="form.usaha" class="grid gap-1 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950" data-testid="usaha-prefill">
+              <span class="text-xs font-semibold uppercase tracking-wide text-emerald-700">Dari data SIDT · terverifikasi</span>
+              <span class="text-base font-semibold">{{ form.usaha.nama }}</span>
+              <span class="text-xs">{{ SKALA_LABEL[form.usaha.skala ?? ""] || "—" }} · {{ form.usaha.kota || "—" }} · KBLI {{ form.usaha.kbli || "—" }}</span>
             </div>
-            <p v-else-if="found" class="rounded-md bg-muted p-3 text-sm">Data usaha tidak ditemukan. Anda tetap dapat mengajukan dengan mengisi nama usaha di bawah.</p>
+            <template v-else>
+              <p v-if="prefillSelesai" class="rounded-md bg-muted p-3 text-sm">
+                <template v-if="auth.user.value?.id">Data SIDT belum tersedia untuk akun ini, jadi tiket akan ditandai <strong>belum terverifikasi</strong>. Isi nama usaha di bawah.</template>
+                <template v-else><NuxtLink to="/sign-in" class="underline">Masuk</NuxtLink> agar nama, skala, dan wilayah usaha terisi otomatis dari data SIDT. Tanpa masuk, tiket ditandai <strong>belum terverifikasi</strong>.</template>
+              </p>
+              <UiField class="gap-1 sm:col-span-2">
+                <UiFieldLabel for="nama-usaha">Nama usaha</UiFieldLabel>
+                <UiInput id="nama-usaha" v-model="form.namaUsaha" maxlength="255" />
+              </UiField>
+            </template>
 
             <div class="grid gap-4 sm:grid-cols-2">
-              <UiField v-if="!form.usaha" class="gap-1 sm:col-span-2"><UiFieldLabel for="nama-usaha">Nama usaha</UiFieldLabel><UiInput id="nama-usaha" v-model="form.namaUsaha" maxlength="255" /></UiField>
               <UiField class="gap-1"><UiFieldLabel for="nama-kontak">Nama narahubung</UiFieldLabel><UiInput id="nama-kontak" v-model="form.namaKontak" maxlength="120" autocomplete="name" /></UiField>
               <UiField class="gap-1"><UiFieldLabel for="whatsapp">Nomor WhatsApp</UiFieldLabel><UiInput id="whatsapp" v-model="form.whatsapp" type="tel" inputmode="tel" maxlength="20" autocomplete="tel" placeholder="0812xxxxxxxx" /></UiField>
               <UiField class="gap-1 sm:col-span-2"><UiFieldLabel for="email">Email (opsional)</UiFieldLabel><UiInput id="email" v-model="form.email" type="email" maxlength="160" autocomplete="email" /></UiField>
@@ -266,7 +289,13 @@ const tanggalPanjang = (value: string) => new Intl.DateTimeFormat("id-ID", { dat
             <div class="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Poli konsultasi">
               <label v-for="poli in poliList ?? []" :key="poli.id" class="flex cursor-pointer items-start gap-3 rounded-lg border p-3 text-sm" :class="form.poli === poli.id && 'border-primary bg-primary/5'">
                 <input v-model="form.poli" type="radio" :value="poli.id" name="poli" class="mt-1">
-                <span><span class="font-semibold">{{ poli.nama }}</span><br><span class="text-xs text-muted-foreground">{{ poli.deskripsi }}</span></span>
+                <span class="grid gap-1.5">
+                  <span class="font-semibold">{{ poli.nama }}</span>
+                  <span class="text-xs text-muted-foreground">{{ poli.deskripsi }}</span>
+                  <span v-if="poli.subtopik?.length" class="flex flex-wrap gap-1">
+                    <span v-for="topik in poli.subtopik" :key="topik" class="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">{{ topik }}</span>
+                  </span>
+                </span>
               </label>
             </div>
             <UiField class="gap-1">
@@ -320,13 +349,17 @@ const tanggalPanjang = (value: string) => new Intl.DateTimeFormat("id-ID", { dat
           <template v-else>
             <h2 class="text-lg font-bold">Konfirmasi</h2>
             <dl class="grid gap-3 rounded-lg bg-muted/40 p-4 text-sm sm:grid-cols-2">
-              <div><dt class="text-xs text-muted-foreground">Usaha</dt><dd class="font-medium">{{ form.usaha?.nama || form.namaUsaha }}</dd></div>
+              <div><dt class="text-xs text-muted-foreground">Usaha</dt><dd class="font-medium">{{ form.usaha?.nama || form.namaUsaha }} <span v-if="!form.usaha" class="font-normal text-muted-foreground">(belum terverifikasi)</span></dd></div>
               <div><dt class="text-xs text-muted-foreground">Narahubung</dt><dd>{{ form.namaKontak }} · {{ form.whatsapp }}</dd></div>
               <div><dt class="text-xs text-muted-foreground">Poli</dt><dd>{{ poliNama }}</dd></div>
               <div><dt class="text-xs text-muted-foreground">Jadwal</dt><dd>{{ form.tanggal && tanggalPanjang(form.tanggal) }}, {{ form.slot }} WIB · {{ form.moda === "daring" ? "Daring" : "Luring" }}</dd></div>
               <div class="sm:col-span-2"><dt class="text-xs text-muted-foreground">Permasalahan</dt><dd class="whitespace-pre-line">{{ form.deskripsi }}</dd></div>
               <div v-if="lampiran.length" class="sm:col-span-2"><dt class="text-xs text-muted-foreground">Lampiran</dt><dd>{{ lampiran.map((file) => file.name).join(", ") }}</dd></div>
             </dl>
+            <label class="flex items-start gap-2 rounded-lg border p-3 text-sm">
+              <input v-model="form.consent" type="checkbox" name="consent" class="mt-0.5">
+              <span>Saya setuju dihubungi melalui WhatsApp di nomor di atas untuk konfirmasi jadwal dan tindak lanjut konsultasi.</span>
+            </label>
             <AuthCaptcha ref="submitCaptcha" />
           </template>
 
@@ -338,6 +371,7 @@ const tanggalPanjang = (value: string) => new Intl.DateTimeFormat("id-ID", { dat
             <UiButton type="submit" :disabled="submitting">{{ step === 3 ? (submitting ? "Mengirim…" : "Kirim Tiket") : "Lanjut" }}</UiButton>
           </div>
         </form>
+        </template>
       </template>
     </div>
   </div>

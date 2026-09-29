@@ -40,7 +40,7 @@ function submit() {
             required
             maxlength="120"
             class="mt-1 h-10 w-full rounded-md border px-3"
-          />
+          >
         </label>
         <p class="mt-2 text-xs text-muted-foreground">
           Hasil tidak dibekukan; saat dibuka, analisis dijalankan terhadap data

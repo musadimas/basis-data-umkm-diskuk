@@ -56,8 +56,8 @@ test("repeated aggregate query is served from Redis without a second PostgreSQL 
     },
   };
   const request = { schemaVersion: 1, metric: "jumlah_umkm", groupBy: "kota_nama", filters: [], limit: 20 };
-  const first = await queryAnalytics(database, request, { permissionScope: "application" });
-  const second = await queryAnalytics(database, request, { permissionScope: "application" });
+  const first = await queryAnalytics(database, request, { permissionScope: "application", operator: { role: "provinsi" } });
+  const second = await queryAnalytics(database, request, { permissionScope: "application", operator: { role: "provinsi" } });
   assert.deepEqual(second, first);
   assert.equal(rollupQueries, 1);
 });

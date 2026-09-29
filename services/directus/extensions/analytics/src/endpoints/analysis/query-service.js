@@ -1,7 +1,7 @@
 import { withBudgetTransaction } from "./query-budget.js";
 import { AnalyticsApiError } from "./errors.js";
 import { baseMeta } from "./meta.js";
-import { compileQuery } from "./query-compiler.js";
+import { compileQuery, DIMENSIONS } from "./query-compiler.js";
 import { resolveAnalyticsSourceCached } from "./source-service.js";
 import { loadRegistryCached, __resetRuntimeCachesForTests, } from "./runtime-cache.js";
 import { aggregateCacheKey, getCachedAggregate, setCachedAggregate, } from "./aggregate-cache.js";
@@ -254,11 +254,14 @@ function finalizeGenerationGroups({
       Number(right.value || 0) - Number(left.value || 0) ||
       String(left.group_key).localeCompare(String(right.group_key)),
   );
-  const overflow = sorted.length > plan.limit ? sorted.slice(plan.limit) : [];
   const limited = sorted.slice(0, plan.limit);
-  const overflowValue = overflow.reduce(
-    (sum, row) => sum + Number(row.value || 0),
+  // The scan fetched at most limit+1 rows, so its tail is not the whole remainder: the window
+  // total minus the kept groups is (B29). Rollup snapshots pass complete rows, and there the
+  // same subtraction yields exactly the tail.
+  const overflowValue = Math.max(
     0,
+    metricTotal -
+      limited.reduce((sum, row) => sum + Number(row.value || 0), 0),
   );
   const groups = limited.map((row) => {
     const group = {
@@ -334,24 +337,11 @@ function finalizeGenerationGroups({
 
 // Dimensions pre-aggregated per generation by the analytics worker into
 // analitik_dim_aggregate. Serves unfiltered single-dimension GROUP BYs from a
-// bounded indexed lookup instead of scanning the fact table; expressions are
-// kept aligned with DIMENSIONS in query-compiler.js (see DIM_AGGREGATE_SQL).
-const ROLLUP_DIMENSIONS = new Set([
-  "kota_id",
-  "kota_kode",
-  "kota_nama",
-  "kecamatan_id",
-  "kecamatan_nama",
-  "kelurahan_id",
-  "kelurahan_nama",
-  "sektor_kbli",
-  "kbli_kode",
-  "skala_dilaporkan",
-  "status_hukum",
-  "status_usaha",
-  "quality_geography",
-  "quality_kbli",
-]);
+// bounded indexed lookup instead of scanning the fact table; anggotanya
+// diturunkan dari DIMENSIONS shared (via query-compiler.js) supaya selaras
+// dengan rollup worker tanpa salinan manual.
+// Kandidat 03 langkah 2d.
+export const ROLLUP_DIMENSIONS = new Set(Object.keys(DIMENSIONS));
 const ROLLUP_METRICS = Object.freeze({
   jumlah_umkm: {
     value: "value",
@@ -564,7 +554,7 @@ async function queryAnalytics(database, request, opts = {}) {
         "Data sedang disiapkan. Silakan coba lagi.",
       );
     const registry = await loadRegistryCached(database);
-    const plan = compileQuery(request, registry);
+    const plan = compileQuery(request, registry, opts.operator);
     if (source.kind === "snapshot" && plan.metricKey !== "jumlah_umkm")
       throw new AnalyticsApiError(
         409,
@@ -708,15 +698,21 @@ async function queryAnalytics(database, request, opts = {}) {
           // Use the compiled whereSql that already includes status filter, but population should be total for that status
           // So we run COUNT with scopeSql + status clause alone, not full whereSql with other filters
           let statusClause = "a.status='active'";
+          let statusParams = source.scopeParams;
           if (op === "eq" && typeof val === "string")
             statusClause = `a.status='${String(val).replace(/'/g, "''")}'`;
           else if (op === "neq" && typeof val === "string")
             statusClause = `a.status<>'${String(val).replace(/'/g, "''")}'`;
-          else statusClause = plan.whereSql; // fallback to full filter (conservative)
+          else {
+            // fallback to full filter (conservative): whereSql membawa
+            // placeholder milik plan.params, jadi ikat keduanya.
+            statusClause = plan.whereSql;
+            statusParams = [...source.scopeParams, ...plan.params];
+          }
           const popRes = await withBudgetTransaction(database, (trx) =>
             trx.raw(
               `SELECT COUNT(*)::integer AS count FROM ${source.fromSql} WHERE ${source.scopeSql} AND ${statusClause}`,
-              source.scopeParams,
+              statusParams,
             ),
           );
           population = Number((popRes.rows ?? [])[0]?.count ?? matched);

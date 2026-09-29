@@ -36,7 +36,7 @@ test("compiler uses distinct count, allowlisted identifiers, and bound values", 
       filters: [{ fieldId: "scale", operator: "eq", value: "micro" }],
       limit: 20,
     },
-    registry,
+    registry, { role: "provinsi" },
   );
   assert.match(plan.metric.sql, /COUNT\(\*\)/);
   assert.deepEqual(plan.params, ["micro"]);
@@ -65,7 +65,7 @@ test("compiler rejects SQL in field identifiers, operators, dimensions, and limi
       })),
     },
   ])
-    assert.throws(() => compileQuery(request, registry));
+    assert.throws(() => compileQuery(request, registry, { role: "provinsi" }));
 });
 test("compiler allows at most two dimensions and explicit others", () => {
   const plan = compileQuery(
@@ -76,7 +76,7 @@ test("compiler allows at most two dimensions and explicit others", () => {
       breakdown: "scale",
       includeOthers: true,
     },
-    registry,
+    registry, { role: "provinsi" },
   );
   assert.equal(plan.includeOthers, true);
   assert.equal(plan.breakdown, "skala_dilaporkan");
@@ -91,7 +91,7 @@ test("compiler keeps kecamatan name equality sargable for its covering index", (
         { fieldId: "district", operator: "eq", value: "TAMBUN SELATAN" },
       ],
     },
-    registry,
+    registry, { role: "provinsi" },
   );
   assert.match(plan.whereSql, /a\.kecamatan_nama = \?/);
   assert.doesNotMatch(plan.whereSql, /COALESCE\(a\.kecamatan_nama/);
@@ -109,8 +109,8 @@ test("compiler keeps geographic ID equality sargable for integer indexes", () =>
         groupBy: "scale",
         filters: [{ fieldId: field, operator: "eq", value: "8357" }],
       },
-      registry,
-    );
+      registry, { role: "provinsi" },
+  );
     assert.match(plan.whereSql, new RegExp(`a\\.${column} = \\?::integer`));
     assert.doesNotMatch(plan.whereSql, new RegExp(`COALESCE\\(a\\.${column}`));
     assert.deepEqual(plan.params, [8357]);
@@ -124,7 +124,7 @@ test("compiler maps unknown and mixed geographic IDs without casting indexed col
       groupBy: "scale",
       filters: [{ fieldId: "village-id", operator: "eq", value: "unknown" }],
     },
-    registry,
+    registry, { role: "provinsi" },
   );
   assert.match(unknown.whereSql, /a\.kelurahan_id IS NULL/);
   assert.deepEqual(unknown.params, []);
@@ -137,7 +137,7 @@ test("compiler maps unknown and mixed geographic IDs without casting indexed col
         { fieldId: "village-id", operator: "in", value: ["8357", "unknown"] },
       ],
     },
-    registry,
+    registry, { role: "provinsi" },
   );
   assert.match(
     mixed.whereSql,
@@ -159,8 +159,8 @@ test("compiler rejects text operators and malformed values for geographic IDs", 
           groupBy: "scale",
           filters: [filter],
         },
-        registry,
-      ),
+        registry, { role: "provinsi" },
+  ),
     );
 });
 test("financial metrics sum only reported values and expose explicit null coverage", () => {
@@ -171,7 +171,7 @@ test("financial metrics sum only reported values and expose explicit null covera
       groupBy: "city",
       filters: [],
     },
-    registry,
+    registry, { role: "provinsi" },
   );
   assert.match(
     plan.metric.sql,
@@ -187,7 +187,7 @@ test("financial metrics sum only reported values and expose explicit null covera
         groupBy: "city",
         filters: [],
       },
-      registry,
-    ),
+      registry, { role: "provinsi" },
+  ),
   );
 });

@@ -1,3 +1,4 @@
+import os from "node:os";
 export const RETRY_DELAYS_SECONDS = Object.freeze([10, 30, 120, 300, 900]);
 export const NON_RETRYABLE_ERROR_CODES = Object.freeze(
   new Set(["53100", "ENOSPC"]),
@@ -18,7 +19,8 @@ export class JobQueue {
     {
       leaseSeconds = 120,
       batchSize = 25,
-      workerId = `worker-${process.pid}`,
+      // Di container setiap replika ber-PID 1; hostname (id container) membedakan lease antar replika.
+      workerId = `worker-${os.hostname()}-${process.pid}`,
     } = {},
   ) {
     this.pool = pool;
@@ -41,7 +43,7 @@ export class JobQueue {
       await client.query("BEGIN");
       await this.reclaimExpired(client);
       const result = await client.query(
-        `WITH picked AS (SELECT id FROM analitik_job WHERE status IN ('queued','retry') AND available_at <= NOW() AND attempts < max_attempts ORDER BY priority DESC, sequence FOR UPDATE SKIP LOCKED LIMIT $1) UPDATE analitik_job j SET status='processing', lease_until=NOW()+make_interval(secs=>$2), lease_owner=$3, attempts=j.attempts+1, updated_at=NOW() FROM picked WHERE j.id=picked.id RETURNING j.*`,
+        `WITH picked AS (SELECT id FROM analitik_job WHERE status IN ('queued','retry') AND available_at <= NOW() AND attempts < max_attempts AND (job_type <> 'export' OR export_type IS DISTINCT FROM 'tabular_csv') ORDER BY priority DESC, sequence FOR UPDATE SKIP LOCKED LIMIT $1) UPDATE analitik_job j SET status='processing', lease_until=NOW()+make_interval(secs=>$2), lease_owner=$3, attempts=j.attempts+1, updated_at=NOW() FROM picked WHERE j.id=picked.id RETURNING j.*`,
         [
           Math.max(
             1,

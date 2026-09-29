@@ -1,5 +1,10 @@
 import { createServer } from "node:http";
 import { PNG_1PX, katalogResponse, passportResponse, portalResponse } from "./katalog-data.mjs";
+import { createKegiatanState, kegiatanApiResponse } from "./kegiatan-data.mjs";
+import { createRegistrasiState, fasilitasiApiResponse, registrasiApiResponse } from "./registrasi-data.mjs";
+import { klinikApiResponse } from "./klinik-data.mjs";
+import { infographicMapResponse, infographicResponse, tabularOptionsResponse } from "./analytics-data.mjs";
+import { OPERATOR_FIXTURES, mockUserMe, roleFromCookieHeader } from "./operator-fixtures.mjs";
 
 const host = "127.0.0.1";
 const port = 3101;
@@ -11,72 +16,14 @@ const ROLE_BY_EMAIL = {
   "dummy_wawan.leathercraft@gmail.com": "umkm",
 };
 
-const OPERATOR_FIXTURES = {
-  provinsi: {
-    id: "user-1",
-    email: "dummy_admin@diskuk.jabarprov.go.id",
-    firstName: "Analis",
-    lastName: null,
-    avatar: null,
-    role: "provinsi",
-    roleLabel: "Admin Provinsi",
-    instansi: "DISKUK Provinsi Jawa Barat",
-    kota: null,
-    usaha: null,
-  },
-  kabkota: {
-    id: "user-2",
-    email: "dummy_admin.subang@jabarprov.go.id",
-    firstName: "Analis",
-    lastName: "Daerah",
-    avatar: null,
-    role: "kabkota",
-    roleLabel: "Admin Kab/Kota",
-    instansi: "Dinas KUK Kabupaten Bogor",
-    kota: { id: 1, nama: "Kabupaten Bogor" },
-    usaha: null,
-  },
-  pendamping: {
-    id: "user-3",
-    email: "dummy_coach.pendamping@jabarprov.go.id",
-    firstName: "Pendamping",
-    lastName: null,
-    avatar: null,
-    role: "pendamping",
-    roleLabel: "Pendamping",
-    instansi: "Program Pendampingan UMKM",
-    kota: null,
-    usaha: null,
-  },
-  umkm: {
-    id: "user-4",
-    email: "dummy_wawan.leathercraft@gmail.com",
-    firstName: "Wawan",
-    lastName: null,
-    avatar: null,
-    role: "umkm",
-    roleLabel: "Pelaku UMKM",
-    instansi: "Pelaku UMKM",
-    kota: null,
-    usaha: {
-      id: "11111111-1111-4111-8111-000000000001",
-      nama: "Wawan Leathercraft",
-      nib: "9900000000001",
-    },
-  },
-};
-
 function roleFromCookies(cookieHeader) {
-  const cookies = String(cookieHeader || "").split(";");
-  for (const cookie of cookies) {
-    const [name, ...rest] = cookie.trim().split("=");
-    if (name === "mock_role") {
-      const value = rest.join("=");
-      if (value && value in OPERATOR_FIXTURES) return value;
-    }
-  }
-  return "provinsi";
+  return roleFromCookieHeader(cookieHeader, "provinsi");
 }
+
+/** Agenda fixtures of this mock server run; each suite start gets its own reminder rows. */
+const KEGIATAN_STATE = createKegiatanState();
+/** R03 registration + facilitation fixtures of this run (SSR reads and the scan proxy). */
+const REGISTRASI_STATE = createRegistrasiState();
 
 function readJsonBody(request) {
   return new Promise((resolve) => {
@@ -120,6 +67,50 @@ const server = createServer(async (request, response) => {
 
   response.setHeader("content-type", "application/json");
 
+  // Public agenda endpoint (Y07): the SSR render of /kegiatan reads it, exactly like the real one.
+  const agenda = kegiatanApiResponse({
+    pathname: url.pathname,
+    searchParams: url.searchParams,
+    method,
+    body: method === "GET" ? null : await readJsonBody(request),
+    state: KEGIATAN_STATE,
+  });
+  if (agenda) {
+    response.writeHead(agenda.status ?? 200, { "content-type": "application/json" });
+    response.end(JSON.stringify(agenda.body ?? agenda));
+    return;
+  }
+
+  // R03: registration + facilitation (SSR render of /kegiatan/:id and /fasilitasi reads these).
+  const registrasi = registrasiApiResponse({
+    pathname: url.pathname,
+    method,
+    body: method === "GET" ? null : await readJsonBody(request),
+    state: REGISTRASI_STATE,
+    role: roleFromCookies(request.headers.cookie),
+    // Jalur pindai hanya dipakai lewat proxy server Nuxt yang menyertakan rahasia internal.
+    secretOk: Boolean(process.env.OPERASIONAL_INTERNAL_SECRET) && request.headers["x-operasional-internal-secret"] === process.env.OPERASIONAL_INTERNAL_SECRET,
+  });
+  if (registrasi) {
+    response.writeHead(registrasi.status ?? 200, { "content-type": registrasi.contentType ?? "application/json" });
+    response.end(registrasi.buffer ?? JSON.stringify(registrasi.body ?? registrasi));
+    return;
+  }
+  const fasilitasi = fasilitasiApiResponse(url.pathname, url.searchParams);
+  if (fasilitasi) {
+    response.writeHead(fasilitasi.status ?? 200, { "content-type": "application/json" });
+    response.end(JSON.stringify(fasilitasi.body ?? fasilitasi));
+    return;
+  }
+
+  // Public clinic desks (Y08/Y09): the landing is server-rendered, so SSR needs this list too.
+  const klinik = klinikApiResponse({ pathname: url.pathname, searchParams: url.searchParams });
+  if (klinik) {
+    response.writeHead(200, { "content-type": "application/json" });
+    response.end(JSON.stringify(klinik));
+    return;
+  }
+
   if (method === "POST" && path === "/auth/login") {
     const body = await readJsonBody(request);
     const role = ROLE_BY_EMAIL[String(body.email || "").toLowerCase()] || "provinsi";
@@ -149,59 +140,119 @@ const server = createServer(async (request, response) => {
     return;
   }
 
-  if (method === "POST" && path === "/operasional/internal/resolve-nib") {
-    const secret = request.headers["x-operasional-internal-secret"];
-    if (!process.env.OPERASIONAL_INTERNAL_SECRET || secret !== process.env.OPERASIONAL_INTERNAL_SECRET) {
-      response.statusCode = 403;
-      response.end(JSON.stringify({ errors: [{ message: "forbidden" }] }));
-      return;
-    }
-    const body = await readJsonBody(request);
-    if (body.nib === "9900000000001") {
-      response.end(JSON.stringify({ data: { email: "dummy_wawan.leathercraft@gmail.com" } }));
-    } else {
-      response.statusCode = 404;
-      response.end(JSON.stringify({ errors: [{ message: "not found" }] }));
-    }
-    return;
-  }
-
   if (method === "GET" && path === "/operasional/me") {
     const role = roleFromCookies(request.headers.cookie);
     response.end(JSON.stringify({ data: OPERATOR_FIXTURES[role] }));
     return;
   }
 
-  if (method === "GET" && path === "/operasional/aktivitas") {
-    response.end(JSON.stringify([
-      {
-        id: 1,
-        action: "login",
-        collection: "directus_users",
-        item: "user-1",
-        timestamp: "2026-09-26T01:00:00.000Z",
-        ip: "127.0.0.1",
-        userAgent: "Mock Upstream",
-      },
-    ]));
+  if (method === "GET" && path.startsWith("/users/me")) {
+    // SSR tidak melihat closure loggedIn milik page.route; cookie mock_auth
+    // dari installMockDirectus menjadi sinyal terautentikasi untuk SSR.
+    // Tanpa cookie ini (kasus anonim), kembalikan 401 agar middleware
+    // mengarahkan ke /sign-in.
+    const cookies = String(request.headers.cookie || "");
+    if (!cookies.includes("mock_auth=1") && !cookies.includes("diskuk_session=")) {
+      response.statusCode = 401;
+      response.end(JSON.stringify({ errors: [{ message: "unauthorized" }] }));
+      return;
+    }
+    // Same /users/me shape as the browser mock (app_role, instansi, kota_scope, usaha per mock role).
+    response.end(JSON.stringify({ data: mockUserMe(roleFromCookies(request.headers.cookie)) }));
     return;
   }
 
-  if (method === "GET" && path.startsWith("/users/me")) {
+  // Dashboard reads a server-rendered page makes. The analytics ones share their fixtures with the
+  // browser mock; the programme lists have no per-test state here, so they answer like the real
+  // endpoints do for an account with no rows. Specs that need state navigate client-side.
+  if (method === "GET" && path === "/v1/analytics/tabular/options") {
+    response.end(JSON.stringify(tabularOptionsResponse()));
+    return;
+  }
+  if (method === "GET" && path === "/v1/analytics/infographic/") {
+    response.end(JSON.stringify(infographicResponse({ filtered: url.searchParams.has("skala") })));
+    return;
+  }
+  if (method === "GET" && path === "/v1/analytics/infographic/map") {
+    response.end(JSON.stringify(infographicMapResponse()));
+    return;
+  }
+  if (method === "GET" && ["/v1/program/katalog/usaha", "/v1/program/katalog/produk", "/v1/program/kpi/peserta", "/v1/program/kpi/laporan"].includes(path)) {
+    response.end(JSON.stringify({ data: [] }));
+    return;
+  }
+
+  const petaMatch = path.match(/^\/(?:v1\/program\/peta|operasional\/usaha)\/([0-9a-f-]{36})(?:\/ringkas)?$/i);
+  if (method === "GET" && petaMatch) {
     response.end(JSON.stringify({
       data: {
-        id: "user-1",
-        email: "analyst@example.invalid",
-        first_name: "Analis",
-        role: "7d6d493c-1a6d-4c59-9e74-40d42a7862eb",
-        // `app_role` mengikuti role mock aktif: guard route web memakai kunci ini, bukan UUID role.
-        app_role: roleFromCookies(request.headers.cookie),
+        id: petaMatch[1],
+        nama: "Wawan Leathercraft",
+        pemilik: "Wawan Setiawan",
+        skala: "micro",
+        kodeKbli: "15121",
+        kegiatanUtama: "Industri Barang dari Kulit",
+        deskripsiKbli: "Industri Barang dari Kulit",
+        omzetTahunan: 780000000,
+        sertifikasi: ["halal", "pirt", "hki"],
+        talentStatus: "accelerator",
+        talentBatch: "Batch 1",
+        talenta: { status: "accelerator", batch: "Batch 1" },
+        profilPath: `/dashboard/umkm/${petaMatch[1]}`,
       },
     }));
     return;
   }
 
-  response.end(JSON.stringify({ data: {} }));
+  if (method === "GET" && (path === "/v1/program/passport/pdf/summary" || path === "/v1/program/passport/pdf/katalog")) {
+    const pdfSample = "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] >>\nendobj\nxref\n0 4\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \ntrailer\n<< /Size 4 /Root 1 0 R >>\nstartxref\n200\n%%EOF";
+    response.setHeader("content-type", "application/pdf");
+    response.setHeader("content-disposition", `attachment; filename="${path.endsWith("summary") ? "executive-summary.pdf" : "katalog-ekspor.pdf"}"`);
+    response.end(pdfSample);
+    return;
+  }
+
+  if (method === "POST" && path === "/v1/analytics/analysis/exports") {
+    const body = await readJsonBody(request);
+    const jobId = "66666666-6666-4666-8666-000000000001";
+    response.statusCode = 202;
+    response.end(JSON.stringify({
+      data: {
+        jobId,
+        status: "completed",
+        exportType: body.exportType || "aggregate_pptx",
+        downloadUrl: `/panel/v1/analytics/analysis/exports/${jobId}/download`,
+        estimatedRows: 3,
+      },
+    }));
+    return;
+  }
+
+  const exportMatch = path.match(/^\/v1\/analytics\/analysis\/exports\/([^/]+)(\/download)?$/);
+  if (method === "GET" && exportMatch) {
+    const [, jobId, isDownload] = exportMatch;
+    if (isDownload) {
+      const dummyPptx = Buffer.from("PK\x03\x04ppt/slides/slide1.xmlPK\x03\x04ppt/slides/slide2.xmlPK\x03\x04ppt/slides/slide3.xml");
+      response.setHeader("content-type", "application/vnd.openxmlformats-officedocument.presentationml.presentation");
+      response.setHeader("content-disposition", `attachment; filename="analitik-rapat-${jobId}.pptx"`);
+      response.end(dummyPptx);
+      return;
+    }
+    response.end(JSON.stringify({
+      data: {
+        jobId,
+        status: "completed",
+        downloadUrl: `/panel/v1/analytics/analysis/exports/${jobId}/download`,
+        estimatedRows: 3,
+      },
+    }));
+    return;
+  }
+
+  // Fail loudly: an unmocked route must not look like an empty success during SSR.
+  console.warn(`MOCK_ROUTE_MISSING ${method} ${path}`);
+  response.statusCode = 404;
+  response.end(JSON.stringify({ errors: [{ message: `MOCK_ROUTE_MISSING ${method} ${path}`, extensions: { code: "MOCK_ROUTE_MISSING" } }] }));
 });
 
 server.listen(port, host);

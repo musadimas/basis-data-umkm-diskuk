@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ALL_ROLES, DATA_ROLES, OperatorError, resolveOperator, scopeTabularOptions, scopeTabularQuery, } from "../src/lib/utils/operator.js";
-import { assertUsahaInScope, KOTA_FIELDS, permissionScopeOf, scopeAnalysisRequest, } from "../src/endpoints/analysis/scope.js";
+import { assertUsahaInScope, KOTA_FIELDS, permissionScopeOf } from "../src/endpoints/analysis/scope.js";
 import { AnalyticsApiError } from "../src/endpoints/analysis/errors.js";
 
 const rows = (list) => ({ rows: list });
@@ -138,61 +138,6 @@ test("resolveOperator keeps Directus admins out of the wilayah resolver", async 
   assert.equal(operator.admin, true);
   assert.equal(operator.role, "provinsi");
   assert.equal(operator.kotaId, null);
-});
-
-test("scopeAnalysisRequest drops client kota filters and forces the operator kota for kabkota", () => {
-  const operator = { role: "kabkota", kotaId: 7 };
-  const request = {
-    schemaVersion: 1,
-    metric: "jumlah_umkm",
-    groupBy: "kota_nama",
-    filters: [
-      { fieldId: "kota_nama", operator: "eq", value: "X" },
-      { field: "kota_id", operator: "eq", value: "9" },
-      { fieldId: "kota_kode", operator: "eq", value: "32.13" },
-      { fieldId: "skala_dilaporkan", operator: "in", value: ["micro"] },
-    ],
-  };
-
-  const scoped = scopeAnalysisRequest(request, operator);
-
-  assert.deepEqual(scoped.filters, [
-    { fieldId: "skala_dilaporkan", operator: "in", value: ["micro"] },
-    { fieldId: "kota_id", operator: "eq", value: "7" },
-  ]);
-  assert.equal(scoped.schemaVersion, 1);
-  assert.equal(scoped.metric, "jumlah_umkm");
-  assert.equal(scoped.groupBy, "kota_nama");
-  assert.equal(
-    scoped.filters.length,
-    2,
-    "forcing the operator kota must not grow the client filter budget",
-  );
-});
-
-test("scopeAnalysisRequest leaves provinsi requests untouched", () => {
-  const request = {
-    schemaVersion: 1,
-    metric: "jumlah_umkm",
-    groupBy: "kota_id",
-    filters: [{ field: "kota_nama", operator: "eq", value: "X" }],
-  };
-
-  assert.deepEqual(scopeAnalysisRequest(request, { role: "provinsi" }), request);
-});
-
-test("scopeAnalysisRequest refuses kabkota without an assigned kota", () => {
-  assert.throws(
-    () =>
-      scopeAnalysisRequest(
-        { schemaVersion: 1, filters: [] },
-        { role: "kabkota", kotaId: null },
-      ),
-    (error) =>
-      error instanceof AnalyticsApiError &&
-      error.statusCode === 403 &&
-      error.code === "KOTA_NOT_ASSIGNED",
-  );
 });
 
 test("permissionScopeOf partitions the aggregate cache per kota, admin and provinsi", () => {

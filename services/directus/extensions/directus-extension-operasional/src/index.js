@@ -1,87 +1,58 @@
 "use strict";
 
-const { routeGuard, ALL_ROLES } = require("../../shared/auth.cjs");
-const { DATA_ROLES, resolveOperator } = require("../../shared/operator.cjs");
+const { ALL_ROLES, DATA_ROLES, terjaga } = require("../../../analytics-shared/cakupan.cjs");
 const { sendOperasionalError } = require("./errors.js");
-// Y01 (agen paralel): identitas fungsional — getMe, resolveNib, listAktivitas.
-const { getMe, resolveNib, listAktivitas } = require("./me-service.js");
+const { getMe } = require("./me-service.js");
 const { getUsahaLapangan, updateUsahaLapangan, verifikasiUsaha } = require("./usaha-service.js");
+const { getAspekPerkembangan } = require("./permen-aspek.js");
 
 function jsonBody(req) {
   return req.body && typeof req.body === "object" ? req.body : {};
 }
 
-// routeGuard hanya memastikan pengguna aplikasi terautentikasi (semua peran operasional memakai
-// satu UUID role Directus, jadi roleKeyOf selalu "provinsi"). Batas peran per route ditegakkan
-// resolveOperator dari app_role lewat `roles`.
-function wrap(req, res, next, database, task, roles = DATA_ROLES) {
-  if (!routeGuard(req, next, { roles: ALL_ROLES })) return;
-  const requestId = req.headers?.["x-request-id"];
-  Promise.resolve()
-    .then(async () => {
-      const operator = await resolveOperator(database, req.accountability, { roles });
-      return task(operator);
-    })
-    .then((result) => {
+// Kandidat 01: gerbang UUID role + muatPemanggil + peran dijaga adapter `terjaga()`
+// (cakupan.cjs); handler hanya menjalankan tugas dan merender error operasional.
+function jawab(task) {
+  return (ctx) => async (req, res, pemanggil) => {
+    const requestId = req.headers?.["x-request-id"];
+    try {
+      const result = await task(ctx.database, req, pemanggil);
       res.setHeader?.("Cache-Control", "private, no-store");
       res.status(200).json(result);
-    })
-    .catch((error) => sendOperasionalError(res, error, requestId));
+    } catch (error) {
+      sendOperasionalError(res, error, requestId);
+    }
+  };
 }
 
 module.exports = {
   id: "operasional",
-  handler: (router, { database }) => {
-    // ── Y01: identitas fungsional (jangan ubah tanpa koordinasi agen Y01) ──
-    router.get("/me", (req, res, next) => {
-      if (!routeGuard(req, next, { roles: ALL_ROLES })) return;
-      const requestId = req.headers?.["x-request-id"];
-      Promise.resolve()
-        .then(() => getMe(database, req.accountability))
-        .then((data) => {
-          res.setHeader?.("Cache-Control", "private, no-store");
-          res.status(200).json({ data });
-        })
-        .catch((error) => sendOperasionalError(res, error, requestId));
-    });
-    router.get("/aktivitas", (req, res, next) => {
-      if (!routeGuard(req, next, { roles: ALL_ROLES })) return;
-      const requestId = req.headers?.["x-request-id"];
-      Promise.resolve()
-        .then(() => listAktivitas(database, req.accountability))
-        .then((data) => {
-          res.setHeader?.("Cache-Control", "private, no-store");
-          res.status(200).json({ data });
-        })
-        .catch((error) => sendOperasionalError(res, error, requestId));
-    });
-    router.post("/internal/resolve-nib", (req, res, next) => {
-      if (!routeGuard(req, next)) return;
-      const requestId = req.headers?.["x-request-id"];
-      Promise.resolve()
-        .then(() => resolveNib(database, req.headers, jsonBody(req)))
-        .then((data) => {
-          res.setHeader?.("Cache-Control", "private, no-store");
-          res.status(200).json({ data });
-        })
-        .catch((error) => sendOperasionalError(res, error, requestId));
-    });
+  handler: (router, ctx) => {
+    // ── Y01: identitas fungsional ──
+    router.get(
+      "/me",
+      terjaga({ peran: ALL_ROLES }, jawab(async (database, req) => ({ data: await getMe(database, req.accountability) }))) (ctx),
+    );
+
+    router.get(
+      "/aspek-perkembangan",
+      terjaga({ peran: DATA_ROLES }, jawab((database, req, pemanggil) =>
+        getAspekPerkembangan(database, req.query ?? {}, { role: pemanggil.peran, kotaId: pemanggil.kotaId }),
+      ))(ctx),
+    );
 
     // ── Y02: data lapangan ──
-    router.get("/usaha/:id", (req, res, next) =>
-      wrap(req, res, next, database, (operator) =>
-        getUsahaLapangan(database, req.params?.id, operator),
-      ),
+    router.get(
+      "/usaha/:id",
+      terjaga({ peran: DATA_ROLES }, jawab((database, req, pemanggil) => getUsahaLapangan(database, req.params?.id, pemanggil)))(ctx),
     );
-    router.patch("/usaha/:id", (req, res, next) =>
-      wrap(req, res, next, database, (operator) =>
-        updateUsahaLapangan(database, req.params?.id, jsonBody(req), operator),
-      ),
+    router.patch(
+      "/usaha/:id",
+      terjaga({ peran: DATA_ROLES }, jawab((database, req, pemanggil) => updateUsahaLapangan(database, req.params?.id, jsonBody(req), pemanggil)))(ctx),
     );
-    router.post("/usaha/:id/verifikasi", (req, res, next) =>
-      wrap(req, res, next, database, (operator) =>
-        verifikasiUsaha(database, req.params?.id, operator),
-      ),
+    router.post(
+      "/usaha/:id/verifikasi",
+      terjaga({ peran: DATA_ROLES }, jawab((database, req, pemanggil) => verifikasiUsaha(database, req.params?.id, pemanggil)))(ctx),
     );
   },
 };

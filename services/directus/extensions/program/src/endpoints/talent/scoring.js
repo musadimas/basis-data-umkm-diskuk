@@ -24,6 +24,12 @@ function omzetTier(omzet) {
   return 100;
 }
 
+export function rekomendasiOf(total) {
+  if (total >= 75) return "Direkomendasikan Masuk Talent Pool";
+  if (total >= 60) return "Dipertimbangkan";
+  return "Belum Direkomendasikan";
+}
+
 /**
  * @param {object} input
  * @param {number|null} input.omzetTahunan
@@ -52,12 +58,14 @@ export function hitungSkor(input) {
   const sdm = clamp((input.suratKomitmen ? 50 : 0) + Math.min(50, tenagaKerja * 10));
 
   const total = WEIGHTS.finansial * finansial + WEIGHTS.pasar * pasar + WEIGHTS.legalitas * legalitas + WEIGHTS.sdm * sdm;
+  const outTotal = round2(total);
   return {
     finansial: round2(finansial),
     pasar: round2(pasar),
     legalitas: round2(legalitas),
     sdm: round2(sdm),
-    total: round2(total),
+    total: outTotal,
+    rekomendasi: rekomendasiOf(outTotal),
     rubrikVersi: RUBRIK_VERSI,
   };
 }

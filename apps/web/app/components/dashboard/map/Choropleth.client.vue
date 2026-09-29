@@ -105,6 +105,7 @@ let hoveredRegionId: string | number | null = null;
 let tileReadyEmitted = false;
 let tileErrorEmitted = false;
 let tileReadyTimer: ReturnType<typeof setTimeout> | null = null;
+const satellite = ref(false);
 
 const maxValue = computed(() =>
   Math.max(0, ...props.regions.map((region) => region.value)),
@@ -263,10 +264,25 @@ function applyRegionsVisibility() {
   }
 }
 
+/** Tampilkan/sembunyikan basemap OSM vs satelit Esri. */
+function applyBasemapVisibility() {
+  if (!map) return;
+  const sat = satellite.value;
+  if (map.getLayer("esri")) {
+    map.setLayoutProperty("esri", "visibility", sat ? "visible" : "none");
+  }
+  if (map.getLayer("osm")) {
+    map.setLayoutProperty("osm", "visibility", sat ? "none" : "visible");
+  }
+}
+
+watch(satellite, applyBasemapVisibility);
+
 /** Terapkan visibilitas semua grup layer (dipanggil saat saklar berubah / data diperbarui). */
 function applyLayersVisibility() {
   applyRegionsVisibility();
   applyPointsVisibility();
+  applyBasemapVisibility();
 }
 
 function colorExpression(): string | ExpressionSpecification {
@@ -540,8 +556,18 @@ onMounted(() => {
           maxzoom: 19,
           attribution: "&copy; OpenStreetMap contributors",
         },
+        esri: {
+          type: "raster",
+          tiles: ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"],
+          tileSize: 256,
+          maxzoom: 19,
+          attribution: "Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community",
+        },
       },
-      layers: [{ id: "osm", type: "raster", source: "osm" }],
+      layers: [
+        { id: "osm", type: "raster", source: "osm" },
+        { id: "esri", type: "raster", source: "esri", layout: { visibility: "none" } },
+      ],
     },
   });
   map.addControl(
@@ -846,6 +872,25 @@ onBeforeUnmount(() => {
           />
         </span>
         <span class="text-slate-700">Titik UMKM</span>
+      </button>
+      <button
+        type="button"
+        role="switch"
+        :aria-checked="satellite"
+        class="flex items-center gap-2 rounded-full border bg-white/95 px-3 py-1.5 text-xs font-semibold shadow-md backdrop-blur-xs"
+        @click="satellite = !satellite"
+      >
+        <span
+          class="relative h-4 w-7 shrink-0 rounded-full transition-colors"
+          :class="satellite ? 'bg-brand-green' : 'bg-slate-300'"
+          aria-hidden="true"
+        >
+          <span
+            class="absolute top-0.5 h-3 w-3 rounded-full bg-white shadow transition-all"
+            :class="satellite ? 'left-3.5' : 'left-0.5'"
+          />
+        </span>
+        <span class="text-slate-700">Citra Satelit</span>
       </button>
     </div>
 

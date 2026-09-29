@@ -57,7 +57,7 @@ test("city distribution uses the published snapshot when no generation is active
     groupBy: "kota_nama",
     filters: [],
     limit: 20,
-  });
+  }, { operator: { role: "provinsi" } });
   assert.equal(result.meta.status, "stale_last_good");
   assert.deepEqual(result.meta.warnings, [
     "Read-model analitik belum aktif; snapshot dashboard terpublikasi sedang digunakan.",
@@ -152,7 +152,7 @@ test("active generation city distribution uses the existing city index path", as
     groupBy: "kota_nama",
     filters: [],
     limit: 20,
-  });
+  }, { operator: { role: "provinsi" } });
   assert.equal(result.meta.status, "current");
   assert.equal(result.meta.population, 9);
   assert.deepEqual(
@@ -176,7 +176,7 @@ test("active generation city distribution uses the existing city index path", as
     groupBy: "skala_dilaporkan",
     filters: [],
     limit: 20,
-  });
+  }, { operator: { role: "provinsi" } });
   assert.deepEqual(
     scale.data.groups.map(({ key, value }) => ({ key, value })),
     [
@@ -230,7 +230,7 @@ test("scale distribution uses the published aggregate without scanning the tabul
     groupBy: "skala_dilaporkan",
     filters: [],
     limit: 20,
-  });
+  }, { operator: { role: "provinsi" } });
   assert.deepEqual(
     result.data.groups.map(({ key, value }) => ({ key, value })),
     [
@@ -300,7 +300,7 @@ test("unfiltered sector distribution is served from the per-generation rollup wi
     groupBy: "sektor_kbli",
     filters: [],
     limit: 20,
-  });
+  }, { operator: { role: "provinsi" } });
   assert.equal(result.meta.status, "current");
   assert.equal(result.meta.population, 9);
   assert.equal(result.meta.matched, 9);
@@ -387,7 +387,7 @@ test("scale-filtered city distribution uses the conditional rollup without a fac
     groupBy: "city",
     filters: [{ fieldId: "scale", operator: "eq", value: "micro" }],
     limit: 20,
-  });
+  }, { operator: { role: "provinsi" } });
   assert.equal(result.meta.population, 10);
   assert.equal(result.meta.matched, 8);
   assert.deepEqual(
@@ -469,11 +469,11 @@ test("runtime caches serve repeated requests without re-resolving source and res
     filters: [],
     limit: 20,
   };
-  await queryAnalytics(database, request);
-  await queryAnalytics(database, request);
+  await queryAnalytics(database, request, { operator: { role: "provinsi" } });
+  await queryAnalytics(database, request, { operator: { role: "provinsi" } });
   assert.equal(generationLookups, 1); // second request served from the 5s source cache
   __resetBudgetForTests();
-  await queryAnalytics(database, request);
+  await queryAnalytics(database, request, { operator: { role: "provinsi" } });
   assert.equal(generationLookups, 2); // reset forces a fresh resolution
 });
 
@@ -543,7 +543,7 @@ test("financial rollup excludes nulls and reports coverage separately from the m
     groupBy: "kota_nama",
     filters: [],
     limit: 20,
-  });
+  }, { operator: { role: "provinsi" } });
   assert.equal(result.data.total, 50000000000);
   assert.equal(result.data.metric.unit, "IDR");
   assert.equal(result.meta.matched, 3);

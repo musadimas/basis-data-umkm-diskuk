@@ -12,3 +12,4 @@ tools/
 .dirac-cache/
 ./output/
 apps/web/.output/
+docs/

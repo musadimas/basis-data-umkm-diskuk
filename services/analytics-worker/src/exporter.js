@@ -1,207 +1,104 @@
+import { csvRow } from "../../directus/analytics-shared/csv.cjs";
+import sharedCompiler from "../../directus/analytics-shared/query-compiler.cjs";
 import { createObjectStore, exportKey } from "./storage.js";
 
 export const EXPORT_LIMIT = 50_000;
-const DIMENSIONS = Object.freeze({
-  kota_id: {
-    key: "COALESCE(a.kota_id::text,'unknown')",
-    label: "COALESCE(a.kota_nama,'Tidak diketahui')",
-  },
-  kota_kode: {
-    key: "COALESCE(a.kota_kode,'unknown')",
-    label: "COALESCE(a.kota_nama,'Tidak diketahui')",
-  },
-  kota_nama: {
-    key: "COALESCE(a.kota_nama,'Tidak diketahui')",
-    label: "COALESCE(a.kota_nama,'Tidak diketahui')",
-  },
-  kecamatan_id: {
-    key: "COALESCE(a.kecamatan_id::text,'unknown')",
-    label: "COALESCE(a.kecamatan_nama,'Tidak diketahui')",
-  },
-  kecamatan_nama: {
-    key: "COALESCE(a.kecamatan_nama,'Tidak diketahui')",
-    label: "COALESCE(a.kecamatan_nama,'Tidak diketahui')",
-  },
-  kelurahan_id: {
-    key: "COALESCE(a.kelurahan_id::text,'unknown')",
-    label: "COALESCE(a.kelurahan_nama,'Tidak diketahui')",
-  },
-  kelurahan_nama: {
-    key: "COALESCE(a.kelurahan_nama,'Tidak diketahui')",
-    label: "COALESCE(a.kelurahan_nama,'Tidak diketahui')",
-  },
-  sektor_kbli: {
-    key: "COALESCE(a.sektor_kbli,'unknown')",
-    label: "COALESCE(a.sektor_kbli,'Tidak diketahui')",
-  },
-  kbli_kode: {
-    key: "COALESCE(a.kode_kbli,'unknown')",
-    label: "COALESCE(a.kode_kbli,'Tidak diketahui')",
-  },
-  skala_dilaporkan: {
-    key: "COALESCE(a.skala,'unknown')",
-    label:
-      "CASE a.skala WHEN 'micro' THEN 'Mikro' WHEN 'small' THEN 'Kecil' WHEN 'medium' THEN 'Menengah' ELSE 'Tidak diketahui' END",
-  },
-  status_hukum: {
-    key: "COALESCE(a.status_hukum,'unknown')",
-    label: "COALESCE(a.status_hukum,'Tidak diketahui')",
-  },
-  status_usaha: {
-    key: "COALESCE(a.status,'unknown')",
-    label:
-      "CASE a.status WHEN 'active' THEN 'Aktif' WHEN 'archived' THEN 'Diarsipkan' ELSE 'Tidak diketahui' END",
-  },
-  quality_geography: {
-    key: "CASE WHEN a.kota_id IS NULL OR a.kecamatan_id IS NULL OR a.kelurahan_id IS NULL THEN 'unknown' ELSE 'mapped' END",
-    label:
-      "CASE WHEN a.kota_id IS NULL OR a.kecamatan_id IS NULL OR a.kelurahan_id IS NULL THEN 'Tidak diketahui' ELSE 'Terpetakan' END",
-  },
-  quality_kbli: {
-    key: "CASE WHEN a.kode_kbli IS NULL THEN 'missing' WHEN a.sektor_kbli IS NULL THEN 'unmapped' ELSE 'mapped' END",
-    label:
-      "CASE WHEN a.kode_kbli IS NULL THEN 'Tidak ada kode' WHEN a.sektor_kbli IS NULL THEN 'Tidak terpetakan' ELSE 'Terpetakan' END",
-  },
-});
-const FILTER_KEYS = Object.freeze(
+// Kandidat 03 langkah 2a: definisi tunggal di analytics-shared/query-compiler.cjs.
+export const DIMENSIONS = sharedCompiler.DIMENSIONS;
+// Kandidat 03 langkah 2e: SQL metrik tunggal di shared (penamaan kanonik
+// eligibleSql/missingSql/needsVerificationSql); worker memetakan ke nama
+// pendeknya di seam supaya pemakaian internal tidak berubah.
+export const METRICS = Object.freeze(
   Object.fromEntries(
-    Object.entries(DIMENSIONS).map(([key, value]) => [key, value.key]),
+    Object.entries(sharedCompiler.METRICS).map(([key, metrik]) => [
+      key,
+      {
+        sql: metrik.sql,
+        eligible: metrik.eligibleSql,
+        missing: metrik.missingSql,
+        needsVerification: metrik.needsVerificationSql,
+        label: metrik.label,
+        aggregation: metrik.aggregation,
+        unit: metrik.unit,
+      },
+    ]),
   ),
 );
-const METRICS = Object.freeze({
-  jumlah_umkm: {
-    sql: "COUNT(*)",
-    eligible: "COUNT(*)",
-    missing: "0::bigint",
-    needsVerification: "0::bigint",
-    label: "Jumlah UMKM",
-    aggregation: "count_distinct",
-    unit: "usaha",
-  },
-  omzet_tahunan: {
-    sql: "COALESCE(SUM(a.omzet_tahunan) FILTER (WHERE a.omzet_quality='reported'),0)",
-    eligible: "COUNT(*) FILTER (WHERE a.omzet_quality='reported')",
-    missing: "COUNT(*) FILTER (WHERE a.omzet_quality='missing')",
-    needsVerification:
-      "COUNT(*) FILTER (WHERE a.omzet_quality='needs_verification')",
-    label: "Total omzet tahunan dilaporkan",
-    aggregation: "sum",
-    unit: "IDR",
-  },
-  total_aset: {
-    sql: "COALESCE(SUM(a.total_aset) FILTER (WHERE a.aset_quality='reported'),0)",
-    eligible: "COUNT(*) FILTER (WHERE a.aset_quality='reported')",
-    missing: "COUNT(*) FILTER (WHERE a.aset_quality='missing')",
-    needsVerification:
-      "COUNT(*) FILTER (WHERE a.aset_quality='needs_verification')",
-    label: "Total aset dilaporkan",
-    aggregation: "sum",
-    unit: "IDR",
-  },
-});
-function identifier(value) {
-  return typeof value === "string" && Object.hasOwn(DIMENSIONS, value)
-    ? value
-    : null;
-}
-export function csvCell(value) {
-  const text = value === null || value === undefined ? "" : String(value);
-  const safe = /^[=+\-@]/.test(text) ? `'${text}` : text;
-  return /[",\r\n]/.test(safe) ? `"${safe.replaceAll('"', '""')}"` : safe;
-}
-export function csvRow(values) {
-  return values.map(csvCell).join(",") + "\r\n";
-}
-export function aggregateCsv({
-  groups = [],
-  meta = {},
-  metric = {},
-  title = "Analitik UMKM",
-} = {}) {
-  const header =
-    "\ufeff" +
-    csvRow([
-      "Kelompok",
-      metric.label || "Jumlah UMKM",
-      "Bagian dari total terfilter",
-    ]);
-  const body = groups
-    .map((group) => csvRow([group.label, group.value, `${group.share || 0}%`]))
-    .join("");
-  return (
-    header +
-    csvRow(["Judul", title]) +
-    csvRow(["Data per", meta.dataAsOf || "Belum tersedia"]) +
-    body
-  );
-}
+// Definisi tunggal ada di analytics-shared/csv.cjs; diekspor ulang agar tes dan pemanggil lama
+// memakai implementasi yang sama dengan endpoint Tabular (B09).
+export { csvCell, csvRow } from "../../directus/analytics-shared/csv.cjs";
 export function extensionFor(type) {
   return (
     {
-      aggregate_csv: "csv",
       detail_csv: "csv",
       aggregate_png: "png",
       aggregate_pdf: "pdf",
+      aggregate_pptx: "pptx",
       profile_pdf: "pdf",
     }[type] || "bin"
   );
 }
 
-function configOf(request) {
-  return request?.config && typeof request.config === "object"
-    ? request.config
-    : request || {};
+function invalidConfig(message) {
+  return Object.assign(new Error(message), { code: "INVALID_ANALYSIS_CONFIG" });
 }
-function filterSql(filters, params) {
-  const clauses = [];
-  for (const filter of Array.isArray(filters) ? filters.slice(0, 8) : []) {
-    const key = identifier(filter?.fieldId || filter?.field);
-    if (
-      !key ||
-      !["eq", "neq", "in", "contains", "starts_with"].includes(
-        filter?.operator || "eq",
-      )
-    )
-      throw Object.assign(new Error("FILTER_NOT_ALLOWED"), {
-        code: "INVALID_ANALYSIS_CONFIG",
-      });
-    const expression = FILTER_KEYS[key];
-    const operator = filter.operator || "eq";
-    if (operator === "in") {
-      if (
-        !Array.isArray(filter.value) ||
-        !filter.value.length ||
-        filter.value.length > 100
-      )
-        throw Object.assign(new Error("FILTER_VALUE_INVALID"), {
-          code: "INVALID_ANALYSIS_CONFIG",
-        });
-      params.push(filter.value.map((item) => String(item).slice(0, 100)));
-      clauses.push(`${expression} = ANY($${params.length}::text[])`);
-    } else {
-      if (
-        Array.isArray(filter.value) ||
-        filter.value === undefined ||
-        filter.value === null
-      )
-        throw Object.assign(new Error("FILTER_VALUE_INVALID"), {
-          code: "INVALID_ANALYSIS_CONFIG",
-        });
-      const value = String(filter.value).slice(0, 100);
-      params.push(
-        operator === "contains"
-          ? `%${value}%`
-          : operator === "starts_with"
-            ? `${value}%`
-            : value,
-      );
-      clauses.push(
-        `${expression} ${operator === "neq" ? "<>" : operator === "contains" || operator === "starts_with" ? "ILIKE" : "="} $${params.length}`,
-      );
-    }
+// Operator diturunkan dari snapshot `permissionScope` yang disimpan router saat
+// submit ("kabkota:7" | "provinsi" | "admin"; K14). Tanpa snapshot pekerjaan
+// ditolak (fail-closed), tidak pernah jatuh ke cakupan provinsi.
+export function operatorOf(request) {
+  const scope = request?.permissionScope;
+  if (scope === "provinsi" || scope === "admin") return { role: "provinsi", kotaId: null };
+  const kabkota = /^kabkota:(\d+)$/.exec(String(scope || ""));
+  if (kabkota) return { role: "kabkota", kotaId: Number(kabkota[1]) };
+  throw invalidConfig("OPERATOR_REQUIRED");
+}
+async function loadRegistry(client) {
+  return (
+    await client.query("SELECT id,semantic_id,lifecycle_status FROM analitik_field")
+  ).rows;
+}
+// Adapter tipis: error netral `{status, code}` dari compiler shared menjadi
+// `INVALID_ANALYSIS_CONFIG` (pesan = kode kompiler), tidak pernah 500 buta.
+function kompilasi(fungsi, config, registry, operator) {
+  try {
+    return fungsi(config, { registry, operator });
+  } catch (error) {
+    if (error && typeof error.status === "number" && typeof error.code === "string")
+      throw invalidConfig(error.code);
+    throw error;
   }
-  return clauses;
 }
+// Ringkasan filter canvas untuk dicantumkan di PDF/PNG/PPTX (Y05 M2-01): pembaca
+// dokumen harus tahu angka ini terfilter apa dan berlaku di cakupan wilayah mana.
+const OPERATOR_TEKS = {
+  eq: "=",
+  neq: "!=",
+  in: "dalam",
+  not_in: "bukan dalam",
+  contains: "memuat",
+  starts_with: "diawali",
+};
+export function ringkasanFilter(config, operator) {
+  const semuaFilter = Array.isArray(config?.filters) ? config.filters : [];
+  // Untuk kabkota compiler membuang filter kota klien; ringkasan tidak boleh mengklaimnya.
+  const filters =
+    operator?.role === "kabkota"
+      ? semuaFilter.filter((filter) => !sharedCompiler.KOTA_FIELDS.has(filter?.fieldId ?? filter?.field))
+      : semuaFilter;
+  const bagian = filters.map((filter) => {
+    const key = filter?.fieldId ?? filter?.field;
+    // `DIMENSIONS[..].label` adalah ekspresi SQL, bukan teks; cukup nama semantik yang terbaca.
+    const label = String(key).replaceAll("_", " ");
+    const nilai = Array.isArray(filter?.value) ? filter.value.join(", ") : String(filter?.value ?? "");
+    return `${label} ${OPERATOR_TEKS[filter?.operator || "eq"] || filter?.operator} ${nilai}`;
+  });
+  const cakupan =
+    operator?.role === "kabkota" && operator.kotaId != null
+      ? `Cakupan: kabupaten/kota ID ${operator.kotaId}`
+      : "Cakupan: Provinsi Jawa Barat";
+  return [bagian.length ? `Filter: ${bagian.join("; ")}` : "Filter: tanpa filter", cakupan].join(" | ");
+}
+
 export async function activeGenerationId(client) {
   const result = await client.query(
     "SELECT active_generation_id FROM analitik_active_generation WHERE id=1",
@@ -213,58 +110,36 @@ export async function activeGenerationId(client) {
     });
   return id;
 }
-export async function queryAggregate(client, config, generationId = null) {
-  const currentConfig = configOf({ config });
-  const metricKey =
-    typeof currentConfig.metric === "string"
-      ? currentConfig.metric
-      : currentConfig.metric?.key ||
-        currentConfig.metric?.fieldId ||
-        "jumlah_umkm";
-  const metric = METRICS[metricKey];
-  if (!metric)
-    throw Object.assign(new Error("METRIC_NOT_ALLOWED"), {
-      code: "INVALID_ANALYSIS_CONFIG",
-    });
-  const groupBy = identifier(currentConfig.groupBy || "kota_nama");
-  if (!groupBy)
-    throw Object.assign(new Error("GROUP_NOT_ALLOWED"), {
-      code: "INVALID_ANALYSIS_CONFIG",
-    });
-  const breakdown = currentConfig.breakdown
-    ? identifier(currentConfig.breakdown)
-    : null;
-  if (currentConfig.breakdown && !breakdown)
-    throw Object.assign(new Error("BREAKDOWN_NOT_ALLOWED"), {
-      code: "INVALID_ANALYSIS_CONFIG",
-    });
-  if (breakdown === groupBy)
-    throw Object.assign(new Error("BREAKDOWN_NOT_ALLOWED"), {
-      code: "INVALID_ANALYSIS_CONFIG",
-    });
+export async function queryAggregate(
+  client,
+  config,
+  generationId = null,
+  { operator } = {},
+) {
+  // Scope, budget filter, dimensi, dan metrik dikompilasi oleh compiler shared
+  // yang sama dengan canvas (K14); worker hanya menambah generation_id.
+  const plan = kompilasi(
+    sharedCompiler.compileAggregate,
+    { schemaVersion: 1, ...config, metric: config?.metric ?? "jumlah_umkm" },
+    await loadRegistry(client),
+    operator,
+  );
+  const { metric, metricKey } = plan;
+  const second = plan.breakdown;
   const generation = generationId || (await activeGenerationId(client));
-  const params = [generation];
+  const params = [generation, ...plan.params];
   const clauses = [
     "a.generation_id=$1",
-    "a.status='active'",
-    ...filterSql(currentConfig.filters, params),
+    sharedCompiler.parameterize(plan.whereSql, 2),
   ];
-  const first = DIMENSIONS[groupBy];
-  const second = breakdown ? DIMENSIONS[breakdown] : null;
-  const select = [`${first.key} AS group_key`, `${first.label} AS group_label`];
-  if (second)
-    select.push(
-      `${second.key} AS breakdown_key`,
-      `${second.label} AS breakdown_label`,
-    );
-  select.push(`${metric.sql} AS value`, `${metric.eligible} AS eligible`);
-  const groupBySql = select
-    .slice(0, second ? 4 : 2)
-    .map((_, index) => String(index + 1))
-    .join(", ");
-  // Cap payload only: GROUP BY already computes every group, so a generous
-  // bound keeps exports complete (matches QUERY_BUDGET.maxGroups in contracts.cjs).
-  const limit = Math.min(Math.max(Number(currentConfig.limit || 20), 1), 2000);
+  const select = [
+    plan.aggregateSelectSql,
+    `${metric.sql} AS value`,
+    `${metric.eligibleSql} AS eligible`,
+    // Sama seperti router: total window dipakai untuk menghitung sisa kelompok (B29).
+    `SUM(${metric.sql}) OVER () AS metric_total`,
+  ];
+  const { groupBySql, limit } = plan;
   const grouped = await client.query(
     `SELECT * FROM (SELECT ${select.join(", ")} FROM analitik_usaha_current a WHERE ${clauses.join(" AND ")} GROUP BY ${groupBySql}) grouped WHERE eligible>0 ORDER BY value DESC, group_key ASC LIMIT ${limit + 1}`,
     params,
@@ -272,16 +147,20 @@ export async function queryAggregate(client, config, generationId = null) {
   const coverage =
     (
       await client.query(
-        `SELECT COUNT(*)::integer AS total,(${metric.eligible})::integer AS matched,(${metric.missing})::integer AS missing,(${metric.needsVerification})::integer AS needs_verification,${metric.sql} AS metric_total FROM analitik_usaha_current a WHERE ${clauses.join(" AND ")}`,
+        `SELECT COUNT(*)::integer AS total,(${metric.eligibleSql})::integer AS matched,(${metric.missingSql})::integer AS missing,(${metric.needsVerificationSql})::integer AS needs_verification,${metric.sql} AS metric_total FROM analitik_usaha_current a WHERE ${clauses.join(" AND ")}`,
         params,
       )
     ).rows[0] || {};
   const matched = Number(coverage.matched || 0);
   const metricTotal = Number(coverage.metric_total || 0);
   const rows = grouped.rows.slice(0, limit);
-  const overflow = grouped.rows
-    .slice(limit)
-    .reduce((sum, row) => sum + Number(row.value || 0), 0);
+  // Scan hanya mengambil limit+1 baris, jadi "Lainnya" = total window dikurangi kelompok yang
+  // tampil, bukan hanya baris ke-(limit+1) (B29).
+  const windowTotal = Number(grouped.rows[0]?.metric_total ?? metricTotal);
+  const overflow = Math.max(
+    0,
+    windowTotal - rows.reduce((sum, row) => sum + Number(row.value || 0), 0),
+  );
   const groups = rows.map((row) => {
     const group = {
       key: row.group_key,
@@ -298,7 +177,7 @@ export async function queryAggregate(client, config, generationId = null) {
       };
     return group;
   });
-  if (overflow && currentConfig.includeOthers !== false)
+  if (overflow && plan.includeOthers)
     groups.push({
       key: "others",
       label: "Lainnya",
@@ -313,12 +192,15 @@ export async function queryAggregate(client, config, generationId = null) {
       [generation],
     )
   ).rows[0];
-  const dataAsOf = generationRow?.data_as_of || null;
+  // pg mengembalikan Date; dokumen mencetak teks, jadi selalu ISO (bukan Date.toString()).
+  const rawAsOf = generationRow?.data_as_of || null;
+  const dataAsOf = rawAsOf instanceof Date ? rawAsOf.toISOString() : rawAsOf;
   return {
     meta: {
       schemaVersion: 1,
       dataAsOf,
       generatedAt: new Date().toISOString(),
+      filterSummary: ringkasanFilter(config, operator),
       status: "current",
       source: "Current state UMKM aktif Jawa Barat",
       population: Number(coverage.total || 0),
@@ -391,7 +273,7 @@ async function profilePdf(client, profileId, generationId) {
       },
     ],
     meta: {
-      dataAsOf: row.data_as_of,
+      dataAsOf: row.data_as_of instanceof Date ? row.data_as_of.toISOString() : row.data_as_of,
       generatedAt: new Date().toISOString(),
       maskingVersion: 1,
     },
@@ -410,49 +292,44 @@ export async function processExport(
   const key = exportKey(owner, job.id, extension);
   let artifact;
   let rowCount = 0;
-  const generationId =
-    request.generationId || (await activeGenerationId(client));
-  if (
-    type === "aggregate_csv" ||
+  const needsGenerationId =
+    type === "detail_csv" ||
+    type === "profile_pdf" ||
     type === "aggregate_png" ||
-    type === "aggregate_pdf"
-  ) {
-    const result =
-      request.result ||
-      (await queryAggregate(client, request.config || request, generationId));
-    if (type === "aggregate_csv")
-      artifact = Buffer.from(
-        aggregateCsv({
-          groups: result.data.groups,
-          metric: result.data.metric,
-          meta: result.meta,
-          title: request.title || "Analitik UMKM",
-        }),
-      );
-    else {
-      const render =
-        renderAggregateFn ||
-        (await import("./export-renderer.js")).renderAggregate;
-      const rendered = render({
-        title: request.title || "Analitik UMKM",
-        groups: result.data.groups,
-        meta: result.meta,
-      });
-      artifact = type.endsWith("png") ? rendered.png : rendered.pdf;
-    }
+    type === "aggregate_pdf" ||
+    type === "aggregate_pptx";
+  const generationId = needsGenerationId
+    ? request.generationId || (await activeGenerationId(client))
+    : null;
+  if (type === "aggregate_png" || type === "aggregate_pdf") {
+    const result = await queryAggregate(
+      client,
+      request.config || request,
+      generationId,
+      { operator: operatorOf(request) },
+    );
+    const render =
+      renderAggregateFn ||
+      (await import("./export-renderer.js")).renderAggregate;
+    const rendered = render({
+      title: request.title || "Analitik UMKM",
+      groups: result.data.groups,
+      meta: result.meta,
+    });
+    artifact = type.endsWith("png") ? rendered.png : rendered.pdf;
     rowCount = result.data.groups.length;
   } else if (type === "detail_csv") {
-    const params = [generationId];
-    const statusFilter =
-      Array.isArray(request.config?.filters) &&
-      request.config.filters.some(
-        (filter) =>
-          identifier(filter?.fieldId || filter?.field) === "status_usaha",
-      );
+    // Filter dan scope dikompilasi compiler shared yang sama dengan canvas.
+    const filters = kompilasi(
+      sharedCompiler.compileFilters,
+      { schemaVersion: 1, metric: "jumlah_umkm", ...request.config },
+      await loadRegistry(client),
+      operatorOf(request),
+    );
+    const params = [generationId, ...filters.params];
     const clauses = [
       `a.generation_id=$1`,
-      ...(statusFilter ? [] : ["a.status='active'"]),
-      ...filterSql(request.config?.filters, params),
+      sharedCompiler.parameterize(filters.whereSql, 2),
     ];
     const rows = (
       await client.query(
@@ -494,6 +371,23 @@ export async function processExport(
     const rendered = render(result);
     artifact = rendered.pdf;
     rowCount = result.groups.length;
+  } else if (type === "aggregate_pptx") {
+    const result = await queryAggregate(
+      client,
+      request.config || request,
+      generationId,
+      { operator: operatorOf(request) },
+    );
+    const renderPptx =
+      (await import("./export-renderer.js")).renderAggregatePptx;
+    artifact = await renderPptx({
+      judul: request.title || "Analitik UMKM",
+      dataAsOf: result.meta?.dataAsOf || "Belum tersedia",
+      visual: request.config?.visual || "bar",
+      filterSummary: result.meta?.filterSummary,
+      groups: result.data?.groups || [],
+    });
+    rowCount = result.data?.groups?.length || 0;
   } else throw Object.assign(new Error("EXPORT_TYPE"), { code: "EXPORT_TYPE" });
   await store.put(key, artifact);
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
@@ -505,7 +399,9 @@ export async function processExport(
         ? "text/csv; charset=utf-8"
         : type.endsWith("png")
           ? "image/png"
-          : "application/pdf",
+          : type.endsWith("pptx")
+            ? "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+            : "application/pdf",
       rowCount,
       expiresAt,
     },

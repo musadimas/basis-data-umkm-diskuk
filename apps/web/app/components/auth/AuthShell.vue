@@ -19,11 +19,14 @@ defineProps<{ label: string }>();
       </div>
     </section>
 
-    <section class="flex items-center justify-center px-6 py-10 sm:px-10 lg:px-12 xl:px-20" :aria-label="label">
-      <div class="flex w-full max-w-md flex-col">
-        <NuxtLink to="/" class="mb-8 self-center rounded-lg focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary" aria-label="Kembali ke beranda DISKUK Jawa Barat">
-          <NuxtImg src="/images/diskuk-jabar-logo.png" alt="DISKUK Jawa Barat" width="125" height="87" class="h-16 w-auto object-contain" />
-        </NuxtLink>
+    <section class="flex items-center justify-center px-6 py-10 sm:px-10 lg:px-12 xl:px-16" :aria-label="label">
+      <div class="flex w-full max-w-[26rem] flex-col">
+        <div class="mb-6 flex flex-col items-center gap-3 text-center">
+          <NuxtLink to="/" class="rounded-lg focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary" aria-label="Kembali ke beranda DISKUK Jawa Barat">
+            <NuxtImg src="/images/logo-jabar-diskuk.png" alt="Lambang Provinsi Jawa Barat dan logo DISKUK Jawa Barat" width="212" height="80" class="h-16 w-auto object-contain" />
+          </NuxtLink>
+          <p class="text-xs font-semibold uppercase tracking-wide text-slate-600">Portal Integrasi Satu Data · SIDT Jabar</p>
+        </div>
         <slot />
       </div>
     </section>

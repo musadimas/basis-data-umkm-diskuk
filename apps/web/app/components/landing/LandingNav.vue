@@ -7,6 +7,7 @@ const navLinks: NavLink[] = [
   { label: "Dashboard", to: "/public-dashboard" },
   { label: "Katalog", to: "/katalog" },
   { label: "Kegiatan", to: "/kegiatan" },
+  { label: "Fasilitasi", to: "/fasilitasi" },
   { label: "Konsultasi", to: "/konsultasi" },
   { label: "Bantuan", to: "/bantuan" },
   // { label: "Download", to: "/download" },

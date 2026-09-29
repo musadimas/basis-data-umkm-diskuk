@@ -17,7 +17,7 @@ const defaultItems: FaqItem[] = [
   {
     question: "Batas waktu dan cara mendaftar?",
     answer:
-      "Untuk tahap awal pendaftaran di tahun 2025, silakan mengunjungi Dinas KUMKM Kab./Kota sesuai domisili untuk direkomendasikan ke tenaga pendamping di wilayahnya hingga bulan Mei 2025. Program dilaksanakan bulan Juni s.d. November 2025.",
+      "Pendaftaran dibuka pada periode yang diumumkan setiap tahun. Silakan mengunjungi Dinas KUMKM Kab./Kota sesuai domisili untuk direkomendasikan ke tenaga pendamping di wilayahnya. Jadwal resmi diumumkan melalui kanal DISKUK Jawa Barat serta agenda pada portal ini.",
   },
   {
     question: "Apakah bisa dibantu mendaftar secara online?",

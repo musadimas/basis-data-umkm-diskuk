@@ -16,18 +16,36 @@
  *   POST /v1/analytics/tabular/publish        → terbitkan snapshot (Super Admin)
  *   GET  /v1/analytics/tabular/export         → CSV export server-side (bounded)
  */
-import { routeGuard } from "../../lib/utils/auth.js";
 import { buildTabularFilter, positiveInt } from "../../lib/utils/tabular-filter.js";
-import { OperatorError, resolveOperator, scopeTabularOptions, scopeTabularQuery, } from "../../lib/utils/operator.js";
+import { OperatorError, scopeTabularOptions, scopeTabularQuery, } from "../../lib/utils/operator.js";
+import { permissionScopeOf } from "../analysis/scope.js";
+import cakupan from "../../../../../analytics-shared/cakupan.cjs";
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { csvCell } from "../../../../../analytics-shared/csv.cjs";
+
+const { terjaga, publik } = cakupan;
+
+// Seluruh bundel analytics hanya untuk dashboard provinsi/kabkota (DATA_ROLES);
+// pendamping/umkm memakai endpoint operasional. Kandidat 01: gerbang peran di
+// adapter, scope wilayah via scopeTabularQuery dari peran + kota pemanggil.
+// GET /status adalah pengecualian publik (DAFTAR_PUBLIK, data non-PII agregat);
+// POST /publish hanya admin (admin Directus lolos wajibPeran, non-admin
+// provinsi ditolak eksplisit di handler).
+const DATA = { peran: ["provinsi", "kabkota"] };
+const PENERBIT = { peran: ["provinsi"] };
+const operatorDariPemanggil = (pemanggil) => ({
+  role: pemanggil.peran,
+  kotaId: pemanggil.kotaId,
+  admin: pemanggil.admin,
+});
 
 const rows = (result) => result.rows ?? result[0] ?? [];
 const privateHeaders = (res) => { res.setHeader?.("Cache-Control", "private, no-store"); };
 
 function secret() {
-  return process.env.DIRECTUS_SECRET || process.env.NUXT_SESSION_POLICY_SECRET || "tabular-development-secret";
+  return process.env.DIRECTUS_SECRET || process.env.SECRET || process.env.NUXT_SESSION_POLICY_SECRET || "tabular-development-secret";
 }
 function signCursor(payload) {
   const body = Buffer.from(JSON.stringify(payload)).toString("base64url");
@@ -100,7 +118,7 @@ async function withReadTimeout(database, fn, signal) {
   return fn(database);
 }
 
-function exportSecret() { return process.env.DIRECTUS_SECRET || process.env.NUXT_SESSION_POLICY_SECRET || "tabular-development-secret"; }
+function exportSecret() { return process.env.DIRECTUS_SECRET || process.env.SECRET || process.env.NUXT_SESSION_POLICY_SECRET || "tabular-development-secret"; }
 function signDownload(jobId, owner, expires) { return crypto.createHmac("sha256", exportSecret()).update(`${jobId}.${owner}.${expires}`).digest("base64url"); }
 function verifyDownload(jobId, owner, expires, sig) {
   const expiry = Number(expires);
@@ -125,35 +143,67 @@ async function readArtifact(key) {
   try { return await fs.readFile(artifactPath(key)); } catch(e){ if(e?.code!=="ENOENT") throw e; return null; }
 }
 
+function parseArtifactRequest(value) {
+  if (typeof value === "string") {
+    try { return JSON.parse(value); } catch { return {}; }
+  }
+  return value && typeof value === "object" ? value : {};
+}
+
+/** Hapus artefak Tabular kedaluwarsa (TTL 24 jam) dan tandai job-nya `expired`. Worker hanya
+ * membersihkan ANALYTICS_EXPORT_DIR, sedangkan direktori Tabular hidup di proses ini (B19). */
+export async function cleanupExpiredTabularExports(database, { now = new Date(), root = artifactRoot() } = {}) {
+  const result = await database.raw(
+    `SELECT id, request FROM analitik_job WHERE job_type='export' AND export_type='tabular_csv' AND status='completed'`,
+  );
+  let count = 0;
+  for (const job of rows(result)) {
+    const artifact = parseArtifactRequest(job.request).artifact;
+    if (!artifact?.key || !artifact?.expiresAt) continue;
+    if (new Date(artifact.expiresAt) > now) continue;
+    const normalized = String(artifact.key).replaceAll("\\", "/");
+    if (normalized.startsWith("/") || normalized.split("/").some((part) => part === "..")) continue;
+    await fs.rm(path.join(root, normalized), { force: true });
+    await database.raw(
+      "UPDATE analitik_job SET status='expired', error_code='EXPORT_EXPIRED', request=request-'artifact', updated_at=NOW() WHERE id=?",
+      [job.id],
+    );
+    count += 1;
+  }
+  return count;
+}
+
 // Mounted by the bundle entry "v1/analytics/tabular" (see package.json).
 export default function registerTabularRoutes(router, { database, logger }) {
-  router.get("/status", async (req, res, next) => {
-    if (!routeGuard(req, next)) return; privateHeaders(res);
+  router.get("/status", publik(() => async (req, res) => {
     try {
+      privateHeaders(res);
       res.json({ data: await readStatus(database) });
     } catch (error) {
       logger.error(error, "Unable to read dashboard publish status");
-      next(error);
+      throw error;
     }
-  });
+  })({ database, logger }));
 
-  router.post("/publish", async (req, res, next) => {
-    if (!routeGuard(req, next, { adminOnly: true })) return;
+  router.post("/publish", terjaga(PENERBIT, () => async (req, res, pemanggil) => {
     try {
+      if (!pemanggil.admin) {
+        throw new OperatorError(403, "FORBIDDEN", "Administrator access required");
+      }
       const result = await database.raw("SELECT analitik_enqueue_job('rebuild_current_model', 'rebuild_current_model', NULL) AS id");
       const jobId = rows(result)[0]?.id;
       res.status(202).json({ data: { jobId, status: "queued" } });
     } catch (error) {
       logger.error(error, "Unable to enqueue dashboard rebuild");
-      next(error);
+      throw error;
     }
-  });
+  })({ database, logger }));
 
   // Filter dropdown options (dimuat sekali oleh halaman).
-  router.get("/options", async (req, res, next) => {
-    if (!routeGuard(req, next)) return; privateHeaders(res);
+  router.get("/options", terjaga(DATA, () => async (req, res, pemanggil) => {
     try {
-      const operator = await resolveOperator(database, req.accountability);
+      privateHeaders(res);
+      const operator = operatorDariPemanggil(pemanggil);
       const snapshotResult = await database.raw(`
         SELECT payload -> 'options' AS options
         FROM infografis_snapshot
@@ -204,14 +254,14 @@ export default function registerTabularRoutes(router, { database, logger }) {
       });
     } catch (error) {
       logger.error(error, "Unable to read tabular filter options");
-      next(error);
+      throw error;
     }
-  });
+  })({ database, logger }));
 
   // Kelurahan untuk satu kecamatan (opsi kaskade filter).
   // Scalable path: read from reference table `kelurahan` (small dimension) instead of scanning 5.4M fact rows.
-  router.get("/kelurahan", async (req, res, next) => {
-    if (!routeGuard(req, next)) return; privateHeaders(res);
+  router.get("/kelurahan", terjaga(DATA, () => async (req, res, pemanggil) => {
+    privateHeaders(res);
     const kecamatanId = positiveInt(req.query?.kecamatan, null);
     if (kecamatanId === null) {
       res
@@ -220,7 +270,7 @@ export default function registerTabularRoutes(router, { database, logger }) {
       return;
     }
     try {
-      const operator = await resolveOperator(database, req.accountability);
+      const operator = operatorDariPemanggil(pemanggil);
       // kabkota: daftar kelurahan dibatasi kota operator. Query kosong dipakai supaya
       // filter `kota` dari klien tidak ikut membatasi daftar kelurahan provinsi.
       const scopedKota = positiveInt(scopeTabularQuery({}, operator).kota, null);
@@ -260,18 +310,21 @@ export default function registerTabularRoutes(router, { database, logger }) {
       res.json({ data: rows(result) });
     } catch (error) {
       logger.error(error, "Unable to read kelurahan options");
-      next(error);
+      throw error;
     }
-  });
+  })({ database, logger }));
 
   // Halaman data + jumlah data yang cocok dengan filter.
   // Supports both OFFSET (page) and signed keyset cursor (nama, id).
   // Returns scale breakdown in same response to avoid 3 extra count requests.
-  router.get("/", async (req, res, next) => {
-    if (!routeGuard(req, next)) return; privateHeaders(res);
+  // Daftar baris Tabular. Pencarian `q` (bisa memuat NIK 16 digit) hanya lewat body
+  // POST /query (B08-web, ADR-004 #10); GET / tetap ada untuk kompatibilitas.
+  // B08-web: kedua route berbagi handler yang sama, jangan dipecah.
+  const daftarBaris = async (req, res, pemanggil, masukan) => {
+    privateHeaders(res);
     try {
-      const operator = await resolveOperator(database, req.accountability);
-      const q = scopeTabularQuery(req.query ?? {}, operator);
+      const operator = operatorDariPemanggil(pemanggil);
+      const q = scopeTabularQuery(masukan, operator);
       const pageSize = Math.min(Math.max(positiveInt(q.page_size, 10), 1), 1000);
       const cursorRaw = q.cursor ?? q.next_cursor ?? null;
       let cursor = null;
@@ -386,23 +439,46 @@ export default function registerTabularRoutes(router, { database, logger }) {
         },
       });
     } catch (error) {
-      if (error.code === "CURSOR_INVALID" || error.statusCode === 400) return next(error);
-      if (error.code === "QUERY_TIMEOUT" || error.statusCode === 504) return next(error);
+      if (error.code === "CURSOR_INVALID" || error.statusCode === 400) throw error;
+      if (error.code === "QUERY_TIMEOUT" || error.statusCode === 504) throw error;
       logger.error(error, "Unable to read tabular rows");
-      next(error);
+      throw error;
     }
-  });
+  };
+
+  router.get("/", terjaga(DATA, () => async (req, res, pemanggil) => {
+    try {
+      await daftarBaris(req, res, pemanggil, req.query ?? {});
+    } catch (error) {
+      if (error.code === "CURSOR_INVALID" || error.statusCode === 400) throw error;
+      if (error.code === "QUERY_TIMEOUT" || error.statusCode === 504) throw error;
+      logger.error(error, "Unable to read tabular rows");
+      throw error;
+    }
+  })({ database, logger }));
+  router.post("/query", terjaga(DATA, () => async (req, res, pemanggil) => {
+    try {
+      const body = req.body && typeof req.body === "object" ? req.body : {};
+      await daftarBaris(req, res, pemanggil, { ...req.query, ...body });
+    } catch (error) {
+      if (error.code === "CURSOR_INVALID" || error.statusCode === 400) throw error;
+      if (error.code === "QUERY_TIMEOUT" || error.statusCode === 504) throw error;
+      logger.error(error, "Unable to read tabular rows");
+      throw error;
+    }
+  })({ database, logger }));
 
   // Async CSV export – bounded background job (preferred per Phase 2)
-  router.post("/export", async (req, res, next) => {
-    if (!routeGuard(req, next)) return;
+  router.post("/export", terjaga(DATA, () => async (req, res, pemanggil) => {
     try {
-      const operator = await resolveOperator(database, req.accountability);
+      const operator = operatorDariPemanggil(pemanggil);
+      // Bersihkan artefak lama secara best-effort: kegagalan cleanup tidak boleh menggagalkan ekspor.
+      await cleanupExpiredTabularExports(database).catch((error) => logger.warn?.("tabular export cleanup failed", { error: error.message }));
       const body = (req.body && typeof req.body === "object") ? req.body : {};
       const q = scopeTabularQuery({ ...req.query, ...body }, operator);
       const maxRows = Math.min(Math.max(positiveInt(q.max_rows ?? q.maxRows, 50000), 1), 50000);
       const { where, params } = buildTabularFilter(q);
-      const owner = String(req.accountability?.user ?? "system");
+      const owner = String(pemanggil.id ?? "system");
       const exportSql = `
         SELECT t.nama, t.skala, t.kota_nama AS kota, t.kecamatan_nama AS kecamatan, t.kelurahan_nama AS kelurahan,
                t.produk_utama AS "produkUtama", t.kategori_kbli AS "kategoriKbli", t.kode_kbli AS "kodeKbli"
@@ -417,7 +493,12 @@ export default function registerTabularRoutes(router, { database, logger }) {
       // Try to use analitik_job table if exists, otherwise fallback to in-memory
       let dbJobId = jobId;
       try {
-        const ins = await database.raw(`INSERT INTO analitik_job(job_type,dedupe_key,status,owner,request,export_type,max_attempts) VALUES ('export',?, 'queued', ?, ?, 'tabular_csv', 3) RETURNING id`, [dedupe, owner, JSON.stringify({ where, params, maxRows, filters: q })]);
+        // `processing`, bukan `queued`: worker hanya mengklaim queued/retry dan tidak boleh
+        // menyentuh ekspor Tabular yang dibuat selesai in-process (B19).
+        // Job hanya menyimpan ringkasan aman: query mentah memuat PII (B08) dan kunci ber-`rows`
+      // ditolak trigger `analitik_job`, yang dulu membuat insert gagal diam-diam. Scope pemanggil
+      // ikut disimpan dan diperiksa ulang saat unduh (B36).
+      const ins = await database.raw(`INSERT INTO analitik_job(job_type,dedupe_key,status,owner,request,export_type,max_attempts) VALUES ('export',?, 'processing', ?, ?, 'tabular_csv', 3) RETURNING id`, [dedupe, owner, JSON.stringify({ limit: maxRows, permissionScope: permissionScopeOf(operator) })]);
         dbJobId = (ins.rows??ins[0]??[])[0]?.id || jobId;
       } catch (e) {
         logger.warn?.("tabular export job table not available, using ephemeral job", { error: e.message });
@@ -433,8 +514,8 @@ export default function registerTabularRoutes(router, { database, logger }) {
         const scaleMap = { micro: "Mikro", small: "Kecil", medium: "Menengah" };
         const lines = data.map((r) => [
           r.nama, scaleMap[r.skala] ?? r.skala, r.kota, r.kecamatan, r.kelurahan, r.produkUtama ?? "-", r.kategoriKbli ?? "-", r.kodeKbli ?? "-"
-        ].map((v) => `"${String(v ?? "").replaceAll('"','""')}"`).join(","));
-        const csv = [header.join(","), ...lines].join("\n");
+        ].map(csvCell).join(","));
+        const csv = [header.map(csvCell).join(","), ...lines].join("\n");
         const expiresAt = Date.now() + 24*60*60*1000;
         const key = artifactKey(owner, dbJobId);
         await writeArtifact(key, Buffer.from("\uFEFF" + csv, "utf-8"));
@@ -457,67 +538,64 @@ export default function registerTabularRoutes(router, { database, logger }) {
       const sig = signDownload(dbJobId, owner, expiresAt);
       res.status(202).json({ data: { jobId: dbJobId, status: "completed", rowCount: artifact.rowCount, expiresAt: new Date(expiresAt).toISOString(), downloadUrl: `/panel/v1/analytics/tabular/export/${dbJobId}/download?expires=${expiresAt}&sig=${sig}` } });
     } catch (error) {
-      if (error.code === "QUERY_TIMEOUT" || error.statusCode === 504) return next(error);
+      if (error.code === "QUERY_TIMEOUT" || error.statusCode === 504) throw error;
       logger.error(error, "Unable to enqueue tabular export");
-      next(error);
+      throw error;
     }
-  });
+  })({ database, logger }));
 
-  router.get("/export/:jobId", async (req, res, next) => {
-    if (!routeGuard(req, next)) return;
-    try {
-      const jobId = req.params?.jobId;
-      const owner = String(req.accountability?.user ?? "system");
-      const isAdmin = Boolean(req.accountability?.admin);
-      const result = await database.raw(`SELECT id,owner,status,request,error_code FROM analitik_job WHERE id=? ${isAdmin?"":"AND owner=?"} AND job_type='export' AND export_type='tabular_csv'`, isAdmin ? [jobId] : [jobId, owner]);
-      const row = (result.rows??result[0]??[])[0];
-      if (!row) { res.status(404).json({ errors:[{message:"Export not found"}]}); return; }
-      let request = {};
-      try { request = typeof row.request==="string" ? JSON.parse(row.request) : row.request || {}; } catch {}
-      const art = request.artifact;
-      const status = row.status === "dead" ? "failed" : row.status;
-      const downloadUrl = status==="completed" && art?.key ? `/panel/v1/analytics/tabular/export/${row.id}/download?expires=${Date.parse(art.expiresAt)}&sig=${signDownload(row.id, String(row.owner), Date.parse(art.expiresAt))}` : undefined;
-      res.json({ data: { jobId: row.id, status, rowCount: art?.rowCount ?? null, expiresAt: art?.expiresAt ?? null, downloadUrl, error: row.error_code? "Ekspor gagal": null } });
-    } catch (error) { next(error); }
-  });
+  router.get("/export/:jobId", terjaga(DATA, () => async (req, res, pemanggil) => {
+    const jobId = req.params?.jobId;
+    const owner = String(pemanggil.id ?? "system");
+    const isAdmin = Boolean(pemanggil.admin);
+    const result = await database.raw(`SELECT id,owner,status,request,error_code FROM analitik_job WHERE id=? ${isAdmin?"":"AND owner=?"} AND job_type='export' AND export_type='tabular_csv'`, isAdmin ? [jobId] : [jobId, owner]);
+    const row = (result.rows??result[0]??[])[0];
+    if (!row) { res.status(404).json({ errors:[{message:"Export not found"}]}); return; }
+    let request = {};
+    try { request = typeof row.request==="string" ? JSON.parse(row.request) : row.request || {}; } catch {}
+    const art = request.artifact;
+    const status = row.status === "dead" ? "failed" : row.status;
+    const downloadUrl = status==="completed" && art?.key ? `/panel/v1/analytics/tabular/export/${row.id}/download?expires=${Date.parse(art.expiresAt)}&sig=${signDownload(row.id, String(row.owner), Date.parse(art.expiresAt))}` : undefined;
+    res.json({ data: { jobId: row.id, status, rowCount: art?.rowCount ?? null, expiresAt: art?.expiresAt ?? null, downloadUrl, error: row.error_code? "Ekspor gagal": null } });
+  })({ database, logger }));
 
-  router.get("/export/:jobId/download", async (req, res, next) => {
-    if (!routeGuard(req, next)) return;
-    try {
-      const jobId = req.params?.jobId;
-      const owner = String(req.accountability?.user ?? "system");
-      const isAdmin = Boolean(req.accountability?.admin);
-      const result = await database.raw(`SELECT id,owner,status,request FROM analitik_job WHERE id=? ${isAdmin?"":"AND owner=?"} AND job_type='export'`, isAdmin ? [jobId] : [jobId, owner]);
-      const row = (result.rows??result[0]??[])[0];
-      if (!row) { res.status(404).json({ errors:[{message:"Export not found"}]}); return; }
-      let request = {};
-      try { request = typeof row.request==="string" ? JSON.parse(row.request) : row.request || {}; } catch {}
-      const art = request.artifact;
-      if (row.status!=="completed" || !art || !verifyDownload(jobId, String(row.owner), req.query?.expires, req.query?.sig)) { res.status(403).json({ errors:[{message:"Download forbidden"}]}); return; }
-      if (new Date(art.expiresAt).getTime() <= Date.now()) { res.status(410).json({ errors:[{message:"Export expired"}]}); return; }
-      const body = await readArtifact(art.key);
-      if (!body) { res.status(410).json({ errors:[{message:"Export expired"}]}); return; }
-      res.setHeader("Content-Type", "text/csv; charset=utf-8");
-      res.setHeader("Content-Disposition", `attachment; filename="data-umkm-jawa-barat-${jobId}.csv"`);
-      res.setHeader("Cache-Control", "private, no-store");
-      res.end(body);
-    } catch (error) { next(error); }
-  });
+  router.get("/export/:jobId/download", terjaga(DATA, () => async (req, res, pemanggil) => {
+    const jobId = req.params?.jobId;
+    const operator = operatorDariPemanggil(pemanggil);
+    const owner = String(pemanggil.id ?? "system");
+    const isAdmin = Boolean(pemanggil.admin);
+    const result = await database.raw(`SELECT id,owner,status,request FROM analitik_job WHERE id=? ${isAdmin?"":"AND owner=?"} AND job_type='export'`, isAdmin ? [jobId] : [jobId, owner]);
+    const row = (result.rows??result[0]??[])[0];
+    if (!row) { res.status(404).json({ errors:[{message:"Export not found"}]}); return; }
+    let request = {};
+    try { request = typeof row.request==="string" ? JSON.parse(row.request) : row.request || {}; } catch {}
+    // Fail-closed: scope disimpan saat submit, dan unduhan menolak bila peran/wilayah
+    // pemanggil sudah berbeda — termasuk job lama yang belum punya snapshot (B36).
+    if (request.permissionScope !== permissionScopeOf(operator)) { res.status(403).json({ errors:[{message:"Download forbidden"}]}); return; }
+    const art = request.artifact;
+    if (row.status!=="completed" || !art || !verifyDownload(jobId, String(row.owner), req.query?.expires, req.query?.sig)) { res.status(403).json({ errors:[{message:"Download forbidden"}]}); return; }
+    if (new Date(art.expiresAt).getTime() <= Date.now()) { res.status(410).json({ errors:[{message:"Export expired"}]}); return; }
+    const body = await readArtifact(art.key);
+    if (!body) { res.status(410).json({ errors:[{message:"Export expired"}]}); return; }
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="data-umkm-jawa-barat-${jobId}.csv"`);
+    res.setHeader("Cache-Control", "private, no-store");
+    res.end(body);
+  })({ database, logger }));
 
   // Legacy GET /export kept for backward compat – now redirects to async flow via 202 with jobId if called without explicit download
   // For direct blob download, clients should POST /export then GET /export/:jobId/download
-  router.get("/export", async (req, res, next) => {
-    if (!routeGuard(req, next)) return;
+  router.get("/export", terjaga(DATA, () => async (req, res, pemanggil) => {
     // If query has jobId param, treat as legacy sync – but we encourage async; keep sync bounded for small backward-compat callers
     try {
-      const operator = await resolveOperator(database, req.accountability);
+      const operator = operatorDariPemanggil(pemanggil);
       const q = scopeTabularQuery(req.query ?? {}, operator);
       const wantsJson = (req.headers?.accept || "").includes("application/json");
       if (wantsJson) {
         // Async-style: create job and return JSON
         const maxRows = Math.min(Math.max(positiveInt(q.max_rows, 50000), 1), 50000);
         const { where, params } = buildTabularFilter(q);
-        const owner = String(req.accountability?.user ?? "system");
+        const owner = String(pemanggil.id ?? "system");
         const exportSql = `
           SELECT t.nama, t.skala, t.kota_nama AS kota, t.kecamatan_nama AS kecamatan, t.kelurahan_nama AS kelurahan,
                  t.produk_utama AS "produkUtama", t.kategori_kbli AS "kategoriKbli", t.kode_kbli AS "kodeKbli"
@@ -534,8 +612,8 @@ export default function registerTabularRoutes(router, { database, logger }) {
         const scaleMap = { micro: "Mikro", small: "Kecil", medium: "Menengah" };
         const lines = data.map((r) => [
           r.nama, scaleMap[r.skala] ?? r.skala, r.kota, r.kecamatan, r.kelurahan, r.produkUtama ?? "-", r.kategoriKbli ?? "-", r.kodeKbli ?? "-"
-        ].map((v) => `"${String(v ?? "").replaceAll('"','""')}"`).join(","));
-        const csv = [header.join(","), ...lines].join("\n");
+        ].map(csvCell).join(","));
+        const csv = [header.map(csvCell).join(","), ...lines].join("\n");
         // Also store as artifact for consistency
         const expiresAt = Date.now() + 24*60*60*1000;
         const key = artifactKey(owner, jobId);
@@ -564,43 +642,39 @@ export default function registerTabularRoutes(router, { database, logger }) {
       const scaleMap = { micro: "Mikro", small: "Kecil", medium: "Menengah" };
       const lines = data.map((r) => [
         r.nama, scaleMap[r.skala] ?? r.skala, r.kota, r.kecamatan, r.kelurahan, r.produkUtama ?? "-", r.kategoriKbli ?? "-", r.kodeKbli ?? "-"
-      ].map((v) => `"${String(v ?? "").replaceAll('"','""')}"`).join(","));
-      const csv = [header.join(","), ...lines].join("\n");
+      ].map(csvCell).join(","));
+      const csv = [header.map(csvCell).join(","), ...lines].join("\n");
       res.setHeader("Content-Type", "text/csv; charset=utf-8");
       res.setHeader("Content-Disposition", 'attachment; filename="data-umkm-jawa-barat.csv"');
       res.setHeader("Cache-Control", "private, no-store");
       if (typeof res.send === "function") res.send(csv);
       else res.end(csv);
     } catch (error) {
-      if (error.code === "QUERY_TIMEOUT" || error.statusCode === 504) return next(error);
+      if (error.code === "QUERY_TIMEOUT" || error.statusCode === 504) throw error;
       logger.error(error, "Unable to export tabular");
-      next(error);
+      throw error;
     }
-  });
+  })({ database, logger }));
 
   // Target forward_auth Caddy untuk setiap byte-range PMTiles. Arsip PMTiles adalah mosaik
   // provinsi sehingga operator kabkota tidak diotorisasi; frontend memakai fallback GeoJSON
   // /spasial yang sudah di-scope.
-  router.get("/spasial/authorize", async (req, res, next) => {
-    if (!routeGuard(req, next)) return; privateHeaders(res);
-    try {
-      const operator = await resolveOperator(database, req.accountability);
-      if (operator.role === "kabkota") {
-        throw new OperatorError(403, "FORBIDDEN", "Dashboard access is not permitted");
-      }
-      res.status(204).end();
-    } catch (error) {
-      next(error);
+  router.get("/spasial/authorize", terjaga(DATA, () => async (req, res, pemanggil) => {
+    privateHeaders(res);
+    const operator = operatorDariPemanggil(pemanggil);
+    if (operator.role === "kabkota") {
+      throw new OperatorError(403, "FORBIDDEN", "Dashboard access is not permitted");
     }
-  });
+    res.status(204).end();
+  })({ database, logger }));
 
   // Metadata arsip PMTiles titik UMKM; dibangun oleh scripts/build-spatial-tiles.sh
   // dan disimpan pada payload snapshot. `data: null` berarti tileset belum
   // tersedia sehingga frontend memakai fallback GeoJSON /spasial.
-  router.get("/spasial/tileset", async (req, res, next) => {
-    if (!routeGuard(req, next)) return; privateHeaders(res);
+  router.get("/spasial/tileset", terjaga(DATA, () => async (req, res, pemanggil) => {
     try {
-      const operator = await resolveOperator(database, req.accountability);
+      privateHeaders(res);
+      const operator = operatorDariPemanggil(pemanggil);
       if (operator.role === "kabkota") {
         res.json({ data: null });
         return;
@@ -613,17 +687,17 @@ export default function registerTabularRoutes(router, { database, logger }) {
       res.json({ data: rows(result)[0]?.tiles ?? null });
     } catch (error) {
       logger.error(error, "Unable to read spatial tileset metadata");
-      next(error);
+      throw error;
     }
-  });
+  })({ database, logger }));
 
   // Titik spasial (usaha berkoordinat) + rekap skala untuk peta.
   // Count skala dihitung dari semua baris yang cocok filter (bukan hanya
   // yang berkoordinat), sehingga angka kartu skala konsisten dengan tabular.
-  router.get("/spasial", async (req, res, next) => {
-    if (!routeGuard(req, next)) return; privateHeaders(res);
+  router.get("/spasial", terjaga(DATA, () => async (req, res, pemanggil) => {
     try {
-      const operator = await resolveOperator(database, req.accountability);
+      privateHeaders(res);
+      const operator = operatorDariPemanggil(pemanggil);
       const q = scopeTabularQuery(req.query ?? {}, operator);
       const limit = Math.min(Math.max(positiveInt(q.limit, 1000), 1), 5000);
       const { where, params, hasFilters } = buildTabularFilter(q);
@@ -692,11 +766,11 @@ export default function registerTabularRoutes(router, { database, logger }) {
         },
       });
     } catch (error) {
-      if (error.code === "QUERY_TIMEOUT" || error.statusCode === 504) return next(error);
+      if (error.code === "QUERY_TIMEOUT" || error.statusCode === 504) throw error;
       logger.error(error, "Unable to read tabular points");
-      next(error);
+      throw error;
     }
-  });
+  })({ database, logger }));
 }
 
 export { signCursor, decodeCursor };

@@ -1,4 +1,6 @@
-import { APPLICATION_ROLE_ID } from "../src/lib/utils/auth.js";
+import { createRequire } from "node:module";
+const require = createRequire(import.meta.url);
+const { APPLICATION_ROLE_ID } = require("../../../analytics-shared/cakupan.cjs");
 
 export const APP_USER = { user: "00000000-0000-4000-8000-000000000001", role: APPLICATION_ROLE_ID };
 
@@ -6,7 +8,7 @@ export const APP_USER = { user: "00000000-0000-4000-8000-000000000001", role: AP
  * Registers an endpoint module against a recording router. `call(method, path, req)` runs the
  * handler whose route pattern matches, like Express would, and resolves with the response.
  */
-export function mountEndpoint(register, { database, env = {} } = {}) {
+export function mountEndpoint(register, { database, env = {}, context = {} } = {}) {
   const routes = [];
   const add = (method) => (path, handler) => routes.push({ method, path, handler });
   const logs = [];
@@ -20,7 +22,7 @@ export function mountEndpoint(register, { database, env = {} } = {}) {
   };
   register(
     { get: add("GET"), post: add("POST"), patch: add("PATCH"), put: add("PUT"), delete: add("DELETE") },
-    { database: db, env, logger: { error: (...args) => logs.push(args), warn() {}, info() {} } },
+    { database: db, env, logger: { error: (...args) => logs.push(args), warn() {}, info() {} }, ...context },
   );
   async function call(method, url, req = {}) {
     for (const route of routes) {
@@ -31,6 +33,14 @@ export function mountEndpoint(register, { database, env = {} } = {}) {
       if (!match) continue;
       const res = { statusCode: 200, headers: {} };
       res.setHeader = (key, value) => (res.headers[key] = value);
+      // Enough of a writable stream for handlers that pipe asset bytes straight through.
+      res.write = () => true;
+      res.end = (value) => {
+        if (value !== undefined) res.body = value;
+      };
+      res.on = () => res;
+      res.once = () => res;
+      res.emit = () => false;
       res.status = (code) => ((res.statusCode = code), res);
       res.json = (value) => (res.body = value);
       res.send = (value) => (res.body = value);

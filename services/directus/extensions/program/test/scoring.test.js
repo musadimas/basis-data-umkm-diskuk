@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { RUBRIK_VERSI, WEIGHTS, hitungSkor, mergeLegalitas } from "../src/endpoints/talent/scoring.js";
+import { RUBRIK_VERSI, WEIGHTS, hitungSkor, mergeLegalitas, rekomendasiOf } from "../src/endpoints/talent/scoring.js";
 
 const empty = {
   omzetTahunan: null,
@@ -17,8 +17,25 @@ test("the four weights are 25% each and sum to 1", () => {
   assert.deepEqual(Object.values(WEIGHTS), [0.25, 0.25, 0.25, 0.25]);
 });
 
+test("rekomendasi thresholds match domain rules (>=75 recommended, >=60 considered, else not recommended)", () => {
+  assert.equal(rekomendasiOf(0), "Belum Direkomendasikan");
+  assert.equal(rekomendasiOf(59.99), "Belum Direkomendasikan");
+  assert.equal(rekomendasiOf(60), "Dipertimbangkan");
+  assert.equal(rekomendasiOf(74.99), "Dipertimbangkan");
+  assert.equal(rekomendasiOf(75), "Direkomendasikan Masuk Talent Pool");
+  assert.equal(rekomendasiOf(100), "Direkomendasikan Masuk Talent Pool");
+});
+
 test("an empty submission scores zero and is tagged with the placeholder rubric", () => {
-  assert.deepEqual(hitungSkor(empty), { finansial: 0, pasar: 0, legalitas: 0, sdm: 0, total: 0, rubrikVersi: RUBRIK_VERSI });
+  assert.deepEqual(hitungSkor(empty), {
+    finansial: 0,
+    pasar: 0,
+    legalitas: 0,
+    sdm: 0,
+    total: 0,
+    rekomendasi: "Belum Direkomendasikan",
+    rubrikVersi: RUBRIK_VERSI,
+  });
   assert.equal(RUBRIK_VERSI, "placeholder-v0");
 });
 
@@ -34,6 +51,7 @@ test("a complete submission scores 100 on every dimension", () => {
     tenagaKerja: 12,
   });
   assert.deepEqual([skor.finansial, skor.pasar, skor.legalitas, skor.sdm, skor.total], [100, 100, 100, 100, 100]);
+  assert.equal(skor.rekomendasi, "Direkomendasikan Masuk Talent Pool");
 });
 
 test("turnover tiers, certificate credit and workforce are capped as documented", () => {

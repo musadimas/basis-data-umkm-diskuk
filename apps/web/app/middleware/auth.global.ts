@@ -1,4 +1,4 @@
-import { hasRouteAccess, ROLE_HOME } from "~/constants/ROLES";
+import { dashboardRedirect } from "~/constants/ROLES";
 import { safeDashboardReturnTo, useAuth } from "~/composables/useAuth";
 
 export default defineNuxtRouteMiddleware(async (to) => {
@@ -8,13 +8,14 @@ export default defineNuxtRouteMiddleware(async (to) => {
   // `user.role` adalah UUID role Directus; kunci role aplikasi ada di `user.app_role`.
   if (auth.status.value === "authenticated") {
     const user = auth.user.value;
-    if (!user || hasRouteAccess(user.app_role, to.path)) return;
-    return navigateTo(ROLE_HOME[user.app_role ?? "provinsi"] ?? "/dashboard");
+    if (!user) return;
+    const target = dashboardRedirect(user.app_role, to.path);
+    return target ? navigateTo(target) : undefined;
   }
   const current = await auth.currentUser();
   if (current) {
-    if (hasRouteAccess(current.app_role, to.path)) return;
-    return navigateTo(ROLE_HOME[current.app_role ?? "provinsi"] ?? "/dashboard");
+    const target = dashboardRedirect(current.app_role, to.path);
+    return target ? navigateTo(target) : undefined;
   }
   const returnTo = safeDashboardReturnTo(`${to.path}${to.fullPath.includes("?") ? `?${to.fullPath.split("?")[1]}` : ""}`);
   return navigateTo({ path: "/sign-in", query: { returnTo } });

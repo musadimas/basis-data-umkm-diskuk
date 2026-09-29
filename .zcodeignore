@@ -8,7 +8,6 @@ services/caddy/config/
 apps/web/test-results/
 apps/web/playwright-report/
 /services/caddy/
-docs/
 tools/
 .dirac-cache/
 apps/web/.output/

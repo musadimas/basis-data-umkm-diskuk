@@ -11,7 +11,7 @@ test.describe("private dashboard boundary", () => {
   });
   test("login reaches the requested dashboard path", async ({ page }) => {
     await installMockDirectus(page); await page.goto("/sign-in?returnTo=/dashboard"); await waitForCaptchaForm(page);
-    await page.getByLabel("Email").fill("analyst@example.invalid"); await page.getByRole("textbox", { name: "Kata sandi" }).fill("not-a-real-secret"); await page.getByRole("button", { name: "Masuk" }).click();
+    await page.getByLabel("Email atau NIB").fill("analyst@example.invalid"); await page.getByRole("textbox", { name: "Kata sandi" }).fill("not-a-real-secret"); await page.getByRole("button", { name: "Masuk ke Dashboard", exact: true }).click();
     await expect(page).toHaveURL(/\/dashboard$/);
   });
 });

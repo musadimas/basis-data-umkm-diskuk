@@ -10,27 +10,27 @@ function nextWeekday(offset: number) {
 }
 
 test.describe("Modul 7.3 · Klinik Konsultasi", () => {
-  test("the public 4-step form looks up the business, books a slot and returns a ticket number", async ({ page }) => {
+  test("the public 4-step form books a slot and returns a ticket number", async ({ page }) => {
     const state = createProgramState();
     await installMockDirectus(page);
     await installMockProgram(page, state);
     await page.goto("/konsultasi");
-    await waitForCaptchaForm(page);
 
-    // Step 1
-    await page.getByLabel("Nomor NIB atau NIK").fill("1234567890123");
-    await page.getByRole("button", { name: "Cari" }).click();
-    await expect(page.getByText("Usaha 01")).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByLabel("Nama usaha")).toHaveCount(0);
-    await page.getByLabel("Nama narahubung").fill("Siti");
-    await page.getByLabel("Nomor WhatsApp").fill("0812345");
-    await page.getByRole("button", { name: "Lanjut" }).click();
-    await expect(page.getByRole("alert")).toContainText("nomor WhatsApp");
-    await page.getByLabel("Nomor WhatsApp").fill("081234567890");
-    await page.getByRole("button", { name: "Lanjut" }).click();
+    // Step 1 — an anonymous visitor types the business name (stored as unverified). Values typed
+    // before hydration are dropped, so the whole step is retried until step 2 renders.
+    await expect(async () => {
+      await page.getByLabel("Nama usaha").fill("Warung Bu Siti");
+      await page.getByLabel("Nama narahubung").fill("Siti");
+      await page.getByLabel("Nomor WhatsApp").fill("0812345");
+      await page.getByRole("button", { name: "Lanjut" }).click();
+      await expect(page.getByRole("alert")).toContainText("nomor WhatsApp", { timeout: 1000 });
+      await page.getByLabel("Nomor WhatsApp").fill("081234567890");
+      await page.getByRole("button", { name: "Lanjut" }).click();
+      await expect(page.getByLabel("Ceritakan permasalahan usaha Anda")).toBeVisible({ timeout: 1000 });
+    }).toPass({ timeout: 20_000 });
 
     // Step 2
-    await page.getByRole("radio", { name: /Poli Legalitas/ }).check();
+    await page.getByRole("radio", { name: /Legalitas & Standardisasi Produk/ }).check();
     await page.getByLabel("Ceritakan permasalahan usaha Anda").fill("Kami butuh bantuan mengurus sertifikat halal dan PIRT.");
     await page.getByTestId("lampiran-input").setInputFiles({ name: "nib.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4") });
     await expect(page.getByText("nib.pdf")).toBeVisible();
@@ -44,14 +44,14 @@ test.describe("Modul 7.3 · Klinik Konsultasi", () => {
     await page.getByRole("button", { name: "Lanjut" }).click();
 
     // Step 4
-    await expect(page.getByText("Usaha 01")).toBeVisible();
+    await expect(page.getByText("Warung Bu Siti")).toBeVisible();
     await waitForCaptchaForm(page);
     await page.getByRole("button", { name: "Kirim Tiket" }).click();
     await expect(page.getByTestId("nomor-tiket")).toHaveText("KLN-2026-09-0042", { timeout: 15_000 });
 
     const sent = state.tiketForms[0];
     expect(sent.contentType).toMatch(/^multipart\/form-data; boundary=/);
-    expect(sent.payload).toMatchObject({ usahaRef: "ref-usaha-01", namaUsaha: null, namaKontak: "Siti", whatsapp: "081234567890", poli: 1, moda: "daring", tanggal, slot: "10:30" });
+    expect(sent.payload).toMatchObject({ namaUsaha: "Warung Bu Siti", namaKontak: "Siti", whatsapp: "081234567890", poli: 1, moda: "daring", tanggal, slot: "10:30", consent: true });
     expect(sent.captcha).toBeTruthy();
     expect(sent.files).toEqual(["nib.pdf"]);
   });

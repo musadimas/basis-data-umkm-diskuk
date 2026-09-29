@@ -1,24 +1,28 @@
 <script setup lang="ts">
-import { MapPin, MessageCircle, Package } from "@lucide/vue";
-import { KATEGORI_PRODUK, SKALA_LABEL, TALENT_BADGE_STATUS, assetUrl } from "~/constants";
-import { hargaRange, sertifikasiList, whatsappLink } from "~/lib/katalog";
+import { MapPin, MessageCircle, Package, Search } from "@lucide/vue";
+import { KURASI_STATUS, SKALA_LABEL, TALENT_BADGE_STATUS, assetUrl } from "~/constants";
+import { hargaRange, kontakPenjualan, sertifikasiList } from "~/lib/katalog";
 import type { ProdukPublik } from "~/types/program";
 
 const props = defineProps<{ produk: ProdukPublik }>();
 
 const foto = computed(() => props.produk.foto?.[0]?.directus_files_id ?? null);
-const harga = computed(() => hargaRange(props.produk));
-const kategori = computed(() => KATEGORI_PRODUK.find((item) => item.value === props.produk.kategori)?.label);
+const harga = computed(() => props.produk.hargaLabel ?? hargaRange(props.produk));
 const talent = computed(() => TALENT_BADGE_STATUS.some((status) => status === props.produk.usaha_talent_status));
 const wa = computed(() =>
-  whatsappLink(props.produk.usaha_whatsapp, `Halo ${props.produk.usaha_nama ?? ""}, saya tertarik dengan produk "${props.produk.nama}" di Katalog UMKM Jawa Barat.`),
+  kontakPenjualan(props.produk, `Halo ${props.produk.usaha_nama ?? ""}, saya tertarik dengan produk "${props.produk.nama}" di Katalog UMKM Jawa Barat.`),
 );
 const badges = computed(() => {
   const list: { label: string; className: string }[] = [];
-  if (props.produk.status_kurasi === "rekomendasi_marketplace") list.push({ label: "Rekomendasi", className: "bg-indigo-600 text-white" });
-  if (talent.value) list.push({ label: "Talent Jabar", className: "bg-amber-400 text-amber-950" });
+  if (props.produk.status_kurasi === "rekomendasi_marketplace") list.push({ label: KURASI_STATUS.rekomendasi_marketplace.label, className: "bg-indigo-600 text-white" });
+  // Only stages the brief names as badges; each one is stored data, not a guess.
+  if (props.produk.usaha_talent_status === "champion") list.push({ label: "Champion", className: "bg-amber-400 text-amber-950" });
+  else if (props.produk.usaha_talent_status === "accelerator") list.push({ label: "Akselerator", className: "bg-amber-100 text-amber-900" });
+  else if (talent.value) list.push({ label: "Talent Pool", className: "bg-amber-100 text-amber-900" });
   for (const jenis of sertifikasiList(props.produk.usaha_sertifikasi)) list.push({ label: jenis.toUpperCase(), className: "bg-emerald-100 text-emerald-800" });
-  if (props.produk.usaha_pdn || props.produk.pdn_deklarasi) list.push({ label: "PDN", className: "bg-red-100 text-red-800" });
+  // A verified PDN and a self-declaration never share one badge (main plan, keputusan badge).
+  if (props.produk.usaha_pdn) list.push({ label: "PDN Terverifikasi", className: "bg-red-100 text-red-800" });
+  else if (props.produk.pdn_deklarasi) list.push({ label: "PDN Deklarasi", className: "bg-orange-100 text-orange-900" });
   if (props.produk.usaha_ramah_disabilitas) list.push({ label: "Ramah Disabilitas", className: "bg-sky-100 text-sky-800" });
   return list;
 });
@@ -45,23 +49,32 @@ const badges = computed(() => {
           {{ produk.usaha_nama }}<template v-if="produk.usaha_skala"> · {{ SKALA_LABEL[produk.usaha_skala] }}</template>
         </p>
         <h3 class="line-clamp-2 text-sm font-medium leading-snug">{{ produk.nama }}</h3>
-        <p v-if="kategori" class="text-xs text-muted-foreground">{{ kategori }}</p>
         <p v-if="produk.usaha_kota_nama" class="flex items-center gap-1 text-xs text-muted-foreground">
           <MapPin class="size-3 shrink-0" aria-hidden="true" />
           <span class="truncate">{{ produk.usaha_kota_nama }}</span>
         </p>
-        <p v-if="harga" class="mt-auto pt-1 text-sm font-semibold">{{ harga }}</p>
-        <p v-if="produk.moq" class="text-xs text-muted-foreground">MOQ {{ new Intl.NumberFormat("id-ID").format(produk.moq) }}</p>
+        <p class="mt-auto pt-1 text-sm font-semibold">{{ harga ?? "Harga belum tersedia" }}</p>
+        <p class="text-xs text-muted-foreground">MOQ {{ produk.moq ? new Intl.NumberFormat("id-ID").format(produk.moq) : "belum tersedia" }}</p>
       </div>
     </NuxtLink>
-    <a
-      v-if="wa"
-      :href="wa"
-      target="_blank"
-      rel="noopener noreferrer"
-      class="m-3 mt-0 inline-flex items-center justify-center gap-2 rounded-md bg-[#25D366] px-3 py-2 text-xs font-semibold text-white hover:bg-[#1ebe5b]"
-    >
-      <MessageCircle class="size-4" aria-hidden="true" /> WhatsApp
-    </a>
+    <div class="m-3 mt-0 grid gap-2">
+      <NuxtLink
+        :to="`/katalog/${produk.id}`"
+        class="inline-flex items-center justify-center gap-2 rounded-md border px-3 py-2 text-xs font-semibold hover:bg-accent"
+      >
+        <Search class="size-4" aria-hidden="true" /> Lihat Detail Produk
+      </NuxtLink>
+      <!-- No link at all while the sales contact is missing or the product is not published. -->
+      <a
+        v-if="wa"
+        :href="wa"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="inline-flex items-center justify-center gap-2 rounded-md bg-[#25D366] px-3 py-2 text-xs font-semibold text-white hover:bg-[#1ebe5b]"
+      >
+        <MessageCircle class="size-4" aria-hidden="true" /> Hubungi Produsen via WhatsApp
+      </a>
+      <p v-else class="text-center text-[11px] text-muted-foreground">Kontak penjualan belum tersedia</p>
+    </div>
   </article>
 </template>

@@ -1,4 +1,6 @@
-import { sanitizeError } from "../lib/utils/auth.js";
+import cakupan from "../../../../analytics-shared/cakupan.cjs";
+
+const { sanitizeError } = cakupan;
 export default ({ schedule }, { database, logger }) => {
   const run = async () => {
     try {

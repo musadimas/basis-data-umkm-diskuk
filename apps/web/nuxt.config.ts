@@ -6,10 +6,20 @@ export default defineNuxtConfig({
   devtools: { enabled: true },
   pages: true,
   css: ["~/assets/css/tailwind.css"],
+  app: {
+    head: {
+      link: [
+        { rel: "preconnect", href: "https://fonts.googleapis.com" },
+        { rel: "preconnect", href: "https://fonts.gstatic.com", crossorigin: "" },
+      ],
+    },
+  },
   modules: ["@nuxt/eslint", "@nuxtjs/tailwindcss", "shadcn-nuxt", "@nuxt/image", "@pinia/nuxt", "@vite-pwa/nuxt", "nuxt-svgo"],
   runtimeConfig: {
     public: {
       enableWorkforce: process.env.ANALYTICS_ENABLE_WORKFORCE === "true",
+      demoMode: process.env.DEMO_MODE === "true" && process.env.DEMO_DISPOSABLE === "true",
+      ssoJabarEnabled: process.env.SSO_JABAR_ENABLED === "true",
     },
   },
   routeRules: {
@@ -61,6 +71,12 @@ export default defineNuxtConfig({
     },
   },
   vite: {
+    // Client deps reached only from lazily loaded pages (charts, QR, carousel, PPT export). On a cold
+    // cache Vite discovers them after the first page load and re-bundles, and in-flight pages then fail
+    // with "Failed to fetch dynamically imported module"; listing them keeps the first optimisation final.
+    optimizeDeps: {
+      include: ["@unovis/ts", "@unovis/vue", "qrcode", "embla-carousel-vue", "pptxgenjs"],
+    },
     vue: {
       script: {
         fs: {

@@ -50,7 +50,8 @@
     "build": "directus-extension build",
     "dev": "directus-extension build -w --no-minify",
     "validate": "directus-extension validate",
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js",
+    "test:pg": "node --test test/pg/*.test.js"
   },
   "dependencies": {
     "ioredis": "^5.8.2"

@@ -12,7 +12,7 @@ export async function loadUsahaSummary(database, usahaId) {
     `SELECT u.id, u.nama, u.nib, u.skala, u.kegiatan_utama, u.produk_utama,
             u.omzet_tahunan, u.total_aset, u.talent_status, u.talent_batch,
             u.pdn_terverifikasi, u.ramah_disabilitas,
-            kk.kode AS kode_kbli, t.kota_nama, t.kecamatan_nama,
+            kk.kode AS kode_kbli, t.kota_id, t.kota_nama, t.kecamatan_nama,
             COALESCE(t.tenaga_kerja_laki_laki, 0) + COALESCE(t.tenaga_kerja_perempuan, 0) AS tenaga_kerja,
             p.nama_lengkap, p.nik
        FROM usaha u
@@ -34,6 +34,7 @@ export async function loadUsahaSummary(database, usahaId) {
     produkUtama: row.produk_utama,
     omzetTahunan: row.omzet_tahunan === null ? null : Number(row.omzet_tahunan),
     totalAset: row.total_aset === null ? null : Number(row.total_aset),
+    kotaId: row.kota_id === null || row.kota_id === undefined ? null : Number(row.kota_id),
     kota: row.kota_nama,
     kecamatan: row.kecamatan_nama,
     tenagaKerja: Number(row.tenaga_kerja) || 0,
@@ -47,12 +48,14 @@ export async function loadUsahaSummary(database, usahaId) {
 
 /**
  * Certificates of one business. A permit whose berlaku_hingga has passed is reported as
- * kedaluwarsa even if nobody has updated its status.
+ * kedaluwarsa even if nobody has updated its status. Tanggal bisnis memakai zona Asia/Jakarta:
+ * `CURRENT_DATE` mengikuti zona sesi (UTC di produksi) sehingga pada 00:00-07:00 WIB sertifikat
+ * yang kedaluwarsa hari ini masih terlihat terbit (B22).
  */
 export async function loadLegalitas(database, usahaId) {
   const result = await database.raw(
     `SELECT l.id, l.jenis, l.nomor,
-            CASE WHEN l.status = 'terbit' AND l.berlaku_hingga < CURRENT_DATE THEN 'kedaluwarsa' ELSE l.status END AS status,
+            CASE WHEN l.status = 'terbit' AND l.berlaku_hingga < (now() AT TIME ZONE 'Asia/Jakarta')::date THEN 'kedaluwarsa' ELSE l.status END AS status,
             l.berlaku_hingga AS "berlakuHingga", l.berkas
        FROM usaha_legalitas l
       WHERE l.usaha = ?

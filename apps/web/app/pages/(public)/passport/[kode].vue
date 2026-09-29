@@ -20,6 +20,17 @@ const { data } = await useAsyncData(`passport:${kode}`, async () => {
 });
 
 const verified = computed(() => (data.value?.valid ? data.value : null));
+// Badges from the signed payload, with a derived fallback for payloads issued before badges.
+const badges = computed(() => {
+  const payload = verified.value?.passport;
+  if (!payload) return [];
+  if (payload.badges?.length) return payload.badges;
+  const fallback = payload.pdnTerverifikasi ? [{ key: "pdn", label: "100% Produk Dalam Negeri (PDN)", terverifikasi: true, sumber: "Diverifikasi dinas" }] : [];
+  for (const jenis of payload.sertifikasi) {
+    fallback.push({ key: `legalitas_${jenis}`, label: JENIS_LEGALITAS.find((item) => item.value === jenis)?.label ?? jenis, terverifikasi: true, sumber: "Tercatat dinas" });
+  }
+  return fallback;
+});
 useSeoMeta({
   title: () => (verified.value ? `${verified.value.passport.usaha.nama} – Talent Passport Jawa Barat` : "Verifikasi Talent Passport"),
   robots: "noindex",
@@ -56,9 +67,10 @@ const tanggal = (value: string) => new Intl.DateTimeFormat("id-ID", { dateStyle:
     </div>
 
     <article v-else-if="verified" class="grid gap-8">
-      <div role="status" class="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+      <div role="status" class="flex flex-wrap items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
         <ShieldCheck class="size-5 shrink-0" aria-hidden="true" />
-        Terverifikasi: tanda tangan digital DISKUK Jawa Barat valid untuk kode <span class="font-mono font-semibold">{{ verified.kode }}</span>.
+        <span>Terverifikasi: tanda tangan digital DISKUK Jawa Barat valid untuk kode <span class="font-mono font-semibold">{{ verified.kode }}</span>.</span>
+        <span v-if="verified.publicKey" class="text-xs text-emerald-800">kunci <span class="font-mono">{{ verified.publicKey.kid }}</span> · sidik jari <span class="font-mono">{{ verified.publicKey.sidikJari }}</span></span>
       </div>
 
       <header class="grid gap-2">
@@ -86,18 +98,23 @@ const tanggal = (value: string) => new Intl.DateTimeFormat("id-ID", { dateStyle:
       </div>
 
       <section v-if="tab === 'profil'" class="grid gap-6 md:grid-cols-2" aria-label="Profil">
-        <div class="grid justify-items-center gap-2 rounded-xl border p-4">
+        <div class="grid content-start gap-2 rounded-xl border p-4">
           <ProgramRadarChart :skor="verified.passport.skor" />
+          <ul v-if="verified.passport.sumberSkor?.length" class="grid gap-1 text-xs text-muted-foreground" aria-label="Sumber skor">
+            <li v-for="item in verified.passport.sumberSkor" :key="item.dimensi">
+              <span class="font-medium capitalize">{{ item.dimensi }}:</span> {{ item.sumber }}
+            </li>
+          </ul>
           <p v-if="verified.passport.rubrikVersi === PLACEHOLDER_RUBRIK" class="text-center text-xs text-muted-foreground">Skor dihitung dengan rubrik sementara.</p>
         </div>
-        <ul class="grid content-start gap-2 rounded-xl border p-4 text-sm">
-          <li v-for="jenis in JENIS_LEGALITAS" :key="jenis.value" class="flex items-center gap-2">
-            <ShieldCheck class="size-4" :class="verified.passport.sertifikasi.includes(jenis.value) ? 'text-emerald-600' : 'text-muted-foreground/40'" aria-hidden="true" />
-            {{ jenis.label }}: {{ verified.passport.sertifikasi.includes(jenis.value) ? "Terverifikasi" : "—" }}
-          </li>
-          <li class="flex items-center gap-2">
-            <ShieldCheck class="size-4" :class="verified.passport.pdnTerverifikasi ? 'text-emerald-600' : 'text-muted-foreground/40'" aria-hidden="true" />
-            PDN: {{ verified.passport.pdnTerverifikasi ? "Terverifikasi" : "—" }}
+        <ul class="grid content-start gap-2 rounded-xl border p-4 text-sm" aria-label="Badge">
+          <li v-for="badge in badges" :key="badge.key" class="flex flex-wrap items-center gap-2" :data-testid="`badge-${badge.key}`" :data-terverifikasi="String(badge.terverifikasi)">
+            <span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold" :class="badge.terverifikasi ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-900'">
+              <ShieldCheck v-if="badge.terverifikasi" class="size-3.5" aria-hidden="true" />
+              {{ badge.terverifikasi ? "Terverifikasi" : "Deklarasi" }}
+            </span>
+            <span>{{ badge.label }}</span>
+            <span class="w-full text-xs text-muted-foreground">{{ badge.sumber }}</span>
           </li>
         </ul>
       </section>
@@ -125,7 +142,7 @@ const tanggal = (value: string) => new Intl.DateTimeFormat("id-ID", { dateStyle:
         <div v-for="item in verified.portfolio" :key="item.id" class="rounded-xl border p-4 text-sm">
           <NuxtLink :to="`/katalog/${item.id}`" class="font-semibold underline">{{ item.nama }}</NuxtLink>
           <dl class="mt-2 grid gap-x-6 gap-y-1 sm:grid-cols-2">
-            <template v-for="[label, value] in ([['Dimensi', item.dimensi], ['Berat', item.berat], ['Masa simpan', item.shelfLife], ['Kapasitas per bulan', item.kapasitasBulanan], ['Lead time', item.leadTime], ['TKDN', item.tkdnPersen === null ? null : `${Number(item.tkdnPersen)}%`], ['Bahan baku', item.bahanBaku]] as [string, string | null][])" :key="label">
+            <template v-for="[label, value] in ([['Dimensi', item.dimensi], ['Berat', item.berat], ['Masa simpan', item.shelfLife], ['Kapasitas per bulan', item.kapasitasBulanan], ['Lead time', item.leadTime], ['Bahan baku lokal', item.persenBahanLokal === null ? null : `${Number(item.persenBahanLokal)}%`], ['TKDN', item.tkdnPersen === null ? null : `${Number(item.tkdnPersen)}%`], ['Bahan baku', item.bahanBaku], ['Uji laboratorium', item.ujiLab]] as [string, string | null][])" :key="label">
               <div v-if="value" class="flex gap-2"><dt class="text-muted-foreground">{{ label }}:</dt><dd>{{ value }}</dd></div>
             </template>
           </dl>

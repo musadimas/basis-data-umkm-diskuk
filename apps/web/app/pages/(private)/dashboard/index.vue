@@ -8,6 +8,7 @@ import type {
   SpasialUmkmItem,
 } from "~/types/dashboard";
 import type { InfografisData } from "~/types/infografis";
+import type { AspekPerkembangan } from "~/types/operasional";
 import type {
   TabularFilters,
   TabularKbliOption,
@@ -16,6 +17,7 @@ import type {
   TabularSpasialResponse,
 } from "~/types/tabular";
 import { DASHBOARD_SECTIONS } from "~/constants/DASHBOARD";
+import { applyLockedKota, useLockedKota } from "~/composables/useTabularFilters";
 import { defaultAnalysis, serializeAnalysisUrl } from "~/lib/analytics-query";
 import { sectorForKbli } from "~/lib/kbli-sectors";
 import { endpoint } from "~/lib/directus";
@@ -55,6 +57,15 @@ const defaultFilters = (): TabularFilters => ({
 const filters = reactive(defaultFilters());
 const appliedFilters = reactive(defaultFilters());
 const filterOpen = ref(false);
+
+// Y01: kunci wilayah kabkota ke kota_scope-nya (app_role + kota angka).
+// Server tetap menegakkan via scopeTabularQuery; UI mengunci agar tidak
+// menawarkan pilihan di luar wilayahnya. Aturan kunci tinggal di
+// useTabularFilters.ts supaya sama dengan halaman tabular dan spasial.
+const lockedKota = useLockedKota();
+watch(lockedKota, (locked) => {
+  applyLockedKota(filters, appliedFilters, locked);
+}, { immediate: true });
 
 const directus = useDirectus();
 // Shared key with useTabularFilters/TabularData: one request for every dashboard component.
@@ -196,6 +207,17 @@ const { data, error, pending } = await useAsyncData(
   "infographic:summary",
   () => directus.request(endpoint<InfografisData>("/v1/analytics/infographic/", { query: { ...infografisQuery.value } })),
   { watch: [infografisQuery] },
+);
+
+const aspekQuery = computed(() => ({
+  kota: infografisQuery.value.kota,
+  kecamatan: infografisQuery.value.kecamatan,
+  kelurahan: infografisQuery.value.kelurahan,
+}));
+const { data: aspekData, error: aspekError, pending: aspekPending } = await useAsyncData(
+  "operasional:aspek-perkembangan",
+  () => directus.request(endpoint<AspekPerkembangan>("/v1/operasional/aspek-perkembangan", { query: { ...aspekQuery.value } })),
+  { watch: [aspekQuery] },
 );
 
 type InfografisMapData = Pick<
@@ -484,6 +506,8 @@ const kbliCodesBySector = computed<Record<string, KbliCodeItem[]>>(() => {
       @drill:kbli="openAnalytics('kbli_kode', $event)"
     />
 
+    <DashboardCardPermenAspek :data="aspekData ?? null" :pending="aspekPending" :error="Boolean(aspekError)" />
+
     <p
       v-if="error || mapError"
       class="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"
@@ -640,8 +664,8 @@ const kbliCodesBySector = computed<Record<string, KbliCodeItem[]>>(() => {
           <label for="infografis-kabupaten" class="text-xs font-semibold"
             >Kabupaten/Kota</label
           >
-          <UiSelect v-model="filters.kabupatenKota">
-            <UiSelectTrigger id="infografis-kabupaten" size="sm" class="w-full">
+          <UiSelect v-model="filters.kabupatenKota" :disabled="Boolean(lockedKota)">
+            <UiSelectTrigger id="infografis-kabupaten" size="sm" class="w-full" aria-label="Kabupaten/Kota">
               <UiSelectValue placeholder="Semua Kabupaten/Kota" />
             </UiSelectTrigger>
             <UiSelectContent>

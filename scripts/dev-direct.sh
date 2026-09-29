@@ -26,12 +26,26 @@ WEB_DIR="$ROOT/apps/web"
 log() { printf '\033[1;36m[dev:direct]\033[0m %s\n' "$*"; }
 die() { printf '\033[1;31m[dev:direct]\033[0m %s\n' "$*" >&2; exit 1; }
 
+if command -v mise >/dev/null 2>&1; then
+  eval "$(mise hook-env -s bash 2>/dev/null || true)"
+fi
+
+NODE_MAJOR="$(node -v 2>/dev/null | sed -E 's/^v([0-9]+).*/\1/' || echo "0")"
+if [[ "$NODE_MAJOR" -ne 22 && "$NODE_MAJOR" -ne 20 ]]; then
+  die "Directus requires Node.js 22 (LTS) or 20 (detected Node $(node -v 2>/dev/null || echo 'unknown')). Native modules like isolated-vm are incompatible with Node $NODE_MAJOR."
+fi
+
 command -v autossh >/dev/null 2>&1 ||
   die "autossh is required; install it first (macOS: brew install autossh)"
 
-log "building Directus analytics extension"
+log "building Directus extensions"
 pnpm --dir "$DIRECTUS_DIR/extensions/analytics" install --frozen-lockfile
 pnpm --dir "$DIRECTUS_DIR/extensions/analytics" build
+pnpm --dir "$DIRECTUS_DIR/extensions/authentication" install --frozen-lockfile
+pnpm --dir "$DIRECTUS_DIR/extensions/authentication" build
+pnpm --dir "$DIRECTUS_DIR/extensions/directus-extension-operasional" build
+pnpm --dir "$DIRECTUS_DIR/extensions/program" install --frozen-lockfile
+pnpm --dir "$DIRECTUS_DIR/extensions/program" build
 
 cleanup() {
   log "shutting down..."

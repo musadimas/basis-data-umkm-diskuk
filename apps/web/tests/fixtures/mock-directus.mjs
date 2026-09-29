@@ -1,4 +1,11 @@
+import { expect } from "@playwright/test";
 import { createChallenge, pbkdf2 } from "altcha/lib";
+import { createKegiatanState, kegiatanApiResponse } from "./kegiatan-data.mjs";
+import { createRegistrasiState, fasilitasiApiResponse, registrasiApiResponse } from "./registrasi-data.mjs";
+import { infographicMapResponse, infographicResponse, tabularOptionsResponse } from "./analytics-data.mjs";
+import { APPLICATION_ROLE_ID, OPERATOR_FIXTURES, mockUserMe, roleFromCookieHeader } from "./operator-fixtures.mjs";
+
+export { OPERATOR_FIXTURES, mockUserMe };
 
 const SPATIAL_TILE_ARCHIVE = Buffer.from(
   "UE1UaWxlcwN/AAAAAAAAABkAAAAAAAAAmAAAAAAAAAClAQAAAAAAAD0CAAAAAAAAAAAAAAAAAAA9AgAAAAAAAFoAAAAAAAAAAQAAAAAAAAABAAAAAAAAAAEAAAAAAAAAAQICAQMDAHUiQMAk4/sAdSJAwCTj+wMAdSJAwCTj+x+LCAAAAAAAABNjdGaMYgQAAcZyRAUAAAAfiwgAAAAAAAATtZLPTsMwDMbve4opFy79tw06bRInXgAJbghVWeOO0CauUreiTHt34naMDTjsAOsl/mJ//sXzbiKsNCDWUxF30sUFVgpcEy8p7vr3lyztX1NjVyqbF9dlmqySm5fE/7Y2foyxBpujghgthDVqS1FtSFfQiGAiCnRGEhvXm4IF6uuhD3bgKtmzpKDJna5Jo/0HAt+nOTjPOd6CBScJHSuk6xpyaRGm3TxarqLkLCXDgar5lhri9A8hp1dh6CcB7rY1pbni0GirTWvCd0Rzuxgl+XYmhaEfbQ6MKy1pA04rLW0m1WvbEKhsg61VA/ksWUYpgyRBmEar8fSbOI4r54cPQFz9tBNaibVgNhGc/1fCCx6VkcR64c/y7XguNFTc/lD+QE7brc/3eyZP46aU1Ymw3z/zkvBcSBID7MTAcuef4/doFohPtKfDzRdcfszZAhog1/u7e561v5TkO2xagoPT4kQa3Y6hr/LQp37j1ormk7qTVTtUiZl43gfntcMTL6t+1KTLnw7jUC6zMLp06C34m+wnHw16bxrLAwAAH4sIAAAAAAAAE5Nyq2DiYinNzc7VaFCQYspMkWLJS8xNlGItzk7MSVRi5mI0VGLnYg3JLMnMBjFyM7OL8oUEJRiF2BgYGBmZmJRYOVsk33ACANNfA/1IAAAA",
@@ -36,73 +43,9 @@ async function installSpatialTileArchive(page) {
 
 const PLAYWRIGHT_BASE_URL = process.env.PLAYWRIGHT_BASE_URL || "http://127.0.0.1:3100";
 
-/** Profil operator per role dari kontrak `GET /panel/operasional/me` (Y01). */
-export const OPERATOR_FIXTURES = {
-  provinsi: {
-    id: "user-1",
-    email: "analyst@example.invalid",
-    firstName: "Analis",
-    lastName: "Provinsi",
-    avatar: null,
-    role: "provinsi",
-    roleLabel: "Admin Provinsi",
-    instansi: "DISKUK Provinsi Jawa Barat",
-    kota: null,
-    usaha: null,
-  },
-  kabkota: {
-    id: "user-2",
-    email: "dummy_admin.subang@jabarprov.go.id",
-    firstName: "Analis",
-    lastName: "Daerah",
-    avatar: null,
-    role: "kabkota",
-    roleLabel: "Admin Kab/Kota",
-    instansi: "Dinas KUK Kabupaten Bogor",
-    kota: { id: 1, nama: "Kabupaten Bogor" },
-    usaha: null,
-  },
-  pendamping: {
-    id: "user-3",
-    email: "dummy_coach.pendamping@jabarprov.go.id",
-    firstName: "Pendamping",
-    lastName: null,
-    avatar: null,
-    role: "pendamping",
-    roleLabel: "Pendamping",
-    instansi: "Program Pendampingan UMKM",
-    kota: null,
-    usaha: null,
-  },
-  umkm: {
-    id: "user-4",
-    email: "dummy_wawan.leathercraft@gmail.com",
-    firstName: "Wawan",
-    lastName: null,
-    avatar: null,
-    role: "umkm",
-    roleLabel: "Pelaku UMKM",
-    instansi: "Pelaku UMKM",
-    kota: null,
-    usaha: {
-      id: "11111111-1111-4111-8111-000000000001",
-      nama: "Wawan Leathercraft",
-      nib: "9900000000001",
-    },
-  },
-};
-
 /** Role aktif dari cookie `mock_role` (fallback: opsi install `role`). */
 function roleFromRequestCookies(request, fallbackRole) {
-  const cookieHeader = request.headers().cookie || "";
-  for (const cookie of cookieHeader.split(";")) {
-    const [name, ...rest] = cookie.trim().split("=");
-    if (name === "mock_role") {
-      const value = rest.join("=");
-      if (value && value in OPERATOR_FIXTURES) return value;
-    }
-  }
-  return fallbackRole;
+  return roleFromCookieHeader(request.headers().cookie, fallbackRole);
 }
 
 // A real ALTCHA challenge at minimal cost so the widget solves quickly in the test browser.
@@ -124,6 +67,7 @@ async function mockCaptchaChallenge() {
 const ENVELOPED_PATHS = [
   [/^\/panel\/v1\/analytics\/analysis\/(query|records|umkm\/|exports)/, "items"],
   [/^\/panel\/v1\/analytics\/tabular\/$/, "rows"],
+  [/^\/panel\/v1\/analytics\/tabular\/query$/, "rows"],
   [/^\/panel\/v1\/analytics\/tabular\/spasial$/, "points"],
   [/^\/panel\/v1\/auth\/activity$/, "items"],
 ];
@@ -153,7 +97,7 @@ export const MOCK_USER = {
   email: "analyst@example.invalid",
   first_name: "Analis",
   last_name: "Provinsi",
-  role: "7d6d493c-1a6d-4c59-9e74-40d42a7862eb",
+  role: APPLICATION_ROLE_ID,
   app_role: "provinsi",
   instansi: "DISKUK Provinsi Jawa Barat",
 };
@@ -164,12 +108,40 @@ export async function installMockDirectus(
 ) {
   let loggedIn = authenticated;
   globalThis.__y02Verified = new Set();
+  // Agenda fixtures + reminder opt-ins of this install (Y07), shared by both calendar queries.
+  const kegiatanState = createKegiatanState();
+  // R03: state pendaftaran internal + sertifikat milik install ini.
+  const registrasiState = createRegistrasiState();
   if (serveSpatialTiles) await installSpatialTileArchive(page);
-  await page.context().addCookies([{
-    name: "mock_role",
-    value: role,
-    url: PLAYWRIGHT_BASE_URL,
-  }]);
+  // R03: presensi scan proxy (Nuxt server route) answered from the same in-browser state;
+  // the staff-role check mirrors what the real route enforces via the Directus session.
+  await page.route("**/api/operasional/pindai", async (playwrightRoute) => {
+    const request = playwrightRoute.request();
+    const peranAktif = roleFromRequestCookies(request, role);
+    if (!["provinsi", "kabkota"].includes(peranAktif)) {
+      await playwrightRoute.fulfill({ status: 403, contentType: "application/json", body: JSON.stringify({ errors: [{ message: "Pemindai hanya untuk staf." }] }) });
+      return;
+    }
+    const hasil = registrasiApiResponse({
+      pathname: "/v1/program/registrasi/pindai",
+      method: "POST",
+      body: request.postDataJSON?.() ?? null,
+      state: registrasiState,
+      role: peranAktif,
+      secretOk: true,
+    });
+    await playwrightRoute.fulfill({ status: hasil.status ?? 200, contentType: "application/json", body: JSON.stringify(hasil.body ?? hasil) });
+  });
+  await page.context().addCookies([
+    {
+      name: "mock_role",
+      value: role,
+      url: PLAYWRIGHT_BASE_URL,
+    },
+    // SSR (mock-directus-server.mjs) tidak melihat closure loggedIn milik
+    // page.route; cookie ini menjadi sinyal terautentikasi untuk SSR.
+    ...(authenticated ? [{ name: "mock_auth", value: "1", url: PLAYWRIGHT_BASE_URL }] : []),
+  ]);
   await page.route("**/panel/**", async (playwrightRoute) => {
     const request = playwrightRoute.request();
     const url = new URL(request.url());
@@ -177,6 +149,43 @@ export async function installMockDirectus(
     const route = withEnvelope(playwrightRoute, path);
     if (path.startsWith("/panel/v1/auth/") || path.startsWith("/panel/auth/") || path === "/panel/users/me") {
       requests.push({ method: request.method(), path, body: request.postDataJSON?.() ?? null });
+    }
+    // R03: internal registration + facilitation through Directus, honouring the active mock role.
+    if (path.startsWith("/panel/v1/program/registrasi")) {
+      const hasil = registrasiApiResponse({
+        pathname: path.replace(/^\/panel/, ""),
+        method: request.method(),
+        body: request.method() === "GET" ? null : (request.postDataJSON?.() ?? null),
+        state: registrasiState,
+        role: roleFromRequestCookies(request, role),
+      });
+      if (hasil) {
+        if (hasil.buffer) {
+          await route.fulfill({ status: hasil.status ?? 200, contentType: hasil.contentType, body: hasil.buffer });
+          return;
+        }
+        await route.fulfill({ status: hasil.status ?? 200, contentType: "application/json", body: JSON.stringify(hasil.body ?? hasil) });
+        return;
+      }
+    }
+    if (path === "/panel/v1/program/fasilitasi") {
+      const hasil = fasilitasiApiResponse(path.replace(/^\/panel/, ""), url.searchParams);
+      await route.fulfill({ status: hasil.status ?? 200, contentType: "application/json", body: JSON.stringify(hasil.body ?? hasil) });
+      return;
+    }
+    // Public agenda (Y07): the page reads its list, detail and reminder routes through Directus.
+    if (path.startsWith("/panel/v1/program/kegiatan")) {
+      const hasil = kegiatanApiResponse({
+        pathname: path.replace(/^\/panel/, ""),
+        searchParams: url.searchParams,
+        method: request.method(),
+        body: request.method() === "GET" ? null : (request.postDataJSON?.() ?? null),
+        state: kegiatanState,
+      });
+      if (hasil) {
+        await route.fulfill({ status: hasil.status ?? 200, contentType: "application/json", body: JSON.stringify(hasil.body ?? hasil) });
+        return;
+      }
     }
     if (path === "/panel/v1/auth/captcha/challenge") {
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(await mockCaptchaChallenge()) });
@@ -193,6 +202,9 @@ export async function installMockDirectus(
         return;
       }
       loggedIn = true;
+      // Directus sets its session cookie on login (SESSION_COOKIE_NAME=diskuk_session). Without it a
+      // full reload is server-rendered as anonymous and bounces to /sign-in.
+      await page.context().addCookies([{ name: "diskuk_session", value: "mock", url: PLAYWRIGHT_BASE_URL, httpOnly: true }]);
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: { expires: 28_800_000 } }) });
       return;
     }
@@ -202,6 +214,7 @@ export async function installMockDirectus(
     }
     if (path === "/panel/auth/logout") {
       loggedIn = false;
+      await page.context().clearCookies({ name: "diskuk_session" });
       await route.fulfill({ status: 204, body: "" });
       return;
     }
@@ -225,33 +238,6 @@ export async function installMockDirectus(
       });
       return;
     }
-    if (path === "/panel/operasional/aktivitas") {
-      const hasSessionCookie = (request.headers().cookie || "").includes("diskuk_session=");
-      if (!loggedIn && !hasSessionCookie) {
-        await route.fulfill({
-          status: 401,
-          contentType: "application/json",
-          body: JSON.stringify({ errors: [{ message: "unauthorized" }] }),
-        });
-        return;
-      }
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify([
-          {
-            id: 1,
-            action: "login",
-            collection: "directus_users",
-            item: "user-1",
-            timestamp: "2026-09-26T01:00:00.000Z",
-            ip: "127.0.0.1",
-            userAgent: "Playwright",
-          },
-        ]),
-      });
-      return;
-    }
     if (path === "/panel/users/me" && request.method() === "PATCH" && loggedIn) {
       const body = request.postDataJSON();
       if (body?.password !== undefined && body?.current_password !== "current-password") {
@@ -262,8 +248,8 @@ export async function installMockDirectus(
         });
         return;
       }
-      // `app_role` mengikuti role mock aktif (cookie `mock_role`) agar matriks role Y01 terbaca.
-      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: { ...MOCK_USER, app_role: roleFromRequestCookies(request, role) } }) });
+      // `app_role`/instansi/kota_scope/usaha mengikuti role mock aktif (cookie `mock_role`).
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: mockUserMe(roleFromRequestCookies(request, role)) }) });
       return;
     }
     if (path === "/panel/users/me") {
@@ -275,7 +261,7 @@ export async function installMockDirectus(
         });
         return;
       }
-      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: { ...MOCK_USER, app_role: roleFromRequestCookies(request, role) } }) });
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: mockUserMe(roleFromRequestCookies(request, role)) }) });
       return;
     }
     if (!loggedIn) {
@@ -301,18 +287,7 @@ export async function installMockDirectus(
       return;
     }
     if (path === "/panel/v1/analytics/tabular/options") {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          data: {
-            kota: [{ id: 1, nama: "Kabupaten Bogor" }],
-            kecamatan: [{ id: 11, nama: "Cibinong", kotaId: 1 }],
-            kategori: ["PERDAGANGAN"],
-            kbli: [{ kode: "47112", kategori: "PERDAGANGAN" }],
-          },
-        }),
-      });
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(tabularOptionsResponse()) });
       return;
     }
     if (path === "/panel/v1/analytics/tabular/spasial/tileset") {
@@ -346,10 +321,13 @@ export async function installMockDirectus(
       });
       return;
     }
-    if (path === "/panel/v1/analytics/tabular/") {
+    // B08-web: daftar baris dibaca dari body POST /query (q bisa memuat NIK);
+    // GET / dipertahankan untuk kompatibilitas. Keduanya memakai pembangun yang sama.
+    const tabularRowsPayload = ({ skala, q, page, page_size }) => {
       const allRows = Array.from({ length: 12 }, (_, index) => ({
         id: `11111111-1111-4111-8111-${String(index + 1).padStart(12, "0")}`,
-        nama: `Usaha ${String(index + 1).padStart(2, "0")}`,
+        nama: index === 1 ? "Wawan Leathercraft" : `Usaha ${String(index + 1).padStart(2, "0")}`,
+        nib: index === 1 ? "9900000000001" : `123456789012${index}`,
         skala: index < 8 ? "micro" : index < 11 ? "small" : "medium",
         produkUtama: index % 2 === 0 ? "Keripik Singkong" : "Pakaian",
         kegiatanUtama:
@@ -360,160 +338,66 @@ export async function installMockDirectus(
         kecamatan: "Cibinong",
         kelurahan: "Pakansari",
       }));
-      const scale = url.searchParams.get("skala");
-      const filteredRows = scale
-        ? allRows.filter((item) => item.skala === scale)
-        : allRows;
-      const pageNumber = Number(url.searchParams.get("page") || "1");
-      const pageSize = Number(url.searchParams.get("page_size") || "10");
+      const scale = skala ?? null;
+      const keyword = String(q ?? "").toLowerCase().trim();
+      let filteredRows = allRows;
+      if (scale) {
+        filteredRows = filteredRows.filter((item) => item.skala === scale);
+      }
+      if (keyword) {
+        if (keyword === "9900000000001") {
+          filteredRows = filteredRows.filter((item) => item.nib === "9900000000001" || item.nama.toLowerCase().includes("wawan"));
+        } else {
+          filteredRows = filteredRows.filter((item) =>
+            item.nama.toLowerCase().includes(keyword) || (item.nib && item.nib.includes(keyword))
+          );
+        }
+      }
+      const pageNumber = Number(page || "1");
+      const pageSize = Number(page_size || "10");
       const start = (pageNumber - 1) * pageSize;
       const data = filteredRows.slice(start, start + pageSize);
+      return {
+        data,
+        meta: {
+          filterCount: filteredRows.length,
+          mikro: filteredRows.filter((item) => item.skala === "micro").length,
+          kecil: filteredRows.filter((item) => item.skala === "small").length,
+          menengah: filteredRows.filter((item) => item.skala === "medium")
+            .length,
+          page: pageNumber,
+          pageSize,
+          nextCursor:
+            start + data.length < filteredRows.length ? "next-page" : null,
+          hasNext: start + data.length < filteredRows.length,
+        },
+      };
+    };
+    if (path === "/panel/v1/analytics/tabular/query" && request.method() === "POST") {
+      const body = request.postDataJSON?.() ?? {};
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({
-          data,
-          meta: {
-            filterCount: filteredRows.length,
-            mikro: filteredRows.filter((item) => item.skala === "micro").length,
-            kecil: filteredRows.filter((item) => item.skala === "small").length,
-            menengah: filteredRows.filter((item) => item.skala === "medium")
-              .length,
-            page: pageNumber,
-            pageSize,
-            nextCursor:
-              start + data.length < filteredRows.length ? "next-page" : null,
-            hasNext: start + data.length < filteredRows.length,
-          },
-        }),
+        body: JSON.stringify(tabularRowsPayload({ ...Object.fromEntries(url.searchParams), ...body })),
+      });
+      return;
+    }
+    if (path === "/panel/v1/analytics/tabular/") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(tabularRowsPayload({
+          skala: url.searchParams.get("skala"),
+          q: url.searchParams.get("q"),
+          page: url.searchParams.get("page"),
+          page_size: url.searchParams.get("page_size"),
+        })),
       });
       return;
     }
     if (path === "/panel/v1/analytics/infographic/") {
-      const filtered = url.searchParams.has("skala");
-      const regions = renderMap
-        ? Array.from({ length: 27 }, (_, index) => {
-            const longitude = 106 + (index % 9) * 0.25;
-            const latitude = -7.5 + Math.floor(index / 9) * 0.25;
-            return {
-              id: String(index + 1),
-              name: `Wilayah ${index + 1}`,
-              value: index + 1,
-              code: `32.${String(index + 1).padStart(2, "0")}`,
-              geometry: {
-                type: "Polygon",
-                coordinates: [
-                  [
-                    [longitude, latitude],
-                    [longitude + 0.2, latitude],
-                    [longitude + 0.2, latitude + 0.2],
-                    [longitude, latitude + 0.2],
-                    [longitude, latitude],
-                  ],
-                ],
-              },
-            };
-          })
-        : [];
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          data: {
-            scales: filtered
-              ? { total: 2, mikro: 2, kecil: 0, menengah: 0 }
-              : { total: 3, mikro: 2, kecil: 1, menengah: 0 },
-            regions: renderMap
-              ? regions
-              : [
-                  { id: "1", name: "Kabupaten Bogor", value: 2 },
-                  { id: "2", name: "Kota Depok", value: 1 },
-                ],
-            geometryReady: renderMap,
-            sectors: filtered
-              ? []
-              : [
-                  {
-                    code: "G",
-                    name: "Perdagangan Besar dan Eceran",
-                    total: 1,
-                    mikro: 1,
-                    kecil: 0,
-                    menengah: 0,
-                    percentage: 33.3,
-                  },
-                  {
-                    code: "C",
-                    name: "Industri Pengolahan",
-                    total: 2,
-                    mikro: 1,
-                    kecil: 1,
-                    menengah: 0,
-                    percentage: 66.7,
-                  },
-                ],
-            topKbli: filtered
-              ? []
-              : [
-                  {
-                    code: "47112",
-                    name: "Perdagangan eceran",
-                    description: null,
-                    total: 2,
-                    mikro: 2,
-                    kecil: 0,
-                    menengah: 0,
-                  },
-                  {
-                    code: "10794",
-                    name: "Industri makanan",
-                    description: null,
-                    total: 1,
-                    mikro: 0,
-                    kecil: 1,
-                    menengah: 0,
-                  },
-                ],
-            kbli: [],
-            sectorCoverage: filtered
-              ? undefined
-              : { mapped: 3, unclassified: 0 },
-            nib: filtered
-              ? undefined
-              : {
-                  total: 3,
-                  withNib: 2,
-                  withoutNib: 1,
-                  withPercentage: 66.7,
-                  withoutPercentage: 33.3,
-                },
-            marketingMethods: filtered
-              ? undefined
-              : [
-                  {
-                    key: "non-digital",
-                    label: "Non-digital",
-                    value: 2,
-                    percentage: 66.7,
-                  },
-                  {
-                    key: "digital",
-                    label: "Digital",
-                    value: 1,
-                    percentage: 33.3,
-                  },
-                ],
-            workforce: {
-              male: 2,
-              female: 1,
-              total: 3,
-              malePercentage: 66.7,
-              femalePercentage: 33.3,
-            },
-            dataAsOf: "2026-08-17T00:30:00Z",
-          },
-        }),
-      });
+      const body = infographicResponse({ filtered: url.searchParams.has("skala"), renderMap });
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
       return;
     }
     if (path === "/panel/v1/analytics/analysis/metadata") {
@@ -801,39 +685,7 @@ export async function installMockDirectus(
       return;
     }
     if (path === "/panel/v1/analytics/infographic/map") {
-      const regions = Array.from({ length: 27 }, (_, index) => {
-        const longitude = 106 + (index % 9) * 0.25;
-        const latitude = -7.5 + Math.floor(index / 9) * 0.25;
-        return {
-          id: String(index + 1),
-          name: `Wilayah ${index + 1}`,
-          code: `32.${String(index + 1).padStart(2, "0")}`,
-          geometry: {
-            type: "Polygon",
-            coordinates: [
-              [
-                [longitude, latitude],
-                [longitude + 0.2, latitude],
-                [longitude + 0.2, latitude + 0.2],
-                [longitude, latitude + 0.2],
-                [longitude, latitude],
-              ],
-            ],
-          },
-        };
-      });
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          data: {
-            regions,
-            regionLevel: "kota",
-            geometryReady: true,
-            geometryMissing: 0,
-          },
-        }),
-      });
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(infographicMapResponse()) });
       return;
     }
     if (path === "/panel/items/analitik_view") {
@@ -947,12 +799,147 @@ export async function installMockDirectus(
       });
       return;
     }
+    const petaMatch = path.match(/^\/panel\/(?:v1\/program\/peta|operasional\/usaha)\/([0-9a-f-]{36})(?:\/ringkas)?$/i);
+    if (petaMatch) {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: {
+            id: petaMatch[1],
+            nama: "Wawan Leathercraft",
+            pemilik: "Wawan Setiawan",
+            skala: "micro",
+            kodeKbli: "15121",
+            kegiatanUtama: "Industri Barang dari Kulit",
+            deskripsiKbli: "Industri Barang dari Kulit",
+            omzetTahunan: 780000000,
+            sertifikasi: ["halal", "pirt", "hki"],
+            talentStatus: "accelerator",
+            talentBatch: "Batch 1",
+            talenta: { status: "accelerator", batch: "Batch 1" },
+            profilPath: `/dashboard/umkm/${petaMatch[1]}`,
+          },
+        }),
+      });
+      return;
+    }
+    if (path === "/panel/v1/analytics/analysis/exports" && request.method() === "POST") {
+      const body = request.postDataJSON?.() ?? {};
+      const jobId = "66666666-6666-4666-8666-000000000001";
+      await route.fulfill({
+        status: 202,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: {
+            jobId,
+            status: "completed",
+            exportType: body.exportType || "aggregate_pptx",
+            downloadUrl: `/panel/v1/analytics/analysis/exports/${jobId}/download`,
+            estimatedRows: 3,
+          },
+        }),
+      });
+      return;
+    }
+    const exportMatch = path.match(/^\/panel\/v1\/analytics\/analysis\/exports\/([^/]+)(\/download)?$/);
+    if (exportMatch) {
+      const [, jobId, isDownload] = exportMatch;
+      if (isDownload) {
+        const dummyPptx = Buffer.from("PK\x03\x04ppt/slides/slide1.xmlPK\x03\x04ppt/slides/slide2.xmlPK\x03\x04ppt/slides/slide3.xml");
+        await route.fulfill({
+          status: 200,
+          headers: {
+            "content-type": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            "content-disposition": `attachment; filename="analitik-rapat-${jobId}.pptx"`,
+          },
+          body: dummyPptx,
+        });
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: {
+            jobId,
+            status: "completed",
+            downloadUrl: `/panel/v1/analytics/analysis/exports/${jobId}/download`,
+            estimatedRows: 3,
+          },
+        }),
+      });
+      return;
+    }
+    if (path === "/panel/v1/analytics/tabular/export" && request.method() === "POST") {
+      const jobId = "77777777-7777-4777-8777-000000000001";
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          jobId,
+          status: "completed",
+          downloadUrl: `/panel/v1/analytics/tabular/export/${jobId}/download`,
+        }),
+      });
+      return;
+    }
+    const tabularExportMatch = path.match(/^\/panel\/v1\/analytics\/tabular\/export\/([^/]+)(\/download)?$/);
+    if (tabularExportMatch) {
+      const [, jobId, isDownload] = tabularExportMatch;
+      if (isDownload) {
+        await route.fulfill({
+          status: 200,
+          headers: {
+            "content-type": "text/csv; charset=utf-8",
+            "content-disposition": 'attachment; filename="data-umkm-jawa-barat.csv"',
+          },
+          body: "nama,skala,kota\nWawan Leathercraft,micro,Kabupaten Bogor\n",
+        });
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          jobId,
+          status: "completed",
+          downloadUrl: `/panel/v1/analytics/tabular/export/${jobId}/download`,
+        }),
+      });
+      return;
+    }
+    if (path === "/panel/v1/program/passport/pdf/summary" || path === "/panel/v1/program/passport/pdf/katalog") {
+      const pdfSample = "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] >>\nendobj\nxref\n0 4\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \ntrailer\n<< /Size 4 /Root 1 0 R >>\nstartxref\n200\n%%EOF";
+      await route.fulfill({
+        status: 200,
+        headers: {
+          "content-type": "application/pdf",
+          "content-disposition": `attachment; filename="${path.endsWith("summary") ? "executive-summary.pdf" : "katalog-ekspor.pdf"}"`,
+        },
+        body: pdfSample,
+      });
+      return;
+    }
+    // Fail loudly: an unmocked route must not look like an empty success.
+    console.warn(`MOCK_ROUTE_MISSING ${request.method()} ${path}`);
     await route.fulfill({
-      status: 200,
+      status: 404,
       contentType: "application/json",
-      body: JSON.stringify({ data: {} }),
+      body: JSON.stringify({ errors: [{ message: `MOCK_ROUTE_MISSING ${request.method()} ${path}`, extensions: { code: "MOCK_ROUTE_MISSING" } }] }),
     });
   });
+}
+
+/**
+ * Resolves once Nuxt has finished hydrating the server-rendered page. A click that lands before this
+ * hits server HTML without Vue listeners (a native form submit or a dead button).
+ */
+export async function waitForHydration(page) {
+  await page.waitForFunction(() => {
+    const nuxtApp = document.querySelector("#__nuxt")?.__vue_app__?.config.globalProperties.$nuxt;
+    return Boolean(nuxtApp) && nuxtApp.isHydrating === false;
+  }, null, { timeout: 15000 });
 }
 
 /** The captcha widget mounts client-side only, so its presence means the form has hydrated. */
@@ -962,7 +949,7 @@ export async function waitForCaptchaForm(page) {
 
 export async function loginMock(page, returnTo = "/dashboard", expectedPath = returnTo) {
   await page.goto(`/sign-in?returnTo=${encodeURIComponent(returnTo)}`);
-  await page.getByLabel("Email / NIB").waitFor({ state: "visible", timeout: 15000 });
+  await page.getByLabel("Email atau NIB").waitFor({ state: "visible", timeout: 15000 });
   // Prove hydration through behavior before filling. Values entered into the
   // SSR form can otherwise be replaced while Vue attaches v-model listeners.
   const passwordInput = page.locator("#password");
@@ -976,10 +963,14 @@ export async function loginMock(page, returnTo = "/dashboard", expectedPath = re
     throw new Error("Sign-in form did not hydrate");
   }
   await page.getByRole("button", { name: "Sembunyikan kata sandi" }).click();
-  await page.getByLabel("Email / NIB").fill("analyst@example.invalid");
-  await page
-    .getByRole("textbox", { name: "Kata sandi" })
-    .fill("not-a-real-secret");
-  await page.getByRole("button", { name: "Masuk" }).click();
-  await page.waitForURL((url) => url.pathname === expectedPath, { timeout: 10000 });
+  // A submit click that lands before hydration (or a captcha reset race) leaves the form
+  // on /sign-in; retry the whole fill+submit until the session navigation actually happens.
+  await expect(async () => {
+    await page.getByLabel("Email atau NIB").fill("analyst@example.invalid");
+    await page
+      .getByRole("textbox", { name: "Kata sandi" })
+      .fill("not-a-real-secret");
+    await page.getByRole("button", { name: "Masuk" }).click();
+    await page.waitForURL((url) => url.pathname === expectedPath, { timeout: 3000 });
+  }).toPass({ timeout: 30000 });
 }

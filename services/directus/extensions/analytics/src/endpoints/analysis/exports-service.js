@@ -1,7 +1,7 @@
 import { AnalyticsApiError } from "./errors.js";
 import { baseMeta } from "./meta.js";
 import { queryAnalytics, activeGeneration } from "./query-service.js";
-import { compileFiltersOnly } from "./query-compiler.js";
+import { compileFiltersOnly, compileQuery } from "./query-compiler.js";
 import contracts from "../../../../../analytics-shared/contracts.cjs";
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
@@ -13,7 +13,13 @@ const TYPES = new Set([
   "detail_csv",
   "aggregate_png",
   "aggregate_pdf",
+  "aggregate_pptx",
   "profile_pdf",
+]);
+const AGGREGATE_RENDER_TYPES = new Set([
+  "aggregate_png",
+  "aggregate_pdf",
+  "aggregate_pptx",
 ]);
 const artifacts = new Map(); // Development fallback; the file store is the restart-safe path.
 const UUID =
@@ -21,7 +27,9 @@ const UUID =
 
 function secret() {
   const value =
-    process.env.DIRECTUS_SECRET || process.env.NUXT_SESSION_POLICY_SECRET;
+    process.env.DIRECTUS_SECRET ||
+    process.env.SECRET || // compose meneruskan DIRECTUS_SECRET sebagai SECRET ke container Directus
+    process.env.NUXT_SESSION_POLICY_SECRET;
   if (!value && process.env.NODE_ENV === "production")
     throw new Error("DIRECTUS_SECRET is required for export signatures");
   return value || "analytics-development-secret";
@@ -72,14 +80,22 @@ function csvFor(result) {
   );
 }
 function extension(type) {
-  return type.endsWith("csv") ? "csv" : type.endsWith("png") ? "png" : "pdf";
+  return type.endsWith("csv")
+    ? "csv"
+    : type.endsWith("png")
+      ? "png"
+      : type.endsWith("pptx")
+        ? "pptx"
+        : "pdf";
 }
 function contentType(type) {
   return type.endsWith("csv")
     ? "text/csv; charset=utf-8"
     : type.endsWith("png")
       ? "image/png"
-      : "application/pdf";
+      : type.endsWith("pptx")
+        ? "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+        : "application/pdf";
 }
 function safePart(value) {
   return (
@@ -135,7 +151,7 @@ async function registry(database) {
   );
   return result.rows ?? result[0] ?? [];
 }
-async function estimateDetail(database, config) {
+async function estimateDetail(database, config, operator) {
   const generation = await activeGeneration(database);
   if (!generation) throw new AnalyticsApiError(503, "NO_ACTIVE_GENERATION");
   const filters = compileFiltersOnly(
@@ -146,6 +162,7 @@ async function estimateDetail(database, config) {
       schemaVersion: SCHEMA_VERSION,
     },
     await registry(database),
+    operator,
   );
   const result = await database.raw(
     `SELECT COUNT(*)::integer AS count FROM analitik_usaha_current a WHERE a.generation_id=? AND ${filters.whereSql}`,
@@ -181,9 +198,14 @@ async function updateRequest(database, id, request, status) {
   );
 }
 
-async function submitExport(database, request, owner) {
+async function submitExport(database, request, owner, operator) {
   const type = request?.exportType || request?.type;
   if (!TYPES.has(type)) throw new AnalyticsApiError(400, "EXPORT_TYPE_INVALID");
+  // Snapshot scope pemanggil ikut disimpan; unduhan membandingkannya lagi (B36).
+  const permissionScope = request?.permissionScope;
+  // Judul dokumen dari pemanggil; worker merender PDF/PNG dengan judul ini (B26).
+  const title = typeof request?.title === "string" ? request.title.trim().slice(0, 120) : "";
+  const judul = title ? { title } : {};
   const config = assertSafeAnalysisConfig({
     ...request?.config,
     schemaVersion: request?.config?.schemaVersion || SCHEMA_VERSION,
@@ -192,9 +214,15 @@ async function submitExport(database, request, owner) {
   if (!ownerId) throw new AnalyticsApiError(401, "UNAUTHENTICATED");
   if (type === "profile_pdf" && !UUID.test(String(request?.profileId || "")))
     throw new AnalyticsApiError(400, "PROFILE_ID_INVALID");
+  if (AGGREGATE_RENDER_TYPES.has(type)) {
+    // Worker mengompilasi ulang config klien ini dengan operator dari snapshot
+    // `permissionScope` (K14); validasi di sini memakai compiler yang sama supaya
+    // config yang tak bisa dikompilasi gagal 4xx sebelum job dibuat (B02).
+    compileQuery(config, await registry(database), operator);
+  }
 
   if (type === "detail_csv") {
-    const estimate = await estimateDetail(database, config);
+    const estimate = await estimateDetail(database, config, operator);
     if (estimate.count > QUERY_BUDGET.detailExportRows)
       throw new AnalyticsApiError(422, "EXPORT_LIMIT");
     const jobId = await insertJob(database, {
@@ -202,8 +230,11 @@ async function submitExport(database, request, owner) {
       type,
       request: {
         config,
-        estimatedRows: estimate.count,
+        // `rowEstimate`, bukan `estimatedRows`: trigger `analitik_job` menolak kunci ber-`rows`.
+        rowEstimate: estimate.count,
         generationId: estimate.generationId,
+        permissionScope,
+        ...judul,
       },
     });
     return {
@@ -224,12 +255,12 @@ async function submitExport(database, request, owner) {
   if (type === "aggregate_csv") {
     let jobId;
     try {
-      const result = await queryAnalytics(database, config);
+      const result = await queryAnalytics(database, config, { operator });
       jobId = await insertJob(database, {
         owner: ownerId,
         type,
         status: "processing",
-        request: { config },
+        request: { config, permissionScope, ...judul },
       });
       const expiresAt = Date.now() + 24 * 60 * 60 * 1000;
       const key = artifactKey(ownerId, jobId, type);
@@ -239,6 +270,8 @@ async function submitExport(database, request, owner) {
         jobId,
         {
           config,
+          permissionScope,
+          ...judul,
           artifact: {
             key,
             contentType: contentType(type),
@@ -267,7 +300,7 @@ async function submitExport(database, request, owner) {
         await updateRequest(
           database,
           jobId,
-          { config, error: "Ekspor gagal" },
+          { config, permissionScope, ...judul, error: "Ekspor gagal" },
           "dead",
         ).catch(() => {});
       throw error instanceof AnalyticsApiError
@@ -276,7 +309,7 @@ async function submitExport(database, request, owner) {
     }
   }
 
-  const requestPayload = { config };
+  const requestPayload = { config, permissionScope, ...judul };
   if (type === "profile_pdf")
     requestPayload.profileId = String(request.profileId);
   const jobId = await insertJob(database, {
@@ -341,6 +374,7 @@ async function downloadExport(
   query,
   res,
   isAdmin = false,
+  permissionScope,
 ) {
   const result = await database.raw(
     `SELECT id,owner,status,export_type,request FROM analitik_job WHERE id=? ${isAdmin ? "" : "AND owner=?"} AND job_type='export'`,
@@ -349,6 +383,10 @@ async function downloadExport(
   const row = (result.rows ?? result[0] ?? [])[0];
   if (!row) throw new AnalyticsApiError(404, "EXPORT_NOT_FOUND");
   const request = parseRequest(row.request);
+  // Fail-closed: scope disimpan saat submit, dan unduhan menolak bila peran/wilayah pemanggil
+  // sudah berbeda (B36) — termasuk job lama yang belum punya snapshot.
+  if (request.permissionScope !== permissionScope)
+    throw new AnalyticsApiError(403, "DOWNLOAD_FORBIDDEN");
   const artifact = request.artifact;
   if (
     row.status !== "completed" ||

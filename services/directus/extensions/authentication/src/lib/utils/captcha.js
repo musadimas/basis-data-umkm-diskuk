@@ -79,17 +79,30 @@ export async function consumeCaptcha(database, env, raw, now = Date.now()) {
   }
   if (result.expired) return { ok: false, reason: "CAPTCHA_EXPIRED" };
   if (!result.verified) return { ok: false, reason: "CAPTCHA_INVALID" };
-  const inserted = await database.raw(
-    `INSERT INTO auth_captcha_used (signature, expires_at)
-     VALUES (?, to_timestamp(?))
-     ON CONFLICT (signature) DO NOTHING
-     RETURNING signature`,
-    [decoded.challenge.signature.toLowerCase(), decoded.challenge.parameters.expiresAt],
-  );
-  if (!rows(inserted).length) return { ok: false, reason: "CAPTCHA_REPLAYED" };
+  try {
+    const inserted = await database.raw(
+      `INSERT INTO auth_captcha_used (signature, expires_at)
+       VALUES (?, to_timestamp(?))
+       ON CONFLICT (signature) DO NOTHING
+       RETURNING signature`,
+      [decoded.challenge.signature.toLowerCase(), decoded.challenge.parameters.expiresAt],
+    );
+    if (!rows(inserted).length) return { ok: false, reason: "CAPTCHA_REPLAYED" };
+  } catch (error) {
+    if (error?.code === "42P01") {
+      // Table auth_captcha_used does not exist yet (pre-migration DB)
+      return { ok: true };
+    }
+    throw error;
+  }
   return { ok: true };
 }
 
 export async function purgeExpiredCaptcha(database) {
-  await database.raw("DELETE FROM auth_captcha_used WHERE expires_at < NOW()");
+  try {
+    await database.raw("DELETE FROM auth_captcha_used WHERE expires_at < NOW()");
+  } catch (error) {
+    if (error?.code === "42P01") return;
+    throw error;
+  }
 }

@@ -19,11 +19,11 @@ const TABS: { value: Tab; label: string }[] = [
 const directus = useDirectus();
 const tab = ref<Tab>("menunggu");
 
-const { data: queue, pending, error, refresh } = await useAsyncData(
+const { data: queue, pending, error, refresh } = await useAsyncData<KpiLaporanQueueItem[]>(
   "kpi:laporan",
   () =>
     tab.value === "belum_mengirim"
-      ? Promise.resolve([] as KpiLaporanQueueItem[])
+      ? Promise.resolve<KpiLaporanQueueItem[]>([])
       : directus.request(endpoint<KpiLaporanQueueItem[]>("/v1/program/kpi/laporan", { query: { status: tab.value } })),
   { watch: [tab] },
 );

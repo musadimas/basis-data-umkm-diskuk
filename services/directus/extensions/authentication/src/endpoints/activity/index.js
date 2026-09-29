@@ -1,7 +1,9 @@
-import { routeGuard } from "../../lib/utils/http.js";
+import cakupan from "../../../../../analytics-shared/cakupan.cjs";
 import { list } from "./service.js";
 
-// GET /v1/auth/activity  (authenticated) the current user's session activity log
+const { terjaga, ALL_ROLES } = cakupan;
+
+// GET /v1/auth/activity  (authenticated, semua peran) the current user's session activity log
 export default (router, context) => {
-  router.get("/", (req, res, next) => routeGuard(req, next) && list(context)(req, res));
+  router.get("/", terjaga({ peran: ALL_ROLES }, (ctx) => (req, res) => list(ctx)(req, res))(context));
 };

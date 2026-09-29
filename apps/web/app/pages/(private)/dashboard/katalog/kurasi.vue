@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { KATEGORI_PRODUK, KURASI_STATUS, assetUrl } from "~/constants";
-import { endpoint } from "~/lib/directus";
-import { requestErrorCode } from "~/lib/request-error";
+import { KATEGORI_PRODUK, KURASI_STATUS } from "~/constants";
+import { KURASI_ANTREAN, KatalogError, katalogApi, katalogFotoUrl, kurasiLabel, type KurasiKeputusan } from "~/lib/katalog";
 import type { KurasiStatus, Produk, ProdukLoi } from "~/types/program";
 
 definePageMeta({ layout: "dashboard" });
@@ -9,25 +8,22 @@ useSeoMeta({ title: "Kurasi Katalog – Dashboard UMKM" });
 
 type Tab = KurasiStatus | "loi";
 const TABS: { value: Tab; label: string }[] = [
-  { value: "menunggu", label: "Menunggu kurasi" },
-  { value: "tayang", label: "Tayang" },
-  { value: "rekomendasi_marketplace", label: "Rekomendasi" },
-  { value: "ditolak", label: "Ditolak" },
+  ...KURASI_ANTREAN.map((value) => ({ value, label: kurasiLabel(value) })),
   { value: "loi", label: "Letter of Intent" },
 ];
-type Keputusan = "tayang" | "rekomendasi_marketplace" | "ditolak";
+type Keputusan = KurasiKeputusan;
 
-const directus = useDirectus();
+const api = katalogApi(useDirectus());
 const tab = ref<Tab>("menunggu");
 
-const { data: produk, pending, error, refresh } = await useAsyncData(
+const { data: produk, pending, error, refresh } = await useAsyncData<Produk[]>(
   "katalog:kurasi",
-  () => (tab.value === "loi" ? Promise.resolve([] as Produk[]) : directus.request(endpoint<Produk[]>("/v1/program/katalog/kurasi", { query: { status: tab.value } }))),
+  () => (tab.value === "loi" ? Promise.resolve<Produk[]>([]) : api.antreanKurasi(tab.value)),
   { watch: [tab] },
 );
 const { data: loi } = await useAsyncData(
   "katalog:loi",
-  () => (tab.value === "loi" ? directus.request(endpoint<ProdukLoi[]>("/v1/program/katalog/loi")) : Promise.resolve(null)),
+  () => (tab.value === "loi" ? api.daftarLoi() : Promise.resolve(null)),
   { watch: [tab] },
 );
 
@@ -46,23 +42,14 @@ function open(item: Produk) {
 async function decide(keputusan: Keputusan) {
   if (!preview.value) return;
   dialogError.value = "";
-  if (keputusan === "ditolak" && !catatan.value.trim()) {
-    dialogError.value = "Tulis alasan penolakan untuk pelaku usaha.";
-    return;
-  }
   deciding.value = keputusan;
   try {
-    const decided = await directus.request(
-      endpoint<Produk, { keputusan: Keputusan; catatan: string | null }>(`/v1/program/katalog/produk/${preview.value.id}/kurasi`, {
-        method: "POST",
-        body: { keputusan, catatan: catatan.value.trim() || null },
-      }),
-    );
-    message.value = { tone: "success", text: `${decided.nama}: ${KURASI_STATUS[decided.statusKurasi].label}.` };
+    const decided = await api.putuskanKurasi(preview.value.id, keputusan, catatan.value);
+    message.value = { tone: "success", text: `${decided.nama}: ${kurasiLabel(decided.statusKurasi)}.` };
     preview.value = null;
     await refresh();
   } catch (cause) {
-    dialogError.value = requestErrorCode(cause) === "CATATAN_WAJIB" ? "Tulis alasan penolakan." : "Keputusan tidak dapat disimpan. Coba lagi.";
+    dialogError.value = cause instanceof KatalogError ? cause.pesan : "Keputusan tidak dapat disimpan. Coba lagi.";
   } finally {
     deciding.value = null;
   }
@@ -111,7 +98,7 @@ const date = (value: string) => new Intl.DateTimeFormat("id-ID", { dateStyle: "m
         <div v-else-if="!produk?.length" class="p-6 text-sm text-muted-foreground">Tidak ada produk dengan status ini.</div>
         <ul v-else class="divide-y">
           <li v-for="item in produk" :key="item.id" class="flex flex-wrap items-center gap-4 px-4 py-3 text-sm">
-            <img v-if="item.foto[0]" :src="assetUrl(item.foto[0], 96)" alt="" class="size-12 rounded object-cover">
+            <img v-if="item.foto[0]" :src="katalogFotoUrl(item.foto[0])" alt="" class="size-12 rounded object-cover">
             <div class="min-w-0 flex-1">
               <p class="font-medium">{{ item.nama }}</p>
               <p class="text-xs text-muted-foreground">{{ item.usahaNama }} · {{ item.usahaKota || "—" }} · diperbarui {{ date(item.dateUpdated) }}</p>
@@ -131,7 +118,7 @@ const date = (value: string) => new Intl.DateTimeFormat("id-ID", { dateStyle: "m
         </UiDialogHeader>
         <div class="grid gap-4 text-sm">
           <div class="flex gap-2 overflow-x-auto">
-            <img v-for="id in preview.foto" :key="id" :src="assetUrl(id, 240)" alt="" class="size-28 shrink-0 rounded-md object-cover">
+            <img v-for="id in preview.foto" :key="id" :src="katalogFotoUrl(id)" alt="" class="size-28 shrink-0 rounded-md object-cover">
           </div>
           <p v-if="preview.deskripsi" class="whitespace-pre-line">{{ preview.deskripsi }}</p>
           <dl class="grid grid-cols-2 gap-2 rounded-md bg-muted/40 p-3">

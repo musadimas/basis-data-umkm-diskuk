@@ -3,11 +3,17 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 const extension = require("../src/index.js");
+const cakupan = require("../../../analytics-shared/cakupan.cjs");
 
 // Seluruh pengguna operasional memakai satu UUID role Directus; peran sebenarnya ada di
 // kolom directus_users.app_role dan ditegakkan resolveOperator, bukan routeGuard.
 const APPLICATION_ROLE = "7d6d493c-1a6d-4c59-9e74-40d42a7862eb";
 const OPERATOR_USER = "22222222-2222-4222-8222-000000000001";
+
+// Baris `muatPemanggil` (Cakupan): peran dari directus_users.app_role, tanpa join.
+function pemanggilRow(overrides = {}) {
+  return { id: OPERATOR_USER, app_role: "kabkota", usaha: null, kota_scope: 1, ...overrides };
+}
 
 function operatorRow(overrides = {}) {
   return {
@@ -88,6 +94,28 @@ function mount(dbRaw) {
   return r;
 }
 
+const USAHA = "33333333-3333-4333-8333-000000000001";
+
+const sesi = { accountability: { user: OPERATOR_USER, role: APPLICATION_ROLE }, query: {}, body: {}, headers: {} };
+
+test("route operasional terdaftar lewat adapter Cakupan; aktivitas dan resolve-nib dihapus (K6, 2.5)", () => {
+  const r = mount();
+  assert.deepEqual(Object.keys(r.routes).sort(), [
+    "GET /aspek-perkembangan",
+    "GET /me",
+    "GET /usaha/:id",
+    "PATCH /usaha/:id",
+    "POST /usaha/:id/verifikasi",
+  ]);
+  for (const [nama, handler] of Object.entries(r.routes)) {
+    assert.equal(cakupan.tandaCakupan(handler)?.jenis, "terjaga", `${nama} harus bertanda terjaga()`);
+  }
+  assert.deepEqual(cakupan.tandaCakupan(r.routes["GET /me"]).peran, cakupan.ALL_ROLES);
+  for (const nama of ["GET /aspek-perkembangan", "GET /usaha/:id", "PATCH /usaha/:id", "POST /usaha/:id/verifikasi"]) {
+    assert.deepEqual(cakupan.tandaCakupan(r.routes[nama]).peran, ["provinsi", "kabkota"], nama);
+  }
+});
+
 test("semua route operasional menolak anonim dan role asing sebelum DB", async () => {
   let calls = 0;
   const r = mount(async () => {
@@ -96,8 +124,6 @@ test("semua route operasional menolak anonim dan role asing sebelum DB", async (
   });
   const paths = [
     ["GET", "/me"],
-    ["GET", "/aktivitas"],
-    ["POST", "/internal/resolve-nib"],
     ["GET", "/usaha/:id"],
     ["PATCH", "/usaha/:id"],
     ["POST", "/usaha/:id/verifikasi"],
@@ -121,56 +147,67 @@ test("/me melayani peran self-scoped tanpa menuntut penugasan", async () => {
     if (sql.includes("FROM directus_users u")) {
       return { rows: [operatorRow({ app_role: "umkm", kota: null, kota_nama: null, usaha: null, usaha_nama: null })] };
     }
+    if (sql.includes("FROM directus_users WHERE id")) return { rows: [pemanggilRow({ app_role: "umkm", kota_scope: null })] };
     return { rows: [] };
   });
-  const out = await run(r.routes["GET /me"], {
-    accountability: { user: OPERATOR_USER, role: APPLICATION_ROLE },
-    query: {},
-    body: {},
-    headers: {},
-    params: {},
-  });
+  const out = await run(r.routes["GET /me"], { ...sesi, params: {} });
   assert.equal(out.res.statusCode, 200, "umkm harus bisa membaca identitasnya sendiri");
   assert.equal(out.res.body.data.role, "umkm");
   assert.equal(out.res.body.data.kota, null);
   assert.equal(out.res.body.data.usaha, null);
 });
 
-test("pendamping ke endpoint data lapangan → 403 dari gerbang app_role tanpa menyentuh domain", async () => {
-  const queries = [];
+test("/me menolak akun tanpa app_role (403) tanpa default peran", async () => {
   const r = mount(async (sql) => {
-    queries.push(sql);
-    if (sql.includes("FROM directus_users u")) {
-      return { rows: [operatorRow({ app_role: "pendamping" })] };
-    }
-    throw new Error("domain tidak boleh tersentuh");
+    if (sql.includes("FROM directus_users WHERE id")) return { rows: [pemanggilRow({ app_role: null })] };
+    throw new Error("tidak boleh menyentuh domain");
   });
-  const out = await run(r.routes["GET /usaha/:id"], {
-    accountability: { user: OPERATOR_USER, role: APPLICATION_ROLE },
-    query: {},
-    body: {},
-    headers: {},
-    params: { id: "33333333-3333-4333-8333-000000000001" },
-  });
-  assert.equal(out.res.statusCode, 403);
-  assert.equal(out.res.body.errors[0].extensions.code, "FORBIDDEN");
-  assert.equal(queries.length, 1, "hanya query resolusi operator yang dijalankan");
+  const out = await run(r.routes["GET /me"], { ...sesi, params: {} });
+  assert.equal(out.error?.statusCode, 403);
 });
 
-test("kabkota lolos gerbang route data (roles default DATA_ROLES)", async () => {
+test("pendamping ke endpoint data lapangan → 403 dari gerbang peran tanpa menyentuh domain", async () => {
   const queries = [];
   const r = mount(async (sql) => {
     queries.push(sql);
-    if (sql.includes("FROM directus_users u")) return { rows: [operatorRow()] };
-    throw new Error("berhenti tepat setelah gerbang");
+    if (sql.includes("FROM directus_users WHERE id")) return { rows: [pemanggilRow({ app_role: "pendamping", kota_scope: null })] };
+    throw new Error("domain tidak boleh tersentuh");
   });
-  const out = await run(r.routes["GET /usaha/:id"], {
-    accountability: { user: OPERATOR_USER, role: APPLICATION_ROLE },
-    query: {},
-    body: {},
-    headers: {},
-    params: { id: "33333333-3333-4333-8333-000000000001" },
+  const out = await run(r.routes["GET /usaha/:id"], { ...sesi, params: { id: USAHA } });
+  assert.equal(out.error?.statusCode, 403);
+  assert.equal(out.error?.code, "FORBIDDEN");
+  assert.equal(queries.length, 1, "hanya query pemanggil yang dijalankan");
+});
+
+test("umkm ke endpoint data lapangan → 403", async () => {
+  const r = mount(async (sql) => {
+    if (sql.includes("FROM directus_users WHERE id")) return { rows: [pemanggilRow({ app_role: "umkm", usaha: USAHA, kota_scope: null })] };
+    throw new Error("domain tidak boleh tersentuh");
   });
-  assert.notEqual(out.res.statusCode, 403, "kabkota bukan peran yang ditolak route data");
-  assert.ok(queries.length > 1, "domain query dijalankan setelah gerbang roles lolos");
+  const out = await run(r.routes["PATCH /usaha/:id"], { ...sesi, params: { id: USAHA } });
+  assert.equal(out.error?.statusCode, 403);
+});
+
+test("kabkota lolos gerbang; usaha di kota lain → 404 seragam (K1)", async () => {
+  const queries = [];
+  const r = mount(async (sql) => {
+    queries.push(sql);
+    if (sql.includes("FROM directus_users WHERE id")) return { rows: [pemanggilRow()] };
+    if (sql.includes("SELECT kota_id FROM usaha_tabular")) return { rows: [{ kota_id: 99 }] };
+    throw new Error("berhenti tepat setelah cakupan");
+  });
+  const out = await run(r.routes["GET /usaha/:id"], { ...sesi, params: { id: USAHA } });
+  assert.equal(out.res.statusCode, 404);
+  assert.equal(out.res.body.errors[0].extensions.code, "NOT_FOUND");
+  assert.ok(queries.length > 1, "cakupan usaha dievaluasi setelah gerbang peran lolos");
+});
+
+test("kabkota tanpa penugasan kota → 403 KOTA_NOT_ASSIGNED", async () => {
+  const r = mount(async (sql) => {
+    if (sql.includes("FROM directus_users WHERE id")) return { rows: [pemanggilRow({ kota_scope: null })] };
+    throw new Error("domain tidak boleh tersentuh");
+  });
+  const out = await run(r.routes["GET /usaha/:id"], { ...sesi, params: { id: USAHA } });
+  assert.equal(out.res.statusCode, 403);
+  assert.equal(out.res.body.errors[0].extensions.code, "KOTA_NOT_ASSIGNED");
 });

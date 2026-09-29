@@ -1,4 +1,3 @@
-import { routeGuard } from "../../lib/utils/http.js";
 import {
   createBeritaAcara,
   createPengajuan,
@@ -9,8 +8,11 @@ import {
   scorePengajuan,
   updatePengajuan,
 } from "./service.js";
+import cakupan from "../../../../../analytics-shared/cakupan.cjs";
 
-// Talent Scouting (Brief Fitur Modul 4), all authenticated:
+const { terjaga } = cakupan;
+
+// Talent Scouting (Brief Fitur Modul 4):
 //   GET   /v1/program/talent/usaha/:usahaId           SIDT data (masked NIK), certificates, latest submission
 //   GET   /v1/program/talent/pengajuan?status=         submissions for the curation panel
 //   POST  /v1/program/talent/pengajuan                 open a submission
@@ -19,14 +21,18 @@ import {
 //   POST  /v1/program/talent/pengajuan/:id/tolak       reject
 //   GET   /v1/program/talent/berita-acara              issued Berita Acara
 //   POST  /v1/program/talent/berita-acara              approve scored submissions into the talent pool
+// Kandidat 01: gate peran di adapter (kelola = provinsi/kabkota, BA = provinsi
+// saja); scope usaha di service via pastikanUsaha (404 seragam, K1).
+const KELOLA = { peran: ["provinsi", "kabkota"] };
+const TERBIT_BA = { peran: ["provinsi"] };
+
 export default (router, context) => {
-  const guarded = (handler) => (req, res, next) => routeGuard(req, next) && handler(context)(req, res);
-  router.get("/usaha/:usahaId", guarded(readUsaha));
-  router.get("/pengajuan", guarded(listPengajuan));
-  router.post("/pengajuan", guarded(createPengajuan));
-  router.patch("/pengajuan/:id", guarded(updatePengajuan));
-  router.post("/pengajuan/:id/hitung-skor", guarded(scorePengajuan));
-  router.post("/pengajuan/:id/tolak", guarded(rejectPengajuan));
-  router.get("/berita-acara", guarded(listBeritaAcara));
-  router.post("/berita-acara", guarded(createBeritaAcara));
+  router.get("/usaha/:usahaId", terjaga(KELOLA, readUsaha)(context));
+  router.get("/pengajuan", terjaga(KELOLA, listPengajuan)(context));
+  router.post("/pengajuan", terjaga(KELOLA, createPengajuan)(context));
+  router.patch("/pengajuan/:id", terjaga(KELOLA, updatePengajuan)(context));
+  router.post("/pengajuan/:id/hitung-skor", terjaga(KELOLA, scorePengajuan)(context));
+  router.post("/pengajuan/:id/tolak", terjaga(KELOLA, rejectPengajuan)(context));
+  router.get("/berita-acara", terjaga(KELOLA, listBeritaAcara)(context));
+  router.post("/berita-acara", terjaga(TERBIT_BA, createBeritaAcara)(context));
 };

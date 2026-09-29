@@ -1,8 +1,9 @@
 import { signDownload, verifyDownload } from "../src/endpoints/analysis/exports-service.js";
 import { __resetBudgetForTests } from "../src/endpoints/analysis/query-service.js";
+import { __resetAggregateCacheForTests } from "../src/endpoints/analysis/aggregate-cache.js";
 import assert from "node:assert/strict";
 import test from "node:test";
-import registerRoutes, * as extension from "../src/endpoints/analysis/index.js";
+import registerRoutes from "../src/endpoints/analysis/index.js";
 
 const ROLE = "7d6d493c-1a6d-4c59-9e74-40d42a7862eb";
 /** Akun provinsi: id UUID karena resolver membaca baris directus_users-nya. */
@@ -58,13 +59,13 @@ test("all routes reject anonymous and wrong role before DB", async () => {
     },
     logger: { error() {} },
   });
+  // GET /metadata, /templates, /status kini publik (DAFTAR_PUBLIK): tanpa sesi
+  // tetap boleh baca, jadi tidak ikut daftar terjaga di sini.
   for (const [method, path] of [
-    ["GET", "/metadata"],
     ["GET", "/metadata/options"],
-    ["GET", "/templates"],
-    ["GET", "/status"],
     ["POST", "/query"],
     ["POST", "/records"],
+    ["GET", "/umkm/:id"],
     ["POST", "/exports"],
     ["GET", "/exports/:jobId"],
     ["GET", "/exports/:jobId/download"],
@@ -124,6 +125,7 @@ test("profile validates UUID and returns only masked semantic sections", async (
               app_role: "provinsi",
               kota: null,
               kota_nama: null,
+              kota_scope: null,
               usaha: null,
               usaha_nama: null,
               usaha_nib: null,
@@ -153,7 +155,7 @@ test("profile validates UUID and returns only masked semantic sections", async (
     params: { id: "bad" },
   });
   assert.equal(out.res.statusCode, 404);
-  assert.equal(calls, 0);
+  assert.equal(calls, 1, "hanya lookup pemanggil milik adapter yang boleh jalan");
   out = await run(r.routes["GET /umkm/:id"], {
     accountability: { user: PROVINSI_USER, role: ROLE },
     params: { id: "11111111-1111-4111-8111-111111111111" },
@@ -219,7 +221,7 @@ function kabkotaDatabase(calls, { kota = 7, profileRow: row = null } = {}) {
   return {
     raw: async (sql, params = []) => {
       calls.push({ sql, params });
-      if (sql.includes("FROM directus_users u"))
+      if (sql.includes("FROM directus_users"))
         return {
           rows: [
             {
@@ -227,6 +229,7 @@ function kabkotaDatabase(calls, { kota = 7, profileRow: row = null } = {}) {
               app_role: "kabkota",
               kota,
               kota_nama: kota == null ? null : "KABUPATEN SUBANG",
+              kota_scope: kota,
               usaha: null,
               usaha_nama: null,
               usaha_nib: null,
@@ -268,6 +271,12 @@ function kabkotaDatabase(calls, { kota = 7, profileRow: row = null } = {}) {
               lifecycle_status: "active",
               semantic_role: "dimension",
             },
+            {
+              id: "sector",
+              semantic_id: "sektor_kbli",
+              lifecycle_status: "active",
+              semantic_role: "dimension",
+            },
           ],
         };
       if (sql.includes("FROM analitik_usaha_current") && row)
@@ -287,6 +296,8 @@ function kabkotaDatabase(calls, { kota = 7, profileRow: row = null } = {}) {
             },
           ],
         };
+      if (sql.includes("INSERT INTO analitik_job"))
+        return { rows: [{ id: "job-export-1" }] };
       throw new Error(`Unexpected SQL: ${sql}`);
     },
   };
@@ -407,4 +418,256 @@ test("pendamping is rejected at the guard before any database access", async () 
 
   assert.equal(out.error.statusCode, 403);
   assert.equal(calls, 0);
+});
+
+test("kabkota export with more than the budgeted client filters is rejected before a job is queued", async () => {
+  const calls = [];
+  const r = router();
+  registerRoutes(r, { database: kabkotaDatabase(calls), logger: { error() {} } });
+  const nine = Array.from({ length: 9 }, (_, index) => ({
+    field: "sektor_kbli",
+    operator: "eq",
+    value: `sector-${index}`,
+  }));
+
+  const out = await run(r.routes["POST /exports"], {
+    accountability: { user: KABKOTA_USER, role: ROLE },
+    query: {},
+    body: {
+      exportType: "aggregate_pdf",
+      config: {
+        schemaVersion: 1,
+        metric: "jumlah_umkm",
+        groupBy: "kota_nama",
+        filters: nine,
+      },
+    },
+  });
+
+  assert.equal(out.res.statusCode, 422);
+  assert.equal(out.res.body.errors[0].extensions.code, "QUERY_COMPLEXITY");
+  assert.equal(
+    calls.some(({ sql }) => sql.includes("INSERT INTO analitik_job")),
+    false,
+  );
+});
+
+test("kabkota export at the budget queues the client config and the scope snapshot (K14)", async () => {
+  const calls = [];
+  const r = router();
+  registerRoutes(r, { database: kabkotaDatabase(calls), logger: { error() {} } });
+  const eight = Array.from({ length: 8 }, (_, index) => ({
+    field: "sektor_kbli",
+    operator: "eq",
+    value: `sector-${index}`,
+  }));
+
+  const out = await run(r.routes["POST /exports"], {
+    accountability: { user: KABKOTA_USER, role: ROLE },
+    query: {},
+    body: {
+      exportType: "aggregate_pdf",
+      config: {
+        schemaVersion: 1,
+        metric: "jumlah_umkm",
+        groupBy: "kota_nama",
+        filters: eight,
+      },
+    },
+  });
+
+  assert.equal(out.res.statusCode, 202);
+  const insert = calls.find(({ sql }) =>
+    sql.includes("INSERT INTO analitik_job"),
+  );
+  assert.ok(insert, "a job must be queued when the client config fits the budget");
+  const stored = JSON.parse(insert.params[3]);
+  // Config klien disimpan apa adanya; worker menambah kota paksa dari snapshot scope
+  // dengan compiler yang sama, sehingga tidak ada filter kota di config tersimpan.
+  assert.deepEqual(stored.config.filters, eight);
+  assert.equal(stored.permissionScope, "kabkota:7");
+});
+
+test("the Lainnya group of a truncated scan carries every remaining group (B29)", async () => {
+  __resetBudgetForTests();
+  __resetAggregateCacheForTests();
+  const calls = [];
+  // Lima grup, tetapi scan hanya mengirim limit+1 baris (di sini limit=2): tiga baris pertama.
+  const groups = [
+    { group_key: "a", group_label: "KAB. A", value: 5, eligible: 5, matched: 15, missing: 0, needs_verification: 0, metric_total: 15 },
+    { group_key: "b", group_label: "KAB. B", value: 4, eligible: 4, matched: 15, missing: 0, needs_verification: 0, metric_total: 15 },
+    { group_key: "c", group_label: "KAB. C", value: 3, eligible: 3, matched: 15, missing: 0, needs_verification: 0, metric_total: 15 },
+  ];
+  const r = router();
+  registerRoutes(r, {
+    database: {
+      raw: async (sql) => {
+        calls.push({ sql });
+        if (sql.includes("directus_users"))
+          return { rows: [{ id: PROVINSI_USER, app_role: "provinsi", kota: null, kota_nama: null, kota_scope: null, usaha: null, usaha_nama: null, usaha_nib: null }] };
+        if (sql.includes("FROM analitik_active_generation"))
+          return { rows: [{ id: "generation-1", status: "active", data_as_of: "2026-09-26T00:00:00Z", reconciled_at: "2026-09-26T01:00:00Z", row_count: 15, active_row_count: 15, archived_row_count: 0 }] };
+        if (sql.includes("FROM analitik_field"))
+          return {
+            rows: [
+              { id: "metric", semantic_id: "jumlah_umkm", lifecycle_status: "active", semantic_role: "metric" },
+              { id: "city", semantic_id: "kota_nama", lifecycle_status: "active", semantic_role: "dimension" },
+              { id: "kota", semantic_id: "kota_id", lifecycle_status: "active", semantic_role: "dimension" },
+              { id: "sector", semantic_id: "sektor_kbli", lifecycle_status: "active", semantic_role: "dimension" },
+            ],
+          };
+        if (sql.includes("group_key")) return { rows: groups };
+        throw new Error(`Unexpected SQL: ${sql}`);
+      },
+    },
+    logger: { error() {} },
+  });
+
+  const out = await run(r.routes["POST /query"], {
+    accountability: { user: PROVINSI_USER, role: ROLE },
+    query: {},
+    body: {
+      schemaVersion: 1,
+      metric: "jumlah_umkm",
+      groupBy: "kota_nama",
+      limit: 2,
+      filters: [{ field: "sektor_kbli", operator: "eq", value: "A" }],
+    },
+  });
+
+  assert.equal(out.error, undefined);
+  assert.equal(out.res.statusCode, 200, JSON.stringify(out.res.body));
+  assert.deepEqual(
+    out.res.body.data.groups.map((group) => [group.key, group.value]),
+    [["a", 5], ["b", 4], ["others", 6]],
+  );
+  assert.equal(out.res.body.data.groups.at(-1).share, 40);
+  assert.equal(out.res.body.data.total, 15);
+  assert.equal(out.res.body.data.conservedTotal, true);
+});
+
+test("an unsafe export config is a 400, not a 500 (B30)", async () => {
+  const calls = [];
+  const r = router();
+  registerRoutes(r, {
+    database: {
+      raw: async (sql) => {
+        calls.push({ sql });
+        return {
+          rows: [
+            {
+              id: PROVINSI_USER,
+              app_role: "provinsi",
+              kota: null,
+              kota_nama: null,
+              kota_scope: null,
+              usaha: null,
+              usaha_nama: null,
+              usaha_nib: null,
+            },
+          ],
+        };
+      },
+    },
+    logger: { error() {} },
+  });
+
+  const out = await run(r.routes["POST /exports"], {
+    accountability: { user: PROVINSI_USER, role: ROLE },
+    query: {},
+    body: {
+      exportType: "aggregate_pdf",
+      config: {
+        schemaVersion: 1,
+        metric: "jumlah_umkm",
+        groupBy: "kota_nama",
+        // NIK mentah tidak boleh masuk config ekspor; assertSafeAnalysisConfig menolaknya.
+        filters: [{ field: "nik", operator: "eq", value: "3273012345678901" }],
+      },
+    },
+  });
+
+  assert.equal(out.res.statusCode, 400, JSON.stringify(out.res.body ?? out.error));
+  assert.equal(out.res.body.errors[0].extensions.code, "INVALID_ANALYSIS_CONFIG");
+  assert.equal(
+    calls.some(({ sql }) => sql.includes("INSERT INTO analitik_job")),
+    false,
+  );
+});
+
+test("GET /metadata, /templates, /status publik tanpa sesi (DAFTAR_PUBLIK)", async () => {
+  const r = router();
+  registerRoutes(r, {
+    database: {
+      raw: async (sql) => {
+        if (sql.includes("analitik_field"))
+          return {
+            rows: [
+              {
+                id: "field",
+                semantic_id: "kota_nama",
+                label: "Kota",
+                field_group: "analytics",
+                sort_order: 1,
+                semantic_role: "dimension",
+                data_type: "text",
+                lifecycle_status: "active",
+                privacy_class: "aggregate",
+                aggregation_capabilities: ["group"],
+                schema_version: 1,
+              },
+            ],
+          };
+        if (sql.includes("analitik_active_generation"))
+          return { rows: [] };
+        return { rows: [] };
+      },
+    },
+    logger: { error() {} },
+  });
+  for (const path of ["GET /metadata", "GET /templates", "GET /status"]) {
+    const out = await run(r.routes[path], { query: {}, body: {} });
+    assert.equal(out.error, undefined, path);
+    assert.ok(out.res.body, path);
+  }
+});
+
+test("kesepuluh route analysis bertanda cakupan (01)", async () => {
+  const { createRequire } = await import("node:module");
+  const require = createRequire(import.meta.url);
+  const cakupan = require("../../../analytics-shared/cakupan.cjs");
+  const tercatat = [];
+  const rec = {
+    get: (path, handler) => tercatat.push({ method: "GET", path, handler }),
+    post: (path, handler) => tercatat.push({ method: "POST", path, handler }),
+  };
+  registerRoutes(rec, {
+    database: { raw: async () => ({ rows: [] }) },
+    logger: { error() {} },
+  });
+  const kunci = (m, p) => `${m} ${p}`;
+  const peta = new Map(tercatat.map((item) => [kunci(item.method, item.path), item.handler]));
+  // 10 route: 3 publik (DAFTAR_PUBLIK) + 7 terjaga DATA provinsi/kabkota.
+  const ekspektasi = [
+    ["GET", "/metadata", "publik", []],
+    ["GET", "/metadata/options", "terjaga", ["provinsi", "kabkota"]],
+    ["GET", "/templates", "publik", []],
+    ["GET", "/status", "publik", []],
+    ["POST", "/query", "terjaga", ["provinsi", "kabkota"]],
+    ["POST", "/records", "terjaga", ["provinsi", "kabkota"]],
+    ["GET", "/umkm/:id", "terjaga", ["provinsi", "kabkota"]],
+    ["POST", "/exports", "terjaga", ["provinsi", "kabkota"]],
+    ["GET", "/exports/:jobId", "terjaga", ["provinsi", "kabkota"]],
+    ["GET", "/exports/:jobId/download", "terjaga", ["provinsi", "kabkota"]],
+  ];
+  assert.equal(tercatat.length, 10, `tercatat ${tercatat.length} route`);
+  for (const [method, path, jenis, peran] of ekspektasi) {
+    const handler = peta.get(kunci(method, path));
+    assert.ok(handler, `route ${method} ${path} terdaftar`);
+    const tanda = cakupan.tandaCakupan(handler);
+    assert.equal(tanda?.jenis, jenis, `${method} ${path}`);
+    if (jenis === "terjaga") {
+      assert.deepEqual([...tanda.peran].sort(), [...peran].sort(), `${method} ${path}`);
+    }
+  }
 });

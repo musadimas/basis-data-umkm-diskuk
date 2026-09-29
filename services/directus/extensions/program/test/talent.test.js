@@ -5,6 +5,7 @@ import { mountEndpoint } from "./helpers.js";
 
 const ID = "5b0c3a52-6c1f-4f8e-9a54-0c6f1f2d7a11";
 
+// Scope, alur pengajuan, Berita Acara, dan duplikat diuji terhadap Postgres di test/pg/talent.test.js.
 test("every talent route rejects anonymous and wrong-role callers before database access", async () => {
   const { call, routes, queries } = mountEndpoint(registerTalent);
   assert.equal(routes.length, 8);
@@ -18,67 +19,29 @@ test("every talent route rejects anonymous and wrong-role callers before databas
   assert.equal(queries.length, 0);
 });
 
-test("submission payloads are validated before any query", async () => {
-  const { call, queries } = mountEndpoint(registerTalent);
-  const cases = [
-    { usaha: "not-a-uuid" },
-    { usaha: ID, kesiapanLegalitas: { halal: "maybe" } },
-    { usaha: ID, kesiapanLegalitas: { nib: "terbit" } },
-    { usaha: ID, kapasitasProduksi: -1 },
-    { usaha: ID, literasiQris: "yes" },
-    { usaha: ID, suratKomitmen: "file.pdf" },
-    { usaha: ID, satuan: "x".repeat(33) },
+test("semua route talent bertanda terjaga dengan peran yang tepat (01)", async () => {
+  const { createRequire } = await import("node:module");
+  const require = createRequire(import.meta.url);
+  const cakupan = require("../../../analytics-shared/cakupan.cjs");
+  const { routes } = mountEndpoint(registerTalent);
+  assert.equal(routes.length, 8);
+  const peranUntuk = (method, path) => {
+    const route = routes.find((r) => r.method === method && r.path === path);
+    return cakupan.tandaCakupan(route.handler);
+  };
+  const ekspektasi = [
+    ["GET", "/usaha/:usahaId", ["kabkota", "provinsi"]],
+    ["GET", "/pengajuan", ["kabkota", "provinsi"]],
+    ["POST", "/pengajuan", ["kabkota", "provinsi"]],
+    ["PATCH", "/pengajuan/:id", ["kabkota", "provinsi"]],
+    ["POST", "/pengajuan/:id/hitung-skor", ["kabkota", "provinsi"]],
+    ["POST", "/pengajuan/:id/tolak", ["kabkota", "provinsi"]],
+    ["GET", "/berita-acara", ["kabkota", "provinsi"]],
+    ["POST", "/berita-acara", ["provinsi"]],
   ];
-  for (const body of cases) {
-    const { res } = await call("POST", "/pengajuan", { body });
-    assert.equal(res.statusCode, 400, JSON.stringify(body));
+  for (const [method, path, peran] of ekspektasi) {
+    const tanda = peranUntuk(method, path);
+    assert.equal(tanda?.jenis, "terjaga", `${method} ${path}`);
+    assert.deepEqual([...tanda.peran].sort(), peran, `${method} ${path}`);
   }
-  const { res } = await call("POST", "/pengajuan", { body: [] });
-  assert.equal(res.statusCode, 400);
-  assert.equal(queries.length, 0);
-});
-
-test("a Berita Acara needs 1–200 valid submission ids", async () => {
-  const { call, queries } = mountEndpoint(registerTalent);
-  for (const pengajuan of [undefined, [], ["x"], Array.from({ length: 201 }, () => ID)]) {
-    const { res } = await call("POST", "/berita-acara", { body: { pengajuan } });
-    assert.equal(res.statusCode, 400);
-  }
-  assert.equal(queries.length, 0);
-});
-
-test("id arrays are bound as one JSON value, never expanded by knex", async () => {
-  const other = "6b0c3a52-6c1f-4f8e-9a54-0c6f1f2d7a12";
-  const queries = [];
-  const db = {
-    raw: async (sql, bindings) => {
-      queries.push({ sql, bindings });
-      if (sql.includes("FOR UPDATE")) return { rows: [{ id: ID, usaha: ID, status: "dinilai" }, { id: other, usaha: other, status: "dinilai" }] };
-      if (sql.includes("INSERT INTO talent_berita_acara")) return { rows: [{ id: "ba", nomor: "BA-TS/2026/0001" }] };
-      return { rows: [] };
-    },
-    transaction: async (fn) => fn(db),
-  };
-  const { call } = mountEndpoint(registerTalent, { database: db });
-  const { res } = await call("POST", "/berita-acara", { body: { pengajuan: [ID, other, ID] } });
-  assert.equal(res.statusCode, 201);
-  assert.equal(res.body.data.jumlahPengajuan, 2);
-  const lock = queries.find((q) => q.sql.includes("FOR UPDATE"));
-  assert.deepEqual(lock.bindings, [JSON.stringify([ID, other])]);
-  assert.ok(queries.every((q) => !q.sql.includes("ANY(")));
-});
-
-test("a missing referenced file is a 400, not a 500", async () => {
-  const db = {
-    raw: async (sql) => {
-      if (sql.includes("FROM usaha u")) return { rows: [{ id: ID, nama: "x", nik: "3201234567890123" }] };
-      if (sql.includes("INSERT INTO talent_pengajuan")) throw Object.assign(new Error("fk"), { code: "23503" });
-      return { rows: [] };
-    },
-    transaction: async (fn) => fn(db),
-  };
-  const { call } = mountEndpoint(registerTalent, { database: db });
-  const { res } = await call("POST", "/pengajuan", { body: { usaha: ID, suratKomitmen: ID } });
-  assert.equal(res.statusCode, 400);
-  assert.equal(res.body.errors[0].extensions.code, "INVALID_REFERENCE");
 });
