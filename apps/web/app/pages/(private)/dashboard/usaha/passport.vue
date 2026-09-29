@@ -63,7 +63,6 @@ const message = ref<{ tone: "success" | "error"; text: string } | null>(null);
 
 async function terbitkan() {
   if (!usahaId.value) return;
-  if (passport.value && !window.confirm("Terbitkan ulang? Passport lama akan dicabut dan QR lama tidak berlaku lagi.")) return;
   busy.value = true;
   message.value = null;
   try {
@@ -81,7 +80,7 @@ async function terbitkan() {
 }
 
 async function cabut() {
-  if (!passport.value || !window.confirm(`Cabut Talent Passport ${passport.value.kode}?`)) return;
+  if (!passport.value) return;
   busy.value = true;
   message.value = null;
   try {
@@ -93,6 +92,16 @@ async function cabut() {
   } finally {
     busy.value = false;
   }
+}
+
+// Terbitkan ulang & cabut melewati dialog konfirmasi karena efeknya pada QR lama (P4).
+const konfirmasi = ref<"terbitkan" | "cabut" | null>(null);
+async function jalankanKonfirmasi() {
+  const jenis = konfirmasi.value;
+  if (!jenis) return;
+  konfirmasi.value = null;
+  if (jenis === "terbitkan") await terbitkan();
+  else await cabut();
 }
 
 function pilih(id: string) {
@@ -272,11 +281,28 @@ const tanggal = (value: string) => new Intl.DateTimeFormat("id-ID", { dateStyle:
             Unduh Katalog Ekspor Resmi (PDF)
           </UiButton>
           <template v-if="data.bisaMenerbitkan">
-            <UiButton variant="outline" :disabled="busy" @click="terbitkan">Terbitkan ulang</UiButton>
-            <UiButton variant="destructive" :disabled="busy" @click="cabut">Cabut passport</UiButton>
+            <UiButton variant="outline" :disabled="busy" @click="konfirmasi = 'terbitkan'">Terbitkan ulang</UiButton>
+            <UiButton variant="destructive" :disabled="busy" @click="konfirmasi = 'cabut'">Cabut passport</UiButton>
           </template>
         </div>
       </template>
     </template>
+
+    <UiDialog :open="Boolean(konfirmasi)" @update:open="(value) => !value && (konfirmasi = null)">
+      <UiDialogContent class="max-w-md">
+        <UiDialogHeader>
+          <UiDialogTitle>{{ konfirmasi === "cabut" ? "Cabut Talent Passport?" : "Terbitkan ulang Talent Passport?" }}</UiDialogTitle>
+          <UiDialogDescription>
+            {{ konfirmasi === "cabut"
+              ? "Passport tidak dapat diverifikasi lagi dan QR-nya menjadi tidak berlaku."
+              : "Passport lama akan dicabut dan QR lama tidak berlaku lagi." }}
+          </UiDialogDescription>
+        </UiDialogHeader>
+        <UiDialogFooter class="gap-2">
+          <UiButton variant="outline" @click="konfirmasi = null">Batal</UiButton>
+          <UiButton :variant="konfirmasi === 'cabut' ? 'destructive' : 'default'" @click="jalankanKonfirmasi">{{ konfirmasi === "cabut" ? "Ya, cabut" : "Ya, terbitkan ulang" }}</UiButton>
+        </UiDialogFooter>
+      </UiDialogContent>
+    </UiDialog>
   </div>
 </template>

@@ -14,11 +14,13 @@ const emit = defineEmits<{
 
 const editing = ref<string | null>(null);
 const name = ref("");
+const removing = ref<string | null>(null);
 
 watch(
   () => props.modelValue,
   (open) => {
     if (!open) editing.value = null;
+    removing.value = null;
   },
 );
 
@@ -92,11 +94,19 @@ function commit(id: string) {
               <button
                 type="button"
                 class="text-xs underline"
-                @click="emit('remove', item.id)"
+                @click="removing = item.id"
               >
                 Hapus
               </button>
             </span>
+          </template>
+          <template v-if="removing === item.id">
+            <p class="w-full text-xs" role="alert">
+              Hapus analisis tersimpan ini?
+              <button type="button" class="font-semibold text-destructive underline" @click="emit('remove', item.id); removing = null">Ya, hapus</button>
+              ·
+              <button type="button" class="underline" @click="removing = null">Batal</button>
+            </p>
           </template>
         </li>
       </ul>

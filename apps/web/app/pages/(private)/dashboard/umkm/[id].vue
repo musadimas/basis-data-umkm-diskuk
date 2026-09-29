@@ -64,13 +64,20 @@ function restoreReturnContext() {
   }
 }
 onMounted(restoreReturnContext);
-async function archive() {
-  if (import.meta.client && window.confirm("Arsipkan usaha ini?"))
-    await api.archive();
+// Arsip/pulihkan melewati dialog konfirmasi (P4) sebelum mutasi dipanggil.
+const konfirmasiArsip = ref<"arsipkan" | "pulihkan" | null>(null);
+function archive() {
+  konfirmasiArsip.value = "arsipkan";
 }
-async function restore() {
-  if (import.meta.client && window.confirm("Pulihkan usaha ini?"))
-    await api.restore();
+function restore() {
+  konfirmasiArsip.value = "pulihkan";
+}
+async function jalankanKonfirmasiArsip() {
+  const jenis = konfirmasiArsip.value;
+  if (!jenis) return;
+  konfirmasiArsip.value = null;
+  if (jenis === "arsipkan") await api.archive();
+  else await api.restore();
 }
 async function exportPdf() {
   await exportApi.submit("profile_pdf", defaultAnalysis, {
@@ -164,5 +171,22 @@ const currentProfile = () => profile.value;
         />
       </main>
     </template>
+
+    <UiDialog :open="Boolean(konfirmasiArsip)" @update:open="(value) => !value && (konfirmasiArsip = null)">
+      <UiDialogContent class="max-w-md">
+        <UiDialogHeader>
+          <UiDialogTitle>{{ konfirmasiArsip === "pulihkan" ? "Pulihkan usaha ini?" : "Arsipkan usaha ini?" }}</UiDialogTitle>
+          <UiDialogDescription>
+            {{ konfirmasiArsip === "pulihkan"
+              ? "Usaha kembali tampil dalam analitik dan daftar data."
+              : "Usaha yang diarsipkan keluar dari analitik dan daftar data sampai dipulihkan." }}
+          </UiDialogDescription>
+        </UiDialogHeader>
+        <UiDialogFooter class="gap-2">
+          <UiButton variant="outline" @click="konfirmasiArsip = null">Batal</UiButton>
+          <UiButton :variant="konfirmasiArsip === 'pulihkan' ? 'default' : 'destructive'" @click="jalankanKonfirmasiArsip">{{ konfirmasiArsip === "pulihkan" ? "Ya, pulihkan" : "Ya, arsipkan" }}</UiButton>
+        </UiDialogFooter>
+      </UiDialogContent>
+    </UiDialog>
   </div>
 </template>

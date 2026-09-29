@@ -81,18 +81,31 @@ async function terbitkan() {
 }
 
 const rejecting = ref<string | null>(null);
-async function tolak(row: TalentPengajuanListItem) {
-  const reason = window.prompt(`Alasan menolak ${row.usahaInfo.nama}?`);
-  if (reason === null) return;
+const tolakTarget = ref<TalentPengajuanListItem | null>(null);
+const alasanTolak = ref("");
+const tolakError = ref("");
+function mintaTolak(row: TalentPengajuanListItem) {
+  tolakTarget.value = row;
+  alasanTolak.value = "";
+  tolakError.value = "";
+}
+async function tolak() {
+  const row = tolakTarget.value;
+  if (!row || rejecting.value) return;
+  if (!alasanTolak.value.trim()) {
+    tolakError.value = "Alasan penolakan wajib diisi.";
+    return;
+  }
   rejecting.value = row.id;
   message.value = null;
   try {
     await directus.request(
       endpoint<TalentPengajuan, { catatan: string | null }>(`/v1/program/talent/pengajuan/${row.id}/tolak`, {
         method: "POST",
-        body: { catatan: reason.trim() || null },
+        body: { catatan: alasanTolak.value.trim() },
       }),
     );
+    tolakTarget.value = null;
     await refresh();
   } catch {
     message.value = { tone: "error", text: "Pengajuan tidak dapat ditolak. Coba lagi." };
@@ -181,7 +194,7 @@ const date = (value: string) => new Intl.DateTimeFormat("id-ID", { dateStyle: "m
                     type="button"
                     class="font-semibold text-destructive underline disabled:opacity-50"
                     :disabled="rejecting === row.id"
-                    @click="tolak(row)"
+                    @click="mintaTolak(row)"
                   >Tolak</button>
                 </div>
               </td>
@@ -221,6 +234,24 @@ const date = (value: string) => new Intl.DateTimeFormat("id-ID", { dateStyle: "m
         <UiDialogFooter>
           <UiButton variant="outline" :disabled="issuing" @click="dialogOpen = false">Batal</UiButton>
           <UiButton :disabled="issuing" @click="terbitkan">{{ issuing ? "Menerbitkan…" : "Terbitkan" }}</UiButton>
+        </UiDialogFooter>
+      </UiDialogContent>
+    </UiDialog>
+
+    <UiDialog :open="Boolean(tolakTarget)" @update:open="(value) => !value && (tolakTarget = null)">
+      <UiDialogContent v-if="tolakTarget" class="max-w-md">
+        <UiDialogHeader>
+          <UiDialogTitle>Tolak pengajuan {{ tolakTarget.usahaInfo.nama }}?</UiDialogTitle>
+          <UiDialogDescription>Pengajuan yang ditolak tidak dapat diajukan ulang tanpa mengulang proses penilaian.</UiDialogDescription>
+        </UiDialogHeader>
+        <UiField class="gap-2">
+          <UiFieldLabel for="alasan-tolak">Alasan penolakan (wajib)</UiFieldLabel>
+          <UiTextarea id="alasan-tolak" v-model="alasanTolak" maxlength="2000" rows="3" placeholder="Jelaskan alasan penolakan untuk pelaku usaha" />
+          <p v-if="tolakError" role="alert" class="text-sm text-destructive">{{ tolakError }}</p>
+        </UiField>
+        <UiDialogFooter class="gap-2">
+          <UiButton variant="outline" :disabled="rejecting !== null" @click="tolakTarget = null">Batal</UiButton>
+          <UiButton variant="destructive" :disabled="rejecting !== null" @click="tolak">{{ rejecting ? "Memproses…" : "Tolak pengajuan" }}</UiButton>
         </UiDialogFooter>
       </UiDialogContent>
     </UiDialog>
