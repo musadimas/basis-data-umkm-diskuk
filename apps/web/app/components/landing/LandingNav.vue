@@ -9,8 +9,7 @@ const navLinks: NavLink[] = [
   { label: "Kegiatan", to: "/kegiatan" },
   { label: "Fasilitasi", to: "/fasilitasi" },
   { label: "Konsultasi", to: "/konsultasi" },
-  { label: "Bantuan", to: "/bantuan" },
-  // { label: "Download", to: "/download" },
+  { label: "Bantuan", to: "/faq" },
 ];
 
 const route = useRoute();

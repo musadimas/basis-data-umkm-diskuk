@@ -4,7 +4,7 @@ import { Minus, Plus } from "@lucide/vue";
 import type { FaqItem } from "@/types/landing";
 
 const props = defineProps<{
-  /** FAQ entries from Directus (/bantuan); the landing page falls back to the built-in list. */
+  /** FAQ entries from Directus (/faq); the landing page falls back to the built-in list. */
   items?: FaqItem[];
 }>();
 

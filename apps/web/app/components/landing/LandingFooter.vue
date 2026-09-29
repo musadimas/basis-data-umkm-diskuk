@@ -3,7 +3,6 @@ import type { NavLink } from "@/types/landing";
 
 const quickLinks: NavLink[] = [
   { label: "Katalog", to: "/katalog" },
-  { label: "Download", to: "/download" },
   { label: "FAQ", to: "/faq" },
   { label: "Konsultasi", to: "/konsultasi" },
   { label: "Tentang Program", to: "/tentang-program" },
