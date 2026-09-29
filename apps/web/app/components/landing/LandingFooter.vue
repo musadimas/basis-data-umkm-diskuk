@@ -40,7 +40,7 @@ const quickLinks: NavLink[] = [
             <h3
               class="mb-6 border-b border-foreground/10 pb-6 text-center text-[11px] font-semibold uppercase tracking-widest text-sky-500 lg:text-start"
             >
-              Quick Link
+              Tautan Cepat
             </h3>
             <ul
               class="group grid grid-cols-2 gap-x-8 gap-y-1 [&>*:nth-child(odd)]:text-end lg:gap-x-16 lg:[&>*:nth-child(odd)]:text-start"
@@ -72,12 +72,12 @@ const quickLinks: NavLink[] = [
             </address>
           </div>
 
-          <!-- Support -->
+          <!-- Bantuan -->
           <div class="col-span-full lg:col-span-4">
             <h3
               class="mb-6 border-b border-foreground/10 pb-6 text-center text-[11px] font-semibold uppercase tracking-widest text-sky-500 lg:text-start"
             >
-              Support
+              Bantuan
             </h3>
             <ul
               class="group flex flex-col gap-1 text-center lg:text-start"

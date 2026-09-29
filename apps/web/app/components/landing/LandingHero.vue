@@ -274,7 +274,7 @@ onUnmounted(() => ctx?.revert());
                   </h1>
                 </div>
                 <p ref="desc" class="text-balance text-sky-950/80 w-full">
-                  Pelaku usaha yang sudah memiliki karakteristik entrepreneur
+                  Pelaku usaha yang sudah memiliki karakteristik wirausaha
                   ditandai dengan semangat, sikap, perilaku, dan kemampuan dalam
                   menangani usaha.
                 </p>

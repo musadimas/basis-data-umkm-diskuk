@@ -78,7 +78,7 @@ function isActive(to: string) {
             class="group relative bg-transparent hover:bg-transparent"
           >
             <NuxtLink to="/sign-in" class="font-semibold">
-              Login
+              Masuk
               <span
                 class="absolute inset-x-3 bottom-1 h-0.5 origin-left scale-x-0 bg-blue-500 transition-transform duration-300 group-hover:scale-x-100"
                 aria-hidden="true"
@@ -89,7 +89,7 @@ function isActive(to: string) {
 
         <div class="flex lg:hidden items-center gap-2">
           <UiButton variant="outline" size="icon" as-child>
-            <NuxtLink to="/sign-in" aria-label="Login ke akun">
+            <NuxtLink to="/sign-in" aria-label="Masuk ke akun">
               <User class="size-4" />
             </NuxtLink>
           </UiButton>
@@ -134,7 +134,7 @@ function isActive(to: string) {
               <div class="mt-8 flex flex-col gap-2">
                 <UiButton variant="outline" as-child>
                   <NuxtLink to="/sign-in" @click="mobileOpen = false"
-                    >Login</NuxtLink
+                    >Masuk</NuxtLink
                   >
                 </UiButton>
               </div>

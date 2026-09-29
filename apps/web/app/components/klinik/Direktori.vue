@@ -44,7 +44,7 @@ const namaHari = (hari: string) => hari.charAt(0).toUpperCase() + hari.slice(1);
         </div>
 
         <p class="text-xs">
-          <span class="font-medium">Layanan:</span>
+          <span class="font-medium">Poli & jadwal:</span>
           {{ item.hari.length ? item.hari.map(namaHari).join(", ") : "jadwal mingguan belum diatur" }}<template v-if="item.slot.length"> · {{ item.slot.join(", ") }} WIB</template>
         </p>
 

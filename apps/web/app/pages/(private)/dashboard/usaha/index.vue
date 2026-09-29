@@ -9,7 +9,7 @@ import { isQueryString } from "~/lib/utils";
 import type { KpiLaporan, KpiPesertaDetail, KpiPesertaListItem } from "~/types/program";
 
 definePageMeta({ layout: "dashboard" });
-useSeoMeta({ title: "Laporan KPI Mingguan – Dashboard UMKM" });
+useSeoMeta({ title: "Laporan Mingguan – Dashboard UMKM" });
 
 const MAX_PHOTOS = 5;
 const MAX_PHOTO_MB = 10;
@@ -18,7 +18,7 @@ const route = useRoute();
 const router = useRouter();
 const directus = useDirectus();
 
-// Participants this account can report for: its own business, or (for the super admin) all of them.
+// Participants this account can report for: its own business, or (for the Admin Provinsi) all of them.
 const { data: pesertaList, error: listError } = await useAsyncData("kpi:peserta", () =>
   directus.request(endpoint<KpiPesertaListItem[]>("/v1/program/kpi/peserta")),
 );
@@ -177,7 +177,7 @@ const history = computed<KpiLaporan[]>(() => [...(detail.value?.laporan ?? [])].
     <!-- Super admin (or an account with several participants): choose whose view to open. -->
     <UiCard v-else-if="!pesertaId">
       <UiCardHeader>
-        <UiCardTitle>Laporan KPI Mingguan</UiCardTitle>
+        <UiCardTitle>Laporan Mingguan</UiCardTitle>
         <UiCardDescription v-if="pesertaList?.length">Pilih peserta program untuk membuka tampilan UMKM-nya.</UiCardDescription>
         <UiCardDescription v-else>Akun ini belum terhubung ke peserta program akselerasi.</UiCardDescription>
       </UiCardHeader>
@@ -209,7 +209,7 @@ const history = computed<KpiLaporan[]>(() => [...(detail.value?.laporan ?? [])].
       >
         <Wifi v-if="outbox.online.value" class="size-4" />
         <CloudOff v-else class="size-4" />
-        {{ outbox.simulatedOffline.value && outbox.demoEnabled.value ? "Simulasi Offline Aktif - Laporan Disimpan di Perangkat" : outbox.online.value ? "Terhubung - Data Real-Time" : "Mode Offline Aktif - Laporan Akan Disimpan di Memori Ponsel" }}
+        {{ outbox.simulatedOffline.value && outbox.demoEnabled.value ? "Simulasi Offline Aktif - Laporan Disimpan di Perangkat" : outbox.online.value ? "Terhubung — data waktu nyata" : "Mode Offline Aktif - Laporan Akan Disimpan di Memori Ponsel" }}
       </div>
 
       <DemoDemoKoneksiToggle :syncing="outbox.syncing.value" />

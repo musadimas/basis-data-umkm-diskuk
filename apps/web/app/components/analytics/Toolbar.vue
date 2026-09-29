@@ -43,7 +43,7 @@ const statusLabel = computed(() =>
         >
           {{ railOpen ? "‹" : "›" }}
         </button>
-        <h1 class="truncate text-base font-bold tracking-tight">Canvas analitik</h1>
+        <h1 class="truncate text-base font-bold tracking-tight">Kanvas analitik</h1>
         <span class="shrink-0 rounded-full border px-2 py-0.5 text-[11px] text-muted-foreground">{{ statusLabel }}</span>
         <span class="truncate text-[11px] text-muted-foreground">Data per {{ formatAnalyticsWib(meta?.dataAsOf) }}</span>
       </div>

@@ -323,15 +323,15 @@ function addFilter() {
       <label
         class="flex flex-col gap-0.5 text-[11px] font-semibold text-muted-foreground"
       >
-        Urutan record
+        Urutan baris
         <select
-          aria-label="Urutan record"
+          aria-label="Urutan baris"
           class="h-8 w-full rounded-md border bg-background px-2 text-sm font-normal text-foreground"
           :value="modelValue.sort || 'nama'"
           @change="patch($event, 'sort')"
         >
           <option value="nama">Nama usaha</option>
-          <option value="id">Identitas record</option>
+          <option value="id">Identitas baris</option>
         </select>
       </label>
 

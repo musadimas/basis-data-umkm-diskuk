@@ -72,7 +72,7 @@ const formatMetric = (value: number | null | undefined, compact = false) =>
       <p class="truncate text-[10px] text-muted-foreground">
         {{
           financial
-            ? `${formatAnalyticsNumber(meta?.matched)} record dilaporkan`
+            ? `${formatAnalyticsNumber(meta?.matched)} baris dilaporkan`
             : `${formatAnalyticsPercent(populationShare)} dari ${formatAnalyticsNumber(meta?.population)} populasi`
         }}
       </p>
@@ -95,7 +95,7 @@ const formatMetric = (value: number | null | undefined, compact = false) =>
       <p
         class="truncate text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"
       >
-        {{ financial ? "Belum tersedia" : "Unknown" }}
+        {{ financial ? "Belum tersedia" : "Tidak diketahui" }}
       </p>
       <p class="text-lg font-bold leading-6">
         {{ formatAnalyticsNumber(financial ? missing : unknown) }}
@@ -137,7 +137,7 @@ const formatMetric = (value: number | null | undefined, compact = false) =>
         }}
       </p>
       <p class="truncate text-[10px] text-muted-foreground">
-        {{ financial ? "dengan nilai dilaporkan" : "share gabungan" }}
+        {{ financial ? "dengan nilai dilaporkan" : "porsi gabungan" }}
       </p>
     </article>
     <article class="rounded-md border bg-card px-2.5 py-1.5">

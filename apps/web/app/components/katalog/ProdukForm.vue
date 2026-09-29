@@ -177,7 +177,7 @@ function submit() {
         <UiField class="gap-1 sm:col-span-2"><UiFieldLabel for="produk-deskripsi">Deskripsi</UiFieldLabel><UiTextarea id="produk-deskripsi" v-model="form.deskripsi" rows="4" maxlength="5000" /></UiField>
         <UiField class="gap-1"><UiFieldLabel for="produk-retail">Harga retail (Rp)</UiFieldLabel><UiInput id="produk-retail" v-model="form.hargaRetail" type="number" min="0" /></UiField>
         <UiField class="gap-1"><UiFieldLabel for="produk-grosir">Harga grosir (Rp)</UiFieldLabel><UiInput id="produk-grosir" v-model="form.hargaGrosir" type="number" min="0" /></UiField>
-        <UiField class="gap-1"><UiFieldLabel for="produk-moq">Minimum order (MOQ)</UiFieldLabel><UiInput id="produk-moq" v-model="form.moq" type="number" min="1" /></UiField>
+        <UiField class="gap-1"><UiFieldLabel for="produk-moq">Jumlah minimal pemesanan (MOQ)</UiFieldLabel><UiInput id="produk-moq" v-model="form.moq" type="number" min="1" /></UiField>
         <UiField class="gap-1"><UiFieldLabel for="produk-video">Video (tautan https, mis. YouTube)</UiFieldLabel><UiInput id="produk-video" v-model="form.videoUrl" type="url" maxlength="500" /></UiField>
       </div>
 

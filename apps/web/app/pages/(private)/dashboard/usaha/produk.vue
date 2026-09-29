@@ -14,7 +14,7 @@ const route = useRoute();
 const router = useRouter();
 const api = katalogApi(useDirectus());
 
-// UMKM accounts get their own business; the super admin searches for one.
+// UMKM accounts get their own business; the Admin Provinsi searches for one.
 const q = ref("");
 const { data: usahaList, refresh: searchUsaha } = await useAsyncData("katalog:usaha", () =>
   api.cariUsaha(q.value),

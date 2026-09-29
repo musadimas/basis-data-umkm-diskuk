@@ -65,7 +65,7 @@ async function decide(keputusan: "disetujui" | "ditolak") {
     await Promise.all([refresh(), refreshPeserta()]);
   } catch (cause) {
     reviewError.value =
-      requestErrorCode(cause) === "LAPORAN_SUDAH_DIREVIEW" ? "Laporan ini sudah direview." : "Keputusan tidak dapat disimpan. Coba lagi.";
+      requestErrorCode(cause) === "LAPORAN_SUDAH_DIREVIEW" ? "Laporan ini sudah ditinjau." : "Keputusan tidak dapat disimpan. Coba lagi.";
   } finally {
     deciding.value = null;
   }
@@ -139,7 +139,7 @@ const capaianClass = (value: number | null) => (value !== null && value >= 100 ?
               <td class="px-4 py-3"><ProgramStatusPill :meta="LAPORAN_STATUS[item.status]" /></td>
               <td class="px-4 py-3">
                 <div class="flex justify-end gap-3 whitespace-nowrap">
-                  <button type="button" class="font-semibold underline" @click="open(item)">{{ item.status === "menunggu" ? "Review" : "Lihat" }}</button>
+                  <button type="button" class="font-semibold underline" @click="open(item)">{{ item.status === "menunggu" ? "Tinjau" : "Lihat" }}</button>
                   <NuxtLink :to="`/dashboard/pendampingan/${item.peserta}`" class="font-semibold underline">Tren</NuxtLink>
                 </div>
               </td>

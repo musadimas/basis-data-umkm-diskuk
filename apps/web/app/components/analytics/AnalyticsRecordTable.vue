@@ -37,7 +37,7 @@ const to = computed(
         id="records-title"
         class="truncate text-xs font-bold uppercase tracking-wide"
       >
-        Record dalam hasil
+        Baris dalam hasil
         <span class="font-normal normal-case text-muted-foreground">
           ({{
             records.length
@@ -110,7 +110,7 @@ const to = computed(
         v-if="!records.length"
         class="py-6 text-center text-xs text-muted-foreground"
       >
-        Tidak ada record pada halaman ini.
+        Tidak ada baris pada halaman ini.
       </p>
     </div>
   </section>

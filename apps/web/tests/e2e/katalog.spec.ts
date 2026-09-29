@@ -134,7 +134,7 @@ test.describe("Modul 7.1 · Katalog", () => {
     await expect(kapasitasRow).toContainText("2.000 pcs");
 
     // M7-05 / M7-04: the three detail actions.
-    await expect(page.getByRole("link", { name: "Ajukan Minat Kemitraan / Order B2B" })).toHaveAttribute("href", "#loi");
+    await expect(page.getByRole("link", { name: "Ajukan Minat Kemitraan (LOI)" })).toHaveAttribute("href", "#loi");
     await expect(page.getByRole("link", { name: "Kontak Penjualan Resmi (WhatsApp)" })).toHaveAttribute("href", /^https:\/\/wa\.me\/6281234567890\?text=/);
     const [download] = await Promise.all([
       page.waitForEvent("download"),
@@ -145,7 +145,7 @@ test.describe("Modul 7.1 · Katalog", () => {
     await waitForCaptchaForm(page);
     await page.getByLabel("Nama", { exact: true }).fill("Pembeli Grosir");
     await page.getByLabel("Email").fill("beli@contoh.id");
-    await page.getByLabel("Perkiraan jumlah pesanan").fill("1.000 pcs");
+    await page.getByLabel("Perkiraan jumlah (mis. 1.000 pcs per bulan)").fill("1.000 pcs");
     await page.getByLabel("Pesan", { exact: true }).fill("Kami tertarik untuk kerja sama.");
     // Consent is required before the letter can be sent.
     await page.getByRole("button", { name: "Kirim LOI" }).click();
@@ -163,7 +163,7 @@ test.describe("Modul 7.1 · Katalog", () => {
     // Sending the same intent twice stores exactly one letter and says so.
     await page.getByLabel("Nama", { exact: true }).fill("Pembeli Grosir");
     await page.getByLabel("Email").fill("beli@contoh.id");
-    await page.getByLabel("Perkiraan jumlah pesanan").fill("1.000 pcs");
+    await page.getByLabel("Perkiraan jumlah (mis. 1.000 pcs per bulan)").fill("1.000 pcs");
     await page.getByLabel("Pesan", { exact: true }).fill("Kami tertarik untuk kerja sama.");
     await page.getByRole("checkbox", { name: "Persetujuan dihubungi kembali" }).check();
     await page.getByRole("button", { name: "Kirim LOI" }).click();

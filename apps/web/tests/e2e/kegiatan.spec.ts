@@ -151,8 +151,8 @@ test("the reminder opt-in is idempotent, honest about WhatsApp and can be cancel
   // The captcha widget mounts client-side inside the dialog; only then can the form be sent.
   await waitForCaptchaForm(page);
   await dialog.getByLabel("Alamat email").fill("Wawan@Gmail.com");
-  await dialog.getByRole("button", { name: "Simpan pengingat" }).click();
-  await expect(dialog.getByText(/Pengingat untuk w\*\*\*@gmail\.com aktif/)).toBeVisible({ timeout: 15_000 });
+  await dialog.getByRole("button", { name: "Langganan pengingat" }).click();
+  await expect(dialog.getByText(/Langganan pengingat untuk w\*\*\*@gmail\.com aktif/)).toBeVisible({ timeout: 15_000 });
   expect(state.kegiatan.pengingat).toHaveLength(1);
   expect(state.kegiatan.pengingat[0].tujuan).toBe("wawan@gmail.com");
   await page.keyboard.press("Escape");
@@ -161,8 +161,8 @@ test("the reminder opt-in is idempotent, honest about WhatsApp and can be cancel
   // Asking again with the same address updates the same reminder instead of queueing a second one.
   await segera.getByRole("button", { name: "Ubah" }).click();
   await dialog.getByLabel("Alamat email").fill("wawan@gmail.com");
-  await dialog.getByRole("button", { name: "Simpan pengingat" }).click();
-  await expect(dialog.getByText(/Pengingat untuk w\*\*\*@gmail\.com aktif/)).toBeVisible({ timeout: 15_000 });
+  await dialog.getByRole("button", { name: "Langganan pengingat" }).click();
+  await expect(dialog.getByText(/Langganan pengingat untuk w\*\*\*@gmail\.com aktif/)).toBeVisible({ timeout: 15_000 });
   expect(state.kegiatan.pengingat).toHaveLength(1);
   await page.keyboard.press("Escape");
 
@@ -170,14 +170,14 @@ test("the reminder opt-in is idempotent, honest about WhatsApp and can be cancel
   await segera.getByRole("button", { name: "Ubah" }).click();
   await dialog.getByLabel("Kanal pengingat").selectOption("whatsapp");
   await dialog.getByLabel("Nomor WhatsApp").fill("081234567890");
-  await dialog.getByRole("button", { name: "Simpan pengingat" }).click();
+  await dialog.getByRole("button", { name: "Langganan pengingat" }).click();
   await expect(dialog.getByText(/gateway resmi belum tersedia/)).toBeVisible({ timeout: 15_000 });
   expect(state.kegiatan.pengingat.at(-1)).toMatchObject({ kanal: "whatsapp", status: "menunggu_gateway" });
   await page.keyboard.press("Escape");
 
   // Cancelling the reminder removes it from the queue, idempotently on the server.
   await segera.getByRole("button", { name: "Batalkan" }).click();
-  await expect(page.getByTestId("pesan-aksi")).toHaveText("Pengingat dibatalkan.");
+  await expect(page.getByTestId("pesan-aksi")).toHaveText("Langganan pengingat dibatalkan.");
   await expect(segera.getByRole("button", { name: "Ingatkan saya" })).toBeVisible();
   expect(state.kegiatan.pengingat.at(-1)).toMatchObject({ kanal: "whatsapp", status: "dibatalkan" });
   // The e-mail reminder of the same event stays queued: only the chosen one was cancelled.
@@ -289,8 +289,8 @@ test.describe("agenda pada stack disposable", () => {
     const dialog = page.getByRole("dialog");
     await waitForCaptchaForm(page);
     await dialog.getByLabel("Alamat email").fill(alamat);
-    await dialog.getByRole("button", { name: "Simpan pengingat" }).click();
-    await expect(dialog.getByText(/Pengingat untuk d\*\*\*@contoh\.invalid aktif/)).toBeVisible({ timeout: 60_000 });
+    await dialog.getByRole("button", { name: "Langganan pengingat" }).click();
+    await expect(dialog.getByText(/Langganan pengingat untuk d\*\*\*@contoh\.invalid aktif/)).toBeVisible({ timeout: 60_000 });
     await page.keyboard.press("Escape");
     await expect(segera.getByTestId("pengingat-aktif-f1000000-0000-4000-8000-000000000004")).toContainText("d***@contoh.invalid");
 
@@ -298,7 +298,7 @@ test.describe("agenda pada stack disposable", () => {
     await segera.getByRole("button", { name: "Ubah" }).click();
     await dialog.getByLabel("Kanal pengingat").selectOption("whatsapp");
     await dialog.getByLabel("Nomor WhatsApp").fill("081234567890");
-    await dialog.getByRole("button", { name: "Simpan pengingat" }).click();
+    await dialog.getByRole("button", { name: "Langganan pengingat" }).click();
     await expect(dialog.getByText(/gateway resmi belum tersedia/)).toBeVisible({ timeout: 60_000 });
     await expect(dialog.getByText("menunggu_gateway")).toHaveCount(0);
   });

@@ -308,7 +308,7 @@ const tanggal = (value: string) => new Intl.DateTimeFormat("id-ID", { weekday: "
           </UiField>
 
           <fieldset class="grid gap-2">
-            <legend class="mb-1 font-bold">Notulensi sesi: diagnosis per aspek</legend>
+            <legend class="mb-1 font-bold">Diagnosis per aspek</legend>
             <UiField v-for="aspek in KLINIK_ASPEK" :key="aspek.value" class="gap-1">
               <UiFieldLabel :for="`diagnosis-${aspek.value}`">{{ aspek.label }}</UiFieldLabel>
               <UiTextarea :id="`diagnosis-${aspek.value}`" v-model="draft.diagnosis[aspek.value]" rows="2" maxlength="2000" />
@@ -333,7 +333,7 @@ const tanggal = (value: string) => new Intl.DateTimeFormat("id-ID", { weekday: "
           <UiField class="gap-1"><UiFieldLabel for="catatan-klinik">Catatan internal</UiFieldLabel><UiTextarea id="catatan-klinik" v-model="draft.catatan" rows="2" maxlength="5000" /></UiField>
 
           <fieldset v-if="menutTiket" class="grid gap-2" data-testid="outcome-penutupan">
-            <legend class="mb-1 font-bold">Hasil konsultasi (outcome), opsional</legend>
+            <legend class="mb-1 font-bold">Outcome konsultasi (opsional)</legend>
             <template v-if="active.usaha">
               <p class="text-xs text-muted-foreground">Tandai atribut usaha yang berubah. Dikirim bersama penutupan tiket dan menunggu verifikasi petugas lain; boleh dikosongkan.</p>
               <KlinikOutcomeForm v-model="draftOutcome" :disabled="saving" />

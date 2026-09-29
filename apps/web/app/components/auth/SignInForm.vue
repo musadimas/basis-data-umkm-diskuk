@@ -12,7 +12,7 @@ const password = ref("");
 const showPassword = ref(false);
 // auth.global.ts sends an account without a valid app_role here instead of looping between dashboards.
 const errorMessage = ref(
-  route.query.error === "peran" ? "Akun Anda belum memiliki peran. Hubungi admin DISKUK untuk penetapan peran." : "",
+  route.query.error === "peran" ? "Akun Anda belum memiliki peran. Hubungi Admin Provinsi DISKUK untuk penetapan peran." : "",
 );
 const captcha = useTemplateRef<{ solve: () => Promise<string | null>; reset: () => void }>("captcha");
 

@@ -503,7 +503,7 @@ const exportCsv = async () => {
     if (status === 504) {
       exportError.value = "Ekspor melebihi batas waktu. Coba filter yang lebih spesifik.";
     } else if (status === 404 || status === 501 || status === 500) {
-      exportError.value = "Ekspor belum tersedia. Hubungi administrator atau coba lagi nanti.";
+      exportError.value = "Ekspor belum tersedia. Hubungi Admin Provinsi atau coba lagi nanti.";
     } else {
       exportError.value = "Gagal mengunduh CSV. Silakan coba lagi.";
     }

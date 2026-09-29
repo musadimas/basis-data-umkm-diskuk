@@ -6,7 +6,7 @@ const error = ref("");
 onMounted(async () => {
   const user = await auth.currentUser();
   if (!user?.app_role) {
-    error.value = "Akun SSO belum terpetakan ke peran dashboard. Hubungi admin DISKUK.";
+    error.value = "Akun SSO belum terpetakan ke peran dashboard. Hubungi Admin Provinsi DISKUK.";
     return;
   }
   await navigateTo(dashboardRedirect(user.app_role, "/dashboard") ?? "/dashboard", { replace: true });

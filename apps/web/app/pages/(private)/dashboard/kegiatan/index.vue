@@ -142,7 +142,7 @@ async function unduhXlsx() {
   }
 }
 
-const PESAN_PINDAI = new Map([[401, "Sesi tidak valid."], [403, "Pemindai hanya untuk staf."], [503, "Pemindai presensi belum dikonfigurasi."]]);
+const PESAN_PINDAI = new Map([[401, "Sesi tidak valid."], [403, "Pemindai hanya untuk panitia."], [503, "Pemindai presensi belum dikonfigurasi."]]);
 const qrInput = ref("");
 const sesiKe = ref(1);
 const hasilPindai = ref<string | null>(null);
@@ -174,7 +174,7 @@ async function pindai() {
     </header>
 
     <p v-if="!staf" class="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive" data-testid="tolak-nonstaf">
-      Panel ini hanya untuk staf provinsi/kabkota.
+      Panel ini hanya untuk Admin Provinsi dan Admin Kab/Kota.
     </p>
 
     <template v-else>

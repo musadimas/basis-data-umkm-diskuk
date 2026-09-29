@@ -17,7 +17,7 @@ const defaultItems: FaqItem[] = [
   {
     question: "Batas waktu dan cara mendaftar?",
     answer:
-      "Pendaftaran dibuka pada periode yang diumumkan setiap tahun. Silakan mengunjungi Dinas KUMKM Kab./Kota sesuai domisili untuk direkomendasikan ke tenaga pendamping di wilayahnya. Jadwal resmi diumumkan melalui kanal DISKUK Jawa Barat serta agenda pada portal ini.",
+      "Pendaftaran dibuka pada periode yang diumumkan setiap tahun. Silakan mengunjungi Dinas KUMKM Kab./Kota sesuai domisili untuk direkomendasikan ke tenaga pendamping di wilayahnya. Jadwal resmi diumumkan melalui kanal DISKUK Jawa Barat serta kegiatan pada portal ini.",
   },
   {
     question: "Apakah bisa dibantu mendaftar secara online?",

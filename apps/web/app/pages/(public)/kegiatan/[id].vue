@@ -4,6 +4,7 @@
 import QRCode from "qrcode";
 import { ArrowLeft, BadgeCheck, CalendarDays, MapPin, QrCode } from "@lucide/vue";
 import { useAuth } from "~/composables/useAuth";
+import { appRoleBadge } from "~/constants";
 import { endpoint } from "~/lib/directus";
 import { requestErrorCode } from "~/lib/request-error";
 import { KATEGORI_KEGIATAN, METODE_LABEL, STATUS_KEGIATAN, waktuKegiatan } from "~/lib/kegiatan";
@@ -20,7 +21,7 @@ const { data: kegiatan, status: muat } = await useAsyncData(`kegiatan:detail:${r
   return directus.request(endpoint<KegiatanAgenda>(`/v1/program/kegiatan/${route.params.id}`));
 });
 useSeoMeta({
-  title: kegiatan.value ? `${kegiatan.value.judul} – Agenda Diskuk` : "Agenda Diskuk Jawa Barat",
+  title: kegiatan.value ? `${kegiatan.value.judul} – Kegiatan Diskuk` : "Kegiatan Diskuk Jawa Barat",
 });
 
 const prefill = ref<RegistrasiPrefill | null>(null);
@@ -142,10 +143,10 @@ const STATUS_PENDAFTARAN_LABEL = new Map(Object.entries({
 
 <template>
   <div class="min-h-dvh">
-    <LandingHeaderMask :title="kegiatan?.judul ?? 'Detail Kegiatan'" subtitle="Agenda UMKM" badge-color="#c7d2fe" />
+    <LandingHeaderMask :title="kegiatan?.judul ?? 'Detail Kegiatan'" subtitle="Kegiatan UMKM" badge-color="#c7d2fe" />
     <div class="mx-auto max-w-4xl px-3 pb-16 | lg:px-0">
       <NuxtLink to="/kegiatan" class="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground" data-testid="kembali-agenda">
-        <ArrowLeft class="size-4" /> Kembali ke agenda
+        <ArrowLeft class="size-4" /> Kembali ke daftar kegiatan
       </NuxtLink>
 
       <p v-if="muat === 'error'" class="mt-6 rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive" data-testid="detail-error">
@@ -213,7 +214,7 @@ const STATUS_PENDAFTARAN_LABEL = new Map(Object.entries({
               <NuxtLink :to="`/sign-in?returnTo=/kegiatan/${route.params.id}`" class="font-semibold text-primary hover:underline" data-testid="cta-masuk">Masuk untuk mendaftar</NuxtLink>.
             </p>
             <p v-else-if="!sayaUmkm" class="mt-3 text-sm text-muted-foreground">
-              Pendaftaran internal hanya untuk akun UMKM. Akun Anda tercatat sebagai {{ user?.app_role }}.
+              Pendaftaran internal hanya untuk akun UMKM. Akun Anda tercatat sebagai {{ appRoleBadge(user?.app_role).label }}.
             </p>
             <form v-else class="mt-4 max-w-xl space-y-4" data-testid="form-pendaftaran" @submit.prevent="daftar">
               <dl v-if="prefill" class="rounded-lg bg-muted/60 p-3 text-sm">

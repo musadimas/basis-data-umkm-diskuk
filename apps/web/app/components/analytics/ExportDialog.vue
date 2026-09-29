@@ -86,7 +86,7 @@ function submit() {
           class="mt-3 grid grid-cols-2 gap-2 rounded-md bg-muted/40 p-3 text-xs"
         >
           <div>
-            <dt class="text-muted-foreground">Masking</dt>
+            <dt class="text-muted-foreground">Penyamaran</dt>
             <dd>v1</dd>
           </div>
           <div>

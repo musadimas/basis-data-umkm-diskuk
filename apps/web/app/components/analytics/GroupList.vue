@@ -71,7 +71,7 @@ watch([search, sort, () => props.groups], () => { visibleCount.value = RENDER_CH
         <span class="w-5 text-right">#</span>
         <span class="min-w-0 flex-1">Kelompok</span>
         <span class="w-14 text-right">Nilai</span>
-        <span class="w-12 text-right">Share</span>
+        <span class="w-12 text-right">Porsi (%)</span>
         <span class="w-12 text-right">Kum.</span>
         <span v-if="drillField" class="w-4" />
       </div>
@@ -105,8 +105,8 @@ watch([search, sort, () => props.groups], () => { visibleCount.value = RENDER_CH
               v-if="drillField"
               type="button"
               class="w-4 shrink-0 text-center font-bold text-muted-foreground hover:text-foreground"
-              aria-label="Drill down"
-              :title="`Drill down ${row.group.label}`"
+              aria-label="Telusuri ke bawah"
+              :title="`Telusuri ke bawah ${row.group.label}`"
               @click="emit('drill', row.group)"
             >
               ›

@@ -118,7 +118,7 @@ test.describe("Y06 katalog publik pada stack disposable", () => {
     const isi = async () => {
       await page.getByLabel("Nama", { exact: true }).fill("Pembeli Grosir Y06");
       await page.getByLabel("Email").fill(email);
-      await page.getByLabel("Perkiraan jumlah pesanan").fill("500 pcs per bulan");
+      await page.getByLabel("Perkiraan jumlah (mis. 1.000 pcs per bulan)").fill("500 pcs per bulan");
       await page.getByLabel("Pesan", { exact: true }).fill(pesan);
       await page.getByRole("checkbox", { name: "Persetujuan dihubungi kembali" }).check();
     };

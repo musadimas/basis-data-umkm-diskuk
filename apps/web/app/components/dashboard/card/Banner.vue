@@ -13,7 +13,7 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   title: "Infografis UMKM",
   description:
-    "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Praesent dictum tortor eu dictum pulvinar. Fusce pulvinar enim ac dui luctus, ac tempus nisl vestibulum. Sed sit amet ante sit amet sapien dictum ultrices quis at augue. Nulla pharetra ex dictum, venenatis nunc a, tempor lectus.",
+    "Ringkasan capaian program untuk dashboard Anda.",
   variant: "infografis",
   icon: () => ChartColumnDecreasing,
 });

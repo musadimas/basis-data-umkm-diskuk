@@ -90,7 +90,7 @@ const kapasitas = computed(() => {
     { label: "Kapasitas produksi bulanan", value: teksAtauBelum(p.kapasitas_bulanan) },
     // Neither the brief's "stok" nor "kapasitas pesanan besar" exists in the product record yet.
     { label: "Stok", value: BELUM_TERSEDIA },
-    { label: "Kapasitas pesanan besar", value: BELUM_TERSEDIA },
+    { label: "Kapasitas produksi besar", value: BELUM_TERSEDIA },
     { label: "Lead time", value: teksAtauBelum(p.lead_time) },
   ];
 });
@@ -217,7 +217,7 @@ async function kirimLoi() {
             <MapPin class="size-4" aria-hidden="true" /> {{ produk.usaha_kota_nama }}
           </p>
           <p class="mt-3 text-xl font-semibold">{{ (produk.hargaLabel ?? hargaRange(produk)) ?? BELUM_TERSEDIA }}</p>
-          <p class="text-sm text-muted-foreground">Minimum order {{ nomor(produk.moq) }}</p>
+          <p class="text-sm text-muted-foreground">Minimal pemesanan {{ nomor(produk.moq) }}</p>
         </div>
 
         <!-- The two catalogue actions: B2B interest and the verified sales contact. -->
@@ -226,7 +226,7 @@ async function kirimLoi() {
             href="#loi"
             class="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
           >
-            <FileText class="size-4" aria-hidden="true" /> Ajukan Minat Kemitraan / Order B2B
+            <FileText class="size-4" aria-hidden="true" /> Ajukan Minat Kemitraan (LOI)
           </a>
           <a
             v-if="wa"
@@ -293,7 +293,7 @@ async function kirimLoi() {
 
         <form id="loi" class="grid gap-3 rounded-xl border bg-muted/30 p-4" novalidate aria-labelledby="loi-title" @submit.prevent="kirimLoi">
           <div>
-            <h2 id="loi-title" class="text-sm font-bold">Ajukan Minat Kemitraan / Order B2B (LOI)</h2>
+            <h2 id="loi-title" class="text-sm font-bold">Ajukan Minat Kemitraan (LOI)</h2>
             <p class="text-xs text-muted-foreground">Untuk pembelian partai besar. Tim DISKUK meneruskan LOI ke pelaku usaha.</p>
           </div>
           <div class="grid gap-3 sm:grid-cols-2">
@@ -302,7 +302,7 @@ async function kirimLoi() {
             <UiField class="gap-1"><UiFieldLabel for="loi-email">Email</UiFieldLabel><UiInput id="loi-email" v-model="loi.email" type="email" maxlength="160" autocomplete="email" required /></UiField>
             <UiField class="gap-1"><UiFieldLabel for="loi-telepon">Telepon</UiFieldLabel><UiInput id="loi-telepon" v-model="loi.telepon" type="tel" maxlength="32" autocomplete="tel" /></UiField>
           </div>
-          <UiField class="gap-1"><UiFieldLabel for="loi-jumlah">Perkiraan jumlah pesanan</UiFieldLabel><UiInput id="loi-jumlah" v-model="loi.jumlah" maxlength="100" placeholder="mis. 1.000 pcs per bulan" /></UiField>
+          <UiField class="gap-1"><UiFieldLabel for="loi-jumlah">Perkiraan jumlah (mis. 1.000 pcs per bulan)</UiFieldLabel><UiInput id="loi-jumlah" v-model="loi.jumlah" maxlength="100" placeholder="Contoh: 1.000 pcs per bulan" /></UiField>
           <UiField class="gap-1"><UiFieldLabel for="loi-pesan">Pesan</UiFieldLabel><UiTextarea id="loi-pesan" v-model="loi.pesan" rows="3" maxlength="2000" required /></UiField>
           <label class="flex items-start gap-2 text-xs text-muted-foreground">
             <UiCheckbox v-model="loi.persetujuan" aria-label="Persetujuan dihubungi kembali" />

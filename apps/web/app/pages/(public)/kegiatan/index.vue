@@ -26,8 +26,8 @@ import type { KegiatanAgenda, KegiatanFilters, KegiatanListResponse, KegiatanMet
 
 definePageMeta({ layout: "landing" });
 useSeoMeta({
-  title: "Agenda Kegiatan UMKM – Diskuk Jawa Barat",
-  description: "Kalender pelatihan, sertifikasi, pameran, akselerasi talenta, dan literasi digital untuk UMKM Jawa Barat.",
+  title: "Kegiatan UMKM – Diskuk Jawa Barat",
+  description: "Kalender pelatihan, sertifikasi, pameran, akselerasi usaha, dan literasi digital untuk UMKM Jawa Barat.",
 });
 
 const KOSONG_META: KegiatanMeta = {
@@ -190,8 +190,8 @@ async function kirimPengingat() {
       tone: "success",
       text:
         hasil.status === "menunggu_gateway"
-          ? `Pengingat WhatsApp untuk ${hasil.tujuanMasked} tercatat, tetapi gateway resmi belum tersedia sehingga belum ada pesan yang dikirim.`
-          : `Pengingat untuk ${hasil.tujuanMasked} aktif. ${jadwalPengingatTeks(hasil.jadwalKirim)}.`,
+          ? `Langganan pengingat WhatsApp untuk ${hasil.tujuanMasked} tercatat, tetapi gateway resmi belum tersedia sehingga belum ada pesan yang dikirim.`
+          : `Langganan pengingat untuk ${hasil.tujuanMasked} aktif. ${jadwalPengingatTeks(hasil.jadwalKirim)}.`,
     };
   } catch (cause) {
     const code = requestErrorCode(cause);
@@ -206,7 +206,7 @@ async function kirimPengingat() {
               : "Nomor WhatsApp tidak valid. Gunakan format 08xx atau 628xx."
             : code === "KEGIATAN_SELESAI"
               ? "Kegiatan ini sudah selesai, pengingat tidak diperlukan lagi."
-              : "Pengingat tidak dapat disimpan. Coba lagi beberapa saat.",
+              : "Langganan pengingat tidak dapat disimpan. Coba lagi beberapa saat.",
     };
   } finally {
     captcha.value?.reset();
@@ -227,20 +227,20 @@ async function batalkanPengingat(item: KegiatanAgenda) {
     const { [item.id]: _hapus, ...sisa } = pengingat.value;
     pengingat.value = sisa;
     simpanLokal();
-    pesanAksi.value = "Pengingat dibatalkan.";
+    pesanAksi.value = "Langganan pengingat dibatalkan.";
   } catch {
-    pesanAksi.value = "Pengingat tidak dapat dibatalkan sekarang.";
+    pesanAksi.value = "Langganan pengingat tidak dapat dibatalkan sekarang.";
   }
 }
 </script>
 
 <template>
   <div class="min-h-dvh" :data-terhidrasi="terhidrasi ? '1' : undefined">
-    <LandingHeaderMask title="Agenda Kegiatan" subtitle="Kalender" badge-color="#cbd5e1" />
+    <LandingHeaderMask title="Kegiatan" subtitle="Kalender" badge-color="#cbd5e1" />
 
     <div class="mx-auto grid max-w-7xl gap-8 px-3 pb-20 | lg:px-12 xl:px-0">
       <div v-if="agendaError" role="alert" class="rounded-xl border border-destructive/30 p-6 text-sm text-destructive">
-        Agenda tidak dapat dimuat. Coba beberapa saat lagi.
+        Kegiatan tidak dapat dimuat. Coba beberapa saat lagi.
       </div>
 
       <!-- Filters: sent to the server, so the result and its count are always the server's -->
@@ -299,7 +299,7 @@ async function batalkanPengingat(item: KegiatanAgenda) {
                   <button
                     type="button"
                     class="flex w-full items-center justify-between gap-1"
-                    :aria-label="`Agenda ${day}`"
+                    :aria-label="`Kegiatan pada ${day}`"
                     :aria-expanded="hariTerpilih === day"
                     :data-testid="`hari-${day}`"
                     @click="hariTerpilih = hariTerpilih === day ? null : day"
@@ -395,7 +395,7 @@ async function batalkanPengingat(item: KegiatanAgenda) {
                       <BellRing class="size-4" /> {{ tindakanKegiatan(item).label }}
                     </UiButton>
                     <span v-else-if="pengingat[item.id]" class="inline-flex items-center gap-1 text-xs text-emerald-700" :data-testid="`pengingat-aktif-${item.id}`">
-                      <CheckCircle2 class="size-4" /> Pengingat aktif ({{ pengingat[item.id]!.tujuanMasked }})
+                      <CheckCircle2 class="size-4" /> Langganan pengingat aktif ({{ pengingat[item.id]!.tujuanMasked }})
                       <UiButton type="button" variant="ghost" size="sm" :data-testid="`ubah-${item.id}`" @click="bukaPengingat(item)">Ubah</UiButton>
                       <UiButton type="button" variant="ghost" size="sm" :data-testid="`batal-${item.id}`" @click="batalkanPengingat(item)">Batalkan</UiButton>
                     </span>
@@ -521,7 +521,7 @@ async function batalkanPengingat(item: KegiatanAgenda) {
             {{ pesanPengingat.text }}
           </p>
           <p class="text-xs text-muted-foreground">Pengingat dikirim oleh sistem DISKUK; kanal WhatsApp baru aktif setelah gateway resmi tersedia.</p>
-          <UiButton type="submit" :disabled="mengirim" class="w-fit">{{ mengirim ? "Menyimpan…" : "Simpan pengingat" }}</UiButton>
+          <UiButton type="submit" :disabled="mengirim" class="w-fit">{{ mengirim ? "Menyimpan…" : "Langganan pengingat" }}</UiButton>
         </form>
       </UiDialogScrollContent>
     </UiDialog>

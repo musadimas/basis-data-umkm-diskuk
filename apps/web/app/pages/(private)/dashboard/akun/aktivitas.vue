@@ -102,7 +102,7 @@ onMounted(loadMore);
   <div class="mx-auto flex w-full max-w-5xl flex-col gap-6">
     <div>
       <h1 class="text-2xl font-bold tracking-tight">Log Aktivitas Sesi</h1>
-      <p class="mt-1 text-sm text-muted-foreground">Riwayat masuk dan perubahan data oleh akun Anda (audit trail). Laporkan ke admin bila ada aktivitas yang tidak Anda kenali.</p>
+      <p class="mt-1 text-sm text-muted-foreground">Riwayat masuk dan perubahan data oleh akun Anda (riwayat aktivitas). Laporkan ke admin bila ada aktivitas yang tidak Anda kenali.</p>
     </div>
 
     <UiCard class="overflow-hidden p-0">

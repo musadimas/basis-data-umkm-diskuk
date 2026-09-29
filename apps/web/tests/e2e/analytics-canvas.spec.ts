@@ -12,7 +12,7 @@ test.describe("canvas analitik", () => {
     });
     await loginMock(page, "/dashboard/analitik");
     await expect(
-      page.getByRole("heading", { name: "Canvas analitik" }),
+      page.getByRole("heading", { name: "Kanvas analitik" }),
     ).toBeVisible();
     await expect(
       page.getByRole("listitem").filter({ hasText: "Kabupaten Bogor" }),
@@ -77,7 +77,7 @@ test.describe("canvas analitik", () => {
     await page.setViewportSize({ width: 1280, height: 720 });
     await loginMock(page, "/dashboard/analitik");
     await expect(
-      page.getByRole("heading", { name: "Canvas analitik" }),
+      page.getByRole("heading", { name: "Kanvas analitik" }),
     ).toBeVisible();
     expect(
       await page.evaluate(() => document.documentElement.scrollHeight),

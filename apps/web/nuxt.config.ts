@@ -71,11 +71,36 @@ export default defineNuxtConfig({
     },
   },
   vite: {
-    // Client deps reached only from lazily loaded pages (charts, QR, carousel, PPT export). On a cold
-    // cache Vite discovers them after the first page load and re-bundles, and in-flight pages then fail
-    // with "Failed to fetch dynamically imported module"; listing them keeps the first optimisation final.
+    // Client deps reached only from lazily loaded pages (UI primitives, charts, maps, carousel,
+    // animation, QR, PPT export). On a cold cache Vite discovers them after the first page load and
+    // re-bundles, which rotates the dep hash: in-flight pages fail with "Failed to fetch dynamically
+    // imported module" and already-open tabs with "504 Outdated Optimize Dep". Listing them keeps the
+    // first optimisation final.
     optimizeDeps: {
-      include: ["@unovis/ts", "@unovis/vue", "qrcode", "embla-carousel-vue", "pptxgenjs"],
+      include: [
+        "@directus/sdk",
+        "@lucide/vue",
+        "@tanstack/query-persist-client-core",
+        "@tanstack/vue-query",
+        "@unovis/ts",
+        "@unovis/vue",
+        "@vueuse/core",
+        "altcha",
+        "altcha/i18n/id",
+        "class-variance-authority",
+        "clsx",
+        "embla-carousel-vue",
+        "gsap",
+        "gsap/ScrollTrigger",
+        "lenis",
+        "localforage",
+        "maplibre-gl",
+        "pmtiles",
+        "pptxgenjs",
+        "qrcode",
+        "reka-ui",
+        "tailwind-merge",
+      ],
     },
     vue: {
       script: {

@@ -32,7 +32,7 @@ const colors = ["#64748b", "#16a34a"];
 <template>
   <main class="flex w-full flex-col gap-6 pb-10">
     <header><h1 class="text-2xl font-bold">Monitoring Program Akselerasi</h1>
-      <p class="text-sm text-muted-foreground">Agregat 12 minggu dari laporan KPI yang telah disetujui.</p></header>
+      <p class="text-sm text-muted-foreground">Agregat 12 minggu dari laporan mingguan yang telah disetujui.</p></header>
     <p v-if="error" role="alert" class="text-destructive">Monitoring belum dapat dimuat.</p>
     <template v-else-if="data">
       <div class="grid gap-4 md:grid-cols-2">

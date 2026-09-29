@@ -99,7 +99,7 @@ const insights = computed<Insight[]>(() => {
   if (leader.value && props.groups.length > 1) {
     result.push({
       id: "leader",
-      headline: `Share tertinggi pada filter ini: ${leader.value.label}`,
+      headline: `Porsi tertinggi pada filter ini: ${leader.value.label}`,
       detail: `${formatValue(leader.value.value)} (${formatAnalyticsPercent(leader.value.share)} dari total terfilter).`,
     });
   }
@@ -115,7 +115,7 @@ const insights = computed<Insight[]>(() => {
     result.push({
       id: "deviation",
       headline: `${deviation.value.group.label} ${direction} pola rata Jawa Barat`,
-      detail: `Share ${formatAnalyticsPercent(deviation.value.group.share)} vs rata ${formatAnalyticsPercent(deviation.value.uniformShare)}.`,
+      detail: `Porsi ${formatAnalyticsPercent(deviation.value.group.share)} vs rata ${formatAnalyticsPercent(deviation.value.uniformShare)}.`,
     });
   }
   for (const group of outliers.value) {
@@ -184,19 +184,19 @@ const insights = computed<Insight[]>(() => {
 
     <p v-if="highCoverageWarning" class="mt-1 font-semibold text-amber-900">
       Peringatan kualitas tinggi: hanya
-      {{ formatAnalyticsPercent(coverage) }} record
+      {{ formatAnalyticsPercent(coverage) }} baris
       {{ financial ? "memiliki nilai yang dapat diagregasi" : "terpetakan"
       }}<span v-if="unknownShare"
         >, {{ formatAnalyticsPercent(unknownShare) }} masuk kelompok
-        unknown</span
+        tidak diketahui</span
       >.
     </p>
     <p v-else-if="lowCoverage" class="mt-1 text-amber-900">
-      Peringatan cakupan: {{ formatAnalyticsPercent(coverage) }} record
+      Peringatan cakupan: {{ formatAnalyticsPercent(coverage) }} baris
       {{ financial ? "memiliki nilai yang dapat diagregasi" : "terpetakan"
       }}<span v-if="unknownShare"
         >, {{ formatAnalyticsPercent(unknownShare) }} masuk kelompok
-        unknown</span
+        tidak diketahui</span
       >.
     </p>
 

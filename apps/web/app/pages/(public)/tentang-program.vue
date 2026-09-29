@@ -197,7 +197,7 @@ const preloaderDone = ref(false);
             digital, pengemasan produk, serta inovasi dan teknologi, pengusaha
             dapat memperoleh pengetahuan praktis yang langsung dapat diterapkan
             dalam usaha mereka. Selain itu, pendampingan berkelanjutan dan akses
-            terhadap mentor profesional juga penting untuk memastikan bahwa
+            terhadap pendamping profesional juga penting untuk memastikan bahwa
             keterampilan yang diperoleh dapat berkembang seiring waktu. Dengan
             demikian, pengusaha tidak hanya mampu bertahan, tetapi juga tumbuh
             dan bersaing di pasar lokal maupun global.

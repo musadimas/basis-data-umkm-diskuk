@@ -48,7 +48,7 @@ const sections = computed(() => {
         <button
           type="button"
           class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/60 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
-          aria-label="Toggle sidebar"
+          aria-label="Buka/tutup sidebar"
           @click="toggleSidebar"
         >
           <PanelLeft class="h-4 w-4" />

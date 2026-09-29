@@ -8,6 +8,7 @@
 import type { KbliCategoryItem, KbliCodeItem } from "~/types/dashboard";
 import { ArrowUpRight, ChevronDown, Search, SearchX } from "@lucide/vue";
 import { kategoriBpsFor } from "~/lib/kbli-sectors";
+import { formatAnalyticsPercent } from "~/lib/analytics-format";
 
 interface Props {
   items: KbliCategoryItem[];
@@ -59,9 +60,9 @@ function segmentWidth(value: number | undefined, total: number): number {
   return Math.max(4, Math.round(((value ?? 0) / total) * 100));
 }
 
-/** Persentase relatif terhadap total kategori yang sedang terlihat. */
+/** Persentase relatif terhadap total kategori yang sedang terlihat (format id-ID, koma). */
 function percentOf(value: number, total: number): string {
-  return total ? `${((value / total) * 100).toFixed(1)}%` : "0.0%";
+  return formatAnalyticsPercent(total ? (value / total) * 100 : 0);
 }
 
 const headerMeta = [

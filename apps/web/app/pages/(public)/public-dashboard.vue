@@ -416,7 +416,7 @@ const kinerjaChartCards: ChartCardConfig[] = [
   <LandingPreloader class="overflow-hidden" @done="preloaderDone = true" />
   <div class="min-h-dvh">
     <LandingHeaderMask
-      title="Overview"
+      title="Ringkasan"
       subtitle="Dashboard UMKM"
       badge-color="#cbd5e1"
     />

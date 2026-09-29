@@ -99,7 +99,7 @@ test("Y01 login NIB usaha dummy mendarat di beranda usaha", async ({ page }) => 
   await loginReal(page, NIB_USAHA, DEMO_PASSWORD);
   await expect(page).toHaveURL(/\/dashboard\/usaha$/, { timeout: 30_000 });
   // UMKM dengan program_peserta menampilkan PhoneFrame dengan nama usaha; tanpa peserta menampilkan kartu Laporan KPI Mingguan.
-  await expect(page.getByRole("heading", { name: /(Laporan KPI Mingguan|Wawan Leathercraft)/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /(Laporan Mingguan|Wawan Leathercraft)/ })).toBeVisible();
 });
 
 const PNG = Buffer.from(
