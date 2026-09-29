@@ -449,3 +449,64 @@ test("migrasi G: down membalik tabel dan kolom kegiatan", () => {
     assert.ok(down.includes(`ALTER TABLE kegiatan DROP COLUMN IF EXISTS ${kolom};`), `drop kolom ${kolom}`);
   }
 });
+
+// ── R04 (N7-04, N7-05): direktori konsultan, CSAT, outcome klinik ──
+const migrationC = readMigration("20260929C-klinik-konsultan-csat-outcome.js");
+
+test("migrasi 20260929C: tabel direktori, CSAT satu per tiket, outcome dengan satu versi hidup per tiket", () => {
+  for (const tabel of [
+    "klinik_konsultan",
+    "konsultasi_tiket_csat",
+    "konsultasi_outcome",
+    "konsultasi_outcome_item",
+    "konsultasi_outcome_audit",
+  ]) {
+    assert.ok(migrationC.includes(`CREATE TABLE IF NOT EXISTS ${tabel}`), `tabel ${tabel}`);
+  }
+  // CSAT: PK = tiket (satu jawaban per tiket), nilai 1-5, consent wajib diisi.
+  assert.ok(migrationC.includes("tiket        UUID PRIMARY KEY REFERENCES konsultasi_tiket(id) ON DELETE CASCADE"), "csat satu per tiket");
+  assert.ok(migrationC.includes("CHECK (nilai BETWEEN 1 AND 5)"));
+  assert.ok(migrationC.includes("consent      BOOLEAN NOT NULL"));
+  // Outcome: satu outcome hidup per tiket, versi unik, status terbatas.
+  assert.ok(
+    migrationC.includes("CREATE UNIQUE INDEX IF NOT EXISTS ux_konsultasi_outcome_hidup") &&
+      migrationC.includes("ON konsultasi_outcome (tiket) WHERE status IN ('diajukan', 'terverifikasi')"),
+    "partial unique outcome hidup",
+  );
+  assert.ok(migrationC.includes("UNIQUE (tiket, versi)"));
+  assert.ok(migrationC.includes("CHECK (status IN ('diajukan', 'terverifikasi', 'dicabut'))"));
+  assert.ok(migrationC.includes("CHECK (jenis IN ('kepatuhan', 'perbaikan'))"));
+  assert.ok(migrationC.includes("CHECK (aksi IN ('ajukan', 'verifikasi', 'koreksi', 'cabut'))"));
+  // Direktori: afiliasi terbatas; jadwal JSONB; tanpa grant Public (publik lewat endpoint ber-DTO).
+  assert.ok(migrationC.includes("CHECK (afiliasi IN ('plut', 'dinas', 'praktisi'))"));
+  assert.ok(!migrationC.includes("directus_permissions") && !migrationC.includes("directus_policies"), "tanpa grant Public");
+  // Outcome terstruktur: tidak ada kolom teks bebas dari sesi.
+  const [, outcomeSql] = migrationC.split("CREATE TABLE IF NOT EXISTS konsultasi_outcome (");
+  const [badanOutcome] = outcomeSql.split("CREATE UNIQUE INDEX");
+  for (const dilarang of ["catatan", "diagnosis", "action_plan", "link_meet", "whatsapp", "email", "deskripsi"]) {
+    assert.ok(!badanOutcome.includes(dilarang), `outcome tanpa kolom ${dilarang}`);
+  }
+});
+
+test("migrasi 20260929C: down membalik tabel dan metadata Directus", () => {
+  const [, down] = migrationC.split("export const down");
+  for (const tabel of ["konsultasi_outcome_audit", "konsultasi_outcome_item", "konsultasi_outcome", "konsultasi_tiket_csat", "klinik_konsultan"]) {
+    assert.ok(down.includes(`DROP TABLE IF EXISTS ${tabel};`), `drop ${tabel}`);
+  }
+  assert.ok(down.includes("DELETE FROM directus_relations WHERE many_collection IN ('klinik_konsultan', 'konsultasi_outcome')"));
+  assert.ok(down.includes("DELETE FROM directus_fields WHERE collection = 'klinik_konsultan'"));
+  // Tabel anak dijatuhkan sebelum induknya.
+  assert.ok(down.indexOf("konsultasi_outcome_item;") < down.indexOf("konsultasi_outcome;"));
+});
+
+// ── Y03 (M5-03): provenance jam perangkat untuk laporan KPI offline Jumat ──
+const migrationKpiKlien = readMigration("20260929D-kpi-laporan-dibuat-pada-klien.js");
+
+test("migrasi 20260929D: kolom dibuat_pada_klien nullable dan down membaliknya", () => {
+  const [up, down] = migrationKpiKlien.split("export const down");
+  assert.ok(up.includes("ALTER TABLE kpi_laporan ADD COLUMN IF NOT EXISTS dibuat_pada_klien TIMESTAMPTZ;"));
+  assert.ok(!up.includes("NOT NULL"), "laporan lama dan kirim langsung tanpa jam perangkat");
+  assert.ok(up.includes("WHERE NOT EXISTS"), "metadata field idempoten");
+  assert.ok(down.includes("ALTER TABLE kpi_laporan DROP COLUMN IF EXISTS dibuat_pada_klien;"));
+  assert.ok(down.includes("DELETE FROM directus_fields WHERE collection = 'kpi_laporan' AND field = 'dibuat_pada_klien'"));
+});

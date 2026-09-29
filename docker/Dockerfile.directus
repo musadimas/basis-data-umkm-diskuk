@@ -22,7 +22,8 @@ RUN cd /directus/extensions/docs && pnpm install --frozen-lockfile && (pnpm run 
 # Analytics bundle (/v1/analytics endpoints + watchdog hook), built with the extensions SDK.
 RUN cd /directus/extensions/analytics && pnpm install --frozen-lockfile && pnpm run build
 # Authentication bundle (/v1/auth endpoints + auth.login hook), built with the extensions SDK.
-RUN cd /directus/extensions/authentication && pnpm install --frozen-lockfile && pnpm run build
+# Same pnpm 10-only pnpm-workspace.yaml as the program bundle below; drop it for pnpm 9.
+RUN cd /directus/extensions/authentication && rm -f pnpm-workspace.yaml && pnpm install --frozen-lockfile && pnpm run build
 # Operasional extension (dashboard Y01 endpoints); no dependencies, so a plain copy build.
 RUN cd /directus/extensions/directus-extension-operasional && pnpm run build
 # Program bundle (/v1/program endpoints for the Brief Fitur modules), built with the extensions SDK.

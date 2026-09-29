@@ -72,6 +72,14 @@ if (action === "cleanup") {
     console.log(`hapus berkas ${file.filename_download}`);
   }
   const list = await request(`/users?filter[email][_starts_with]=dummy_&limit=-1&fields=id,email`, { headers });
+  // Berkas yang diunggah akun dummy dengan nama apa pun (bukti KPI, lampiran tiket, foto produk)
+  // menahan penghapusan akun lewat FK directus_files.uploaded_by.
+  const ids = (list?.data ?? []).map((user) => user.id);
+  if (ids.length) {
+    const uploaded = await request(`/files?filter[uploaded_by][_in]=${ids.join(",")}&limit=-1&fields=id`, { headers });
+    for (const file of uploaded?.data ?? []) await request(`/files/${file.id}`, { method: "DELETE", headers });
+    console.log(`hapus ${uploaded?.data?.length ?? 0} berkas unggahan akun dummy`);
+  }
   for (const user of list?.data ?? []) {
     await request(`/users/${user.id}`, { method: "DELETE", headers });
     console.log(`hapus akun ${user.email}`);

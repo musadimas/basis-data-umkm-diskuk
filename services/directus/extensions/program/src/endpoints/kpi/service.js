@@ -1,6 +1,6 @@
 import { ProgramError, rows } from "../../lib/utils/http.js";
 import { objectBody, oneOf, optionalText, uuidParam, UUID } from "../../lib/validate.js";
-import { capaian, currentWeek, longestTargetStreak, PITCHING_STREAK } from "./rules.js";
+import { capaian, currentWeek, hariLapor, longestTargetStreak, PITCHING_STREAK, waktuLaporan } from "./rules.js";
 import cakupan from "../../../../../analytics-shared/cakupan.cjs";
 
 const { predikat } = cakupan;
@@ -67,6 +67,7 @@ function toLaporan(row) {
     catatanPendamping: row.catatan_pendamping,
     direviewAt: row.direview_at,
     clientUuid: row.client_uuid,
+    dibuatPadaKlien: row.dibuat_pada_klien ?? null,
     dateCreated: row.date_created,
     dateUpdated: row.date_updated,
   };
@@ -74,7 +75,7 @@ function toLaporan(row) {
 
 const LAPORAN_SELECT = `
   SELECT l.id, l.peserta, l.minggu_ke, l.target, l.realisasi_omzet, l.jumlah_transaksi, l.kendala,
-         l.status, l.catatan_pendamping, l.direview_at, l.client_uuid, l.date_created, l.date_updated,
+         l.status, l.catatan_pendamping, l.direview_at, l.client_uuid, l.dibuat_pada_klien, l.date_created, l.date_updated,
          COALESCE((SELECT json_agg(b.directus_files_id ORDER BY b.sort, b.id)
                      FROM kpi_laporan_bukti b WHERE b.kpi_laporan_id = l.id), '[]'::json) AS bukti
     FROM kpi_laporan l`;
@@ -106,6 +107,7 @@ function parseLaporan(body) {
   if (!Array.isArray(bukti) || bukti.length > MAX_BUKTI || !bukti.every((id) => typeof id === "string" && UUID.test(id))) {
     throw invalid("bukti");
   }
+  if (body.dibuatPada != null && typeof body.dibuatPada !== "string") throw invalid("dibuatPada");
   return {
     mingguKe: minggu,
     realisasiOmzet: omzet,
@@ -113,6 +115,7 @@ function parseLaporan(body) {
     kendala: optionalText(body, "kendala", 2000),
     clientUuid: body.clientUuid,
     bukti: [...new Set(bukti)],
+    dibuatPada: body.dibuatPada ?? null,
   };
 }
 
@@ -196,7 +199,11 @@ export function createKpi({ db, clock = () => new Date() }) {
 
   /**
    * Kirim laporan satu minggu. Urutan: validasi -> kunci peserta + scope -> canSubmit -> duplikat
-   * client_uuid (setelah kunci) -> bukti -> minggu -> insert atau revisi.
+   * client_uuid (setelah kunci) -> bukti -> waktu laporan -> minggu -> Jumat (laporan baru) ->
+   * insert atau revisi.
+   * Laporan baru hanya dibuat pada Jumat WIB (M5-03). Draf offline membawa `dibuatPada` (jam
+   * perangkat) dan sah bila jatuh pada Jumat, tidak di masa depan, dan paling lama 7 hari; waktu itu
+   * disimpan sebagai provenance. Replay clientUuid dan revisi laporan ditolak tidak terikat hari.
    * Keluaran `{ hasil: "dibuat" | "diulang" | "direvisi", laporan }`. Mengirim ulang clientUuid yang
    * sama mengembalikan laporan tersimpan ("diulang"); laporan ditolak diperbaiki di tempat ("direvisi").
    */
@@ -217,7 +224,11 @@ export function createKpi({ db, clock = () => new Date() }) {
           return { hasil: "diulang", laporan: toLaporan(duplicate) };
         }
         await assertBukti(trx, input.bukti, pemanggil.id);
-        const week = currentWeek(peserta.tanggal_mulai, peserta.jumlah_minggu, clock());
+        const waktu = waktuLaporan(input.dibuatPada, clock());
+        if (!waktu) {
+          throw new ProgramError(400, "DIBUAT_PADA_TIDAK_VALID", "The report's creation time is in the future or too old to sync.");
+        }
+        const week = currentWeek(peserta.tanggal_mulai, peserta.jumlah_minggu, waktu.waktu);
         if (input.mingguKe > Number(peserta.jumlah_minggu) || input.mingguKe > week) {
           throw new ProgramError(400, "MINGGU_TIDAK_VALID", "Reports can only be sent for weeks that have started.");
         }
@@ -232,18 +243,21 @@ export function createKpi({ db, clock = () => new Date() }) {
           await trx.raw(
             `UPDATE kpi_laporan
                 SET realisasi_omzet = ?, jumlah_transaksi = ?, kendala = ?, client_uuid = ?, target = ?,
-                    status = 'menunggu', dikirim_oleh = ?, date_updated = NOW()
+                    status = 'menunggu', dikirim_oleh = ?, dibuat_pada_klien = ?, date_updated = NOW()
               WHERE id = ?`,
-            [input.realisasiOmzet, input.jumlahTransaksi, input.kendala, input.clientUuid, peserta.target_mingguan, pemanggil.id, existing.id],
+            [input.realisasiOmzet, input.jumlahTransaksi, input.kendala, input.clientUuid, peserta.target_mingguan, pemanggil.id, waktu.klien, existing.id],
           );
           laporanId = existing.id;
         } else {
+          if (!hariLapor(waktu.waktu)) {
+            throw new ProgramError(409, "BUKAN_HARI_LAPOR", "Weekly reports can only be made on Friday (Asia/Jakarta).");
+          }
           laporanId = rows(
             await trx.raw(
               `INSERT INTO kpi_laporan
-                 (peserta, minggu_ke, target, realisasi_omzet, jumlah_transaksi, kendala, client_uuid, dikirim_oleh)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
-              [id, input.mingguKe, peserta.target_mingguan, input.realisasiOmzet, input.jumlahTransaksi, input.kendala, input.clientUuid, pemanggil.id],
+                 (peserta, minggu_ke, target, realisasi_omzet, jumlah_transaksi, kendala, client_uuid, dikirim_oleh, dibuat_pada_klien)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+              [id, input.mingguKe, peserta.target_mingguan, input.realisasiOmzet, input.jumlahTransaksi, input.kendala, input.clientUuid, pemanggil.id, waktu.klien],
             ),
           )[0].id;
         }

@@ -2,6 +2,11 @@
 // Tanpa stack: skip (verdict not runtime-proven, bukan done).
 // Prasyarat: migrasi C+E, seed Y01 (akun + usaha dummy) + seed Y02 (atribut).
 import { test, expect } from "@playwright/test";
+import { hariLaporWib } from "../../app/lib/kpi";
+import { keluarReal, loginReal } from "./real-login";
+
+// Login nyata menyelesaikan ALTCHA (real-login.ts); beri waktu lebih dari default 30 detik.
+test.describe.configure({ timeout: 180_000 });
 
 const KABKOTA_EMAIL = process.env.DUMMY_KABKOTA_EMAIL || "dummy_admin.subang@jabarprov.go.id";
 const KABKOTA_PASSWORD = process.env.DUMMY_KABKOTA_PASSWORD || "";
@@ -13,11 +18,7 @@ const USAHA_EMAIL = process.env.DUMMY_UMKM_EMAIL || "dummy_wawan.leathercraft@gm
 const PENDAMPING_EMAIL = process.env.DUMMY_PENDAMPING_EMAIL || "dummy_coach.pendamping@jabarprov.go.id";
 
 async function login(page: import("@playwright/test").Page, email: string, password: string) {
-  await page.goto("/sign-in");
-  await page.getByLabel("Email atau NIB").fill(email);
-  await page.getByRole("textbox", { name: "Kata sandi" }).fill(password);
-  await page.getByRole("button", { name: "Masuk ke Dashboard", exact: true }).click();
-  await expect(page).toHaveURL(/\/dashboard/);
+  await loginReal(page, email, password);
 }
 
 test("Y02 data lapangan: kabkota ubah atribut usaha sendiri; usaha luar → 404", async ({ page }) => {
@@ -61,9 +62,7 @@ test("Y02 talent scouting: kabkota ajukan usaha, hitung skor deterministik, prov
   await expect(page.getByRole("button", { name: /Terbitkan Berita Acara/ })).toHaveCount(0);
 
   // Logout kabkota
-  await page.getByRole("button", { name: "Menu akun" }).click();
-  await page.getByRole("menuitem", { name: "Keluar" }).click();
-  await expect(page).toHaveURL(/\/sign-in/);
+  await keluarReal(page);
 
   // 3. Provinsi login & buka kurasi: tombol Terbitkan Berita Acara ada
   await login(page, PROVINSI_EMAIL, DEMO_PASSWORD);
@@ -88,25 +87,17 @@ test("Y01 login empat role dummy mendarat di beranda masing-masing", async ({ pa
     { email: USAHA_EMAIL, home: "/dashboard/usaha" },
   ];
   for (const { email, home } of cases) {
-    await page.goto("/sign-in");
-    await page.getByLabel("Email atau NIB").fill(email);
-    await page.getByRole("textbox", { name: "Kata sandi" }).fill(DEMO_PASSWORD);
-    await page.getByRole("button", { name: "Masuk ke Dashboard", exact: true }).click();
-    await expect(page).toHaveURL(new RegExp(home.replace(/\//g, "\\/") + "$"));
-    await page.getByRole("button", { name: "Menu akun" }).click();
-    await page.getByRole("menuitem", { name: "Keluar" }).click();
-    await expect(page).toHaveURL(/\/sign-in/);
+    await loginReal(page, email, DEMO_PASSWORD, home);
+    await page.waitForURL((url) => url.pathname === home, { timeout: 30_000 });
+    await keluarReal(page);
   }
 });
 
 test("Y01 login NIB usaha dummy mendarat di beranda usaha", async ({ page }) => {
   test.skip(!process.env.PLAYWRIGHT_USE_REAL_API, "butuh disposable stack");
   test.skip(!DEMO_PASSWORD, "butuh DEMO_ACCOUNT_PASSWORD");
-  await page.goto("/sign-in?returnTo=/dashboard");
-  await page.getByLabel("Email atau NIB").fill(NIB_USAHA);
-  await page.getByRole("textbox", { name: "Kata sandi" }).fill(DEMO_PASSWORD);
-  await page.getByRole("button", { name: "Masuk ke Dashboard", exact: true }).click();
-  await expect(page).toHaveURL(/\/dashboard\/usaha$/);
+  await loginReal(page, NIB_USAHA, DEMO_PASSWORD);
+  await expect(page).toHaveURL(/\/dashboard\/usaha$/, { timeout: 30_000 });
   // UMKM dengan program_peserta menampilkan PhoneFrame dengan nama usaha; tanpa peserta menampilkan kartu Laporan KPI Mingguan.
   await expect(page.getByRole("heading", { name: /(Laporan KPI Mingguan|Wawan Leathercraft)/ })).toBeVisible();
 });
@@ -138,6 +129,8 @@ test("Y03 pwa umkm: PhoneFrame peserta, target 18jt, minggu-6, dan kirim laporan
     await page.getByTestId("galeri-input").setInputFiles({ name: "nota.png", mimeType: "image/png", buffer: PNG });
     await page.getByLabel("Kendala minggu ini").fill("Pengiriman lancar");
     await kirimBtn.click();
+    // M5-03: laporan baru hanya pada Jumat WIB; hari lain ditolak sebelum masuk antrean.
+    await expect(hariLaporWib() ? page.getByRole("status") : page.getByRole("alert")).toBeVisible();
   }
 
   // Riwayat laporan terisi dan terbaca ulang dari server
@@ -178,6 +171,7 @@ test("Y01 lupa kata sandi: tautan Mailpit → reset → login sandi baru", async
   test.skip(!process.env.MAILPIT_API_URL, "butuh MAILPIT_API_URL");
 
   await page.goto("/lupa-kata-sandi");
+  await page.waitForLoadState("networkidle");
   await page.getByLabel("Email atau NIB").fill(USAHA_EMAIL);
   await page.getByRole("button", { name: "Kirim Tautan Reset" }).click();
   await expect(page.getByText("Bila akun terdaftar, email berisi tautan reset kata sandi telah dikirim.")).toBeVisible({ timeout: 15000 });
@@ -197,19 +191,19 @@ test("Y01 lupa kata sandi: tautan Mailpit → reset → login sandi baru", async
   expect(tokenMatch, "tautan reset tidak memuat token").toBeTruthy();
 
   await page.goto(`/reset-kata-sandi?token=${tokenMatch![1]}`);
-  await page.getByRole("textbox", { name: "Kata sandi baru", exact: true }).fill(DEMO_PASSWORD);
-  await page.getByRole("textbox", { name: "Ulangi kata sandi baru", exact: true }).fill(DEMO_PASSWORD);
+  await page.waitForLoadState("networkidle");
+  // Hidrasi dapat mengosongkan isian yang diketik terlalu dini: ulangi sampai keduanya terisi.
+  await expect(async () => {
+    await page.getByRole("textbox", { name: "Kata sandi baru", exact: true }).fill(DEMO_PASSWORD);
+    await page.getByRole("textbox", { name: "Ulangi kata sandi baru", exact: true }).fill(DEMO_PASSWORD);
+    await expect(page.getByRole("textbox", { name: "Kata sandi baru", exact: true })).toHaveValue(DEMO_PASSWORD, { timeout: 1000 });
+  }).toPass({ timeout: 30_000 });
   await page.getByRole("button", { name: "Simpan Kata Sandi" }).click();
   await expect(page.getByText("Kata sandi berhasil diperbarui.")).toBeVisible();
 
-  await page.goto("/sign-in?returnTo=/dashboard");
-  await page.getByLabel("Email atau NIB").fill(USAHA_EMAIL);
-  await page.getByRole("textbox", { name: "Kata sandi" }).fill(DEMO_PASSWORD);
-  await page.getByRole("button", { name: "Masuk ke Dashboard", exact: true }).click();
-  await expect(page).toHaveURL(/\/dashboard\/usaha$/);
+  await loginReal(page, USAHA_EMAIL, DEMO_PASSWORD);
+  await expect(page).toHaveURL(/\/dashboard\/usaha$/, { timeout: 30_000 });
 
-  await page.getByRole("button", { name: "Menu akun" }).click();
-  await page.getByRole("menuitem", { name: "Keluar" }).click();
-  await expect(page).toHaveURL(/\/sign-in/);
+  await keluarReal(page);
   expect((await page.request.get("/panel/v1/analytics/infographic/")).status()).toBe(401);
 });

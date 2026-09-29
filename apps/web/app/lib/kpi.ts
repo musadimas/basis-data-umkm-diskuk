@@ -7,6 +7,8 @@
 export const PESAN_KPI = {
   LAPORAN_SUDAH_ADA: "Laporan minggu ini sudah terkirim sebelumnya.",
   MINGGU_TIDAK_VALID: "Minggu laporan belum dimulai.",
+  BUKAN_HARI_LAPOR: "Laporan mingguan hanya dapat dibuat pada hari Jumat (WIB).",
+  DIBUAT_PADA_TIDAK_VALID: "Laporan offline ini terlalu lama atau jam perangkat tidak sesuai. Buang lalu isi ulang pada hari Jumat.",
   PESERTA_TIDAK_AKTIF: "Kepesertaan program sudah tidak aktif.",
   CLIENT_UUID_CONFLICT: "Laporan ini terkait peserta lain. Buang lalu isi ulang.",
   BUKTI_TIDAK_VALID: "Foto bukti harus berupa gambar yang Anda unggah sendiri.",
@@ -22,6 +24,14 @@ export const PESAN_KPI = {
   KOTA_NOT_ASSIGNED: "Akun ini belum ditetapkan ke kabupaten/kota.",
   FORBIDDEN: "Akun ini tidak dapat mengirim laporan untuk usaha tersebut.",
 } satisfies Record<string, string>;
+
+/**
+ * Jumat menurut Asia/Jakarta (M5-03): laporan baru hanya dibuat pada hari ini. Server tetap penentu
+ * akhir (`BUKAN_HARI_LAPOR`); ini hanya mencegah pengguna mengisi form yang pasti ditolak.
+ */
+export function hariLaporWib(now = new Date()): boolean {
+  return new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Jakarta", weekday: "short" }).format(now) === "Fri";
+}
 
 export const PESAN_KPI_UMUM = "Laporan ditolak server. Periksa isian lalu kirim ulang.";
 

@@ -1,4 +1,5 @@
-import type { JenisLegalitas, KesiapanLegalitas, PengajuanStatus, StatusLegalitas, TalentStatus } from "~/types/program";
+import type { JenisLegalitas, KesiapanLegalitas, KlinikJenisOutcome, PengajuanStatus, StatusLegalitas, TalentStatus } from "~/types/program";
+import { ATRIBUT_JABAR } from "./OPERASIONAL";
 
 /** Peta label berkunci runtime (skala/fase): kunci di luar daftar tetap jatuh ke fallback pemanggil. */
 interface LabelByKey {
@@ -159,3 +160,25 @@ export const KLINIK_ASPEK: { value: import("~/types/program").KlinikAspek; label
   { value: "produksi", label: "Produksi" },
   { value: "sdm", label: "SDM & Manajemen" },
 ];
+
+/**
+ * 15 atribut yang boleh menjadi outcome konsultasi (R04). Kunci di kawat memakai snake_case kolom
+ * `usaha_atribut_jabar`; label dan urutan satu sumber dengan `ATRIBUT_JABAR`, dan tes menjaga keduanya
+ * tetap sama dengan aturan server.
+ */
+export const KLINIK_ATRIBUT_OUTCOME: { value: string; label: string }[] = ATRIBUT_JABAR.map(({ key, label }) => ({
+  value: key.replace(/[A-Z]/g, (huruf) => `_${huruf.toLowerCase()}`),
+  label,
+}));
+
+export const KLINIK_JENIS_OUTCOME: { value: KlinikJenisOutcome; label: string }[] = [
+  { value: "kepatuhan", label: "Kepatuhan" },
+  { value: "perbaikan", label: "Perbaikan" },
+];
+
+/** Status outcome untuk lencana; server tetap mengirim `statusLabel`, ini hanya warnanya. */
+export const KLINIK_STATUS_OUTCOME_WARNA = {
+  diajukan: "bg-amber-100 text-amber-900",
+  terverifikasi: "bg-emerald-100 text-emerald-800",
+  dicabut: "bg-slate-200 text-slate-700",
+} satisfies Record<import("~/types/program").KlinikStatusOutcome, string>;

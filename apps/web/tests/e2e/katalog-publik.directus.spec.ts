@@ -63,11 +63,12 @@ test.describe("Y06 katalog publik pada stack disposable", () => {
 
     const subang = page.locator("#filter-wilayah option", { hasText: "Kabupaten Subang (" });
     const nilai = await subang.first().getAttribute("value");
+    // Pilihan sebelum hidrasi tidak menggerakkan filter; ulangi sampai URL ikut berubah.
     await expect(async () => {
       await page.locator("#filter-wilayah").selectOption(nilai!);
+      await expect(page).toHaveURL(new RegExp(`kota=${nilai}`), { timeout: 2000 });
       await expect(page.getByTestId("katalog-total")).not.toHaveText("0", { timeout: 2000 });
     }).toPass({ timeout: 30_000 });
-    await expect(page).toHaveURL(new RegExp(`kota=${nilai}`));
 
     // Chip brief + wilayah dapat digabung, dan kombinasi kosong dinyatakan jelas.
     await page.getByRole("button", { name: "Kerajinan", exact: true }).click();

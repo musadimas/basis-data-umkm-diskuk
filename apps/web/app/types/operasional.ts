@@ -28,6 +28,19 @@ export interface UsahaLapangan {
     terverifikasiPada: string | null;
   };
   diperbaruiPada: string | null;
+  /** Hanya hasil konsultasi klinik yang terverifikasi (R04); tanpa diagnosis, catatan, atau rencana aksi. */
+  hasilKonsultasi: UsahaHasilKonsultasi[];
+}
+
+/** Satu outcome klinik terverifikasi pada profil usaha; `atribut` memakai kunci camelCase `ATRIBUT_JABAR`. */
+export interface UsahaHasilKonsultasi {
+  id: string;
+  versi: number;
+  nomorTiket: string;
+  poli: string;
+  diverifikasiOleh: string | null;
+  diverifikasiPada: string | null;
+  items: { atribut: string; jenis: "kepatuhan" | "perbaikan" }[];
 }
 
 /**

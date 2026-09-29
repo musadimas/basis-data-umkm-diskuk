@@ -104,7 +104,7 @@ export const MOCK_USER = {
 
 export async function installMockDirectus(
   page,
-  { authenticated = false, renderMap = false, spatialTileset = null, serveSpatialTiles = false, role = "provinsi", requests = [] } = {},
+  { authenticated = false, renderMap = false, spatialTileset = null, serveSpatialTiles = false, role = "provinsi", requests = [], hasilKonsultasi = () => [] } = {},
 ) {
   let loggedIn = authenticated;
   globalThis.__y02Verified = new Set();
@@ -787,6 +787,8 @@ export async function installMockDirectus(
             wilayah: { kota: "Kabupaten Bogor", kecamatan: "Cibinong", kelurahan: "Pakansari", alamatJalan: "Jl. Raya" },
             pemilik: { nama: "Pemilik 01" },
             atribut: { npwpUsaha: true, qris: null },
+            // Outcome klinik terverifikasi usaha ini; spec klinik menyuplainya dari state mock programnya (R04).
+            hasilKonsultasi: hasilKonsultasi(usahaMatch[1]),
             verifikasi: (globalThis.__y02Verified ?? new Set()).has(usahaMatch[1])
               ? {
                   terverifikasiOleh: { id: "u-1", nama: "Admin" },

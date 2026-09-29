@@ -2,6 +2,8 @@ import { ProgramError, rows } from "../../lib/utils/http.js";
 import { objectBody, oneOf, optionalText, uuidParam } from "../../lib/validate.js";
 import { STATUS_LABEL } from "../../lib/outbox/index.js";
 import { assertTransisi, assertVersi, cakupanPetugas, catatAudit } from "./penugasan.js";
+import { createDirektori } from "./direktori.js";
+import { OUTCOME_TERBARU_SQL, createOutcome, parseItemsOutcome, toOutcomeDto } from "./outcome.js";
 import {
   ASPEK_DIAGNOSIS, NOMOR_TIKET, PRIORITAS, RUJUKAN, SLOTS, STATUS, bolehUbah, kunciPesan, nomorTiket, normalisasiTelepon, pesanPembatalan,
   pesanStatusBerubah, pesanTiket, sniffType, statusLabel, tanggalTidakValid, transisiUntuk,
@@ -94,7 +96,9 @@ const TIKET_SELECT = `
          (SELECT json_build_object('status', n.status, 'jenis', n.jenis, 'template', n.template, 'attempts', n.attempts,
                                    'lastError', n.last_error, 'providerMessageId', n.provider_message_id,
                                    'terkirimAt', n.terkirim_at, 'diterimaAt', n.diterima_at)
-            FROM notifikasi_outbox n WHERE n.tiket = t.id ORDER BY n.date_created DESC LIMIT 1) AS notifikasi
+            FROM notifikasi_outbox n WHERE n.tiket = t.id ORDER BY n.date_created DESC LIMIT 1) AS notifikasi,
+         -- Outcome klinik terbaru (R04): hanya struktur atribut/jenis, tidak pernah catatan sesi.
+         ${OUTCOME_TERBARU_SQL} AS outcome
     FROM konsultasi_tiket t
     JOIN konsultasi_poli po ON po.id = t.poli
     LEFT JOIN usaha_tabular ut ON ut.id = t.usaha
@@ -106,10 +110,15 @@ const TIKET_SELECT = `
  * business' kota only feeds `transisiUntuk`, so it is not sent on.
  */
 function toTiketDto(pemanggil, { kotaId, ...row }) {
+  const outcome = toOutcomeDto(pemanggil, row.outcome, kotaId);
   return {
     ...row,
     statusLabel: statusLabel(row.status),
     transisi: transisiUntuk(pemanggil, { ...row, kotaId }),
+    outcome,
+    // Server memutuskan kapan panel menawarkan "Catat outcome": tiket selesai milik usaha terdaftar tanpa outcome hidup.
+    outcomeBisaDicatat:
+      row.status === "selesai" && Boolean(row.usaha) && (!outcome || outcome.status === "dicabut") && bolehUbah(pemanggil, { ...row, kotaId }, {}),
     notifikasi: row.notifikasi ? { ...row.notifikasi, label: STATUS_LABEL[row.notifikasi.status] ?? row.notifikasi.status } : null,
   };
 }
@@ -166,7 +175,24 @@ function parseUpdate(body) {
  * `akun` (`accountability` Directus atau null) karena sesi yang tak terbaca harus dianggap anonim.
  */
 export function createKlinik({ db, files, outbox, captcha, kick = () => {}, clock = () => new Date() }) {
-  return { poli, prefill, slots, buatTiket, lacakTiket, listTiket, ubahStatusTiket, bacaLampiran };
+  const direktori = createDirektori({ db, captcha, clock });
+  const outcome = createOutcome({ db });
+  return {
+    poli, prefill, slots, buatTiket, lacakTiket, listTiket, ubahStatusTiket, bacaLampiran,
+    statistik: direktori.statistik,
+    konsultan: direktori.konsultan,
+    jawabCsat: direktori.jawabCsat,
+    catatOutcome,
+    daftarOutcome: outcome.daftar,
+    verifikasiOutcome: outcome.verifikasi,
+    koreksiOutcome: outcome.koreksi,
+    cabutOutcome: outcome.cabut,
+  };
+
+  /** Outcome untuk tiket yang sudah selesai; petugas yang boleh mengubah tiket itu juga boleh mengajukannya. */
+  async function catatOutcome(pemanggil, tiketId, body) {
+    return outcome.catat(pemanggil, tiketId, body, (tiket) => bolehUbah(pemanggil, tiket, {}));
+  }
 
   /** Meja konsultasi aktif dan topiknya (tanpa PII). */
   async function poli() {
@@ -334,7 +360,8 @@ export function createKlinik({ db, files, outbox, captcha, kick = () => {}, cloc
     const tiket = rows(
       await db.raw(
         `SELECT t.nomor, t.nama_usaha AS "namaUsaha", t.status, t.moda, t.jadwal_tanggal::text AS tanggal, t.jadwal_slot AS slot,
-                t.whatsapp, t.sumber_identitas AS "sumberIdentitas", po.nama AS "poliNama", t.id AS "tiketId"
+                t.whatsapp, t.sumber_identitas AS "sumberIdentitas", po.nama AS "poliNama", t.id AS "tiketId",
+                EXISTS (SELECT 1 FROM konsultasi_tiket_csat c WHERE c.tiket = t.id) AS "sudahMenilai"
            FROM konsultasi_tiket t JOIN konsultasi_poli po ON po.id = t.poli
           WHERE t.nomor = ?`,
         [nomor],
@@ -351,6 +378,8 @@ export function createKlinik({ db, files, outbox, captcha, kick = () => {}, cloc
       slot: tiket.slot,
       sumberIdentitas: tiket.sumberIdentitas,
       notifikasi: (await outbox.statusUntuk({ tiket: tiket.tiketId })) ?? { status: "batal", label: STATUS_LABEL.batal },
+      // Penilaian (CSAT) hanya ditawarkan pada tiket selesai yang belum dinilai.
+      csat: { bisaMenilai: tiket.status === "selesai" && !tiket.sudahMenilai, sudahMenilai: Boolean(tiket.sudahMenilai) },
     };
   }
 
@@ -377,12 +406,17 @@ export function createKlinik({ db, files, outbox, captcha, kick = () => {}, cloc
     const id = uuidParam(tiketId);
     const data = objectBody({ body });
     const update = parseUpdate(data);
+    // Menutup tiket boleh membawa outcome (`{ items }`), dicatat dalam transaksi yang sama dengan status `selesai`.
+    const outcomeItems = data.outcome === undefined ? null : parseItemsOutcome(data.outcome?.items);
+    if (outcomeItems && update.status !== "selesai") {
+      throw new ProgramError(400, "OUTCOME_TIDAK_VALID", 'An outcome can only be sent together with status "selesai".');
+    }
     const columns = Object.keys(update);
     const casts = { diagnosis: "::jsonb", rujukan: "::jsonb" };
     const updated = await db.transaction(async (trx) => {
       const current = rows(
         await trx.raw(
-          `SELECT t.id, t.status, t.pendamping, t.pemohon, t.wa_consent AS "waConsent", t.whatsapp,
+          `SELECT t.id, t.usaha, t.status, t.pendamping, t.pemohon, t.wa_consent AS "waConsent", t.whatsapp,
                   t.sumber_identitas AS "sumberIdentitas", ut.kota_id AS "kotaId",
                   NULLIF(TRIM(CONCAT_WS(' ', u.first_name, u.last_name)), '') AS "aktorNama",
                   to_char(t.date_updated AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS versi
@@ -419,6 +453,7 @@ export function createKlinik({ db, files, outbox, captcha, kick = () => {}, cloc
         statusKe: update.status,
         perubahan: update,
       });
+      if (outcomeItems) await outcome.catatDalamTransaksi(trx, { tiket: { id, usaha: current.usaha, status: "selesai" }, items: outcomeItems, pemanggil });
       const row = rows(await trx.raw(`${TIKET_SELECT} WHERE t.id = ?`, [id]))[0];
       // One message per transition: repeating the same status never queues a second one.
       if (update.status && update.status !== current.status) {

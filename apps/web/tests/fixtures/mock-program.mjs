@@ -6,7 +6,7 @@
 import { PASSPORT_PAYLOAD, PDF_CONTOH, PNG_1PX, katalogResponse } from "./katalog-data.mjs";
 import { createKegiatanState, kegiatanApiResponse } from "./kegiatan-data.mjs";
 import { hargaRange, loiDuplikat, validasiKurasi } from "../../../../services/directus/extensions/program/src/endpoints/katalog/rules.js";
-import { PITCHING_STREAK, capaian, longestTargetStreak } from "../../../../services/directus/extensions/program/src/endpoints/kpi/rules.js";
+import { PITCHING_STREAK, capaian, hariLapor, longestTargetStreak, waktuLaporan } from "../../../../services/directus/extensions/program/src/endpoints/kpi/rules.js";
 import { UUID } from "../../../../services/directus/extensions/program/src/lib/validate.js";
 import { VERSI_AWAL, klinikMockResponse } from "./klinik-data.mjs";
 
@@ -68,6 +68,9 @@ export function createProgramState() {
     passport: null,
     tiket: [],
     tiketForms: [],
+    /** Jawaban CSAT `{ tiket, nilai, consent }` dan outcome konsultasi (semua versi) dari klinik (R04). */
+    csat: [],
+    outcomes: [],
     /** Session prefill for the clinic form; null makes `GET /klinik/prefill` answer 401. */
     prefill: null,
     /** The signed-in officer as `{ id, admin, appRole, kotaScope }`; null means the provincial analyst. */
@@ -246,15 +249,18 @@ export async function installMockProgram(page, state = createProgramState()) {
     }
     match = path.match(/^\/kpi\/peserta\/([^/]+)\/laporan$/);
     if (method === "POST" && match) {
-      // Urutan server: peserta aktif → replay clientUuid → minggu valid → satu laporan per minggu.
+      // Urutan server: peserta aktif → replay clientUuid → jam perangkat → minggu valid → satu laporan per minggu → Jumat WIB.
       const peserta = state.peserta.find((item) => item.id === match[1]);
       if (!peserta) return json(route, 404, "PESERTA_NOT_FOUND");
       if (peserta.status !== "aktif") return json(route, 409, "PESERTA_TIDAK_AKTIF");
       const duplicate = state.laporan.find((item) => item.clientUuid === body.clientUuid);
       if (duplicate) return duplicate.peserta === peserta.id ? json(route, 200, duplicate) : json(route, 409, "CLIENT_UUID_CONFLICT");
+      const waktu = waktuLaporan(body.dibuatPada ?? null, new Date());
+      if (!waktu) return json(route, 400, "DIBUAT_PADA_TIDAK_VALID");
       if (body.mingguKe > peserta.jumlahMinggu || body.mingguKe > peserta.mingguBerjalan) return json(route, 400, "MINGGU_TIDAK_VALID");
       const existing = state.laporan.find((item) => item.peserta === peserta.id && item.mingguKe === body.mingguKe);
       if (existing && existing.status !== "ditolak") return json(route, 409, "LAPORAN_SUDAH_ADA");
+      if (!existing && !hariLapor(waktu.waktu)) return json(route, 409, "BUKAN_HARI_LAPOR");
       const now = new Date().toISOString();
       const fields = {
         target: peserta.targetMingguan,
@@ -265,6 +271,7 @@ export async function installMockProgram(page, state = createProgramState()) {
         bukti: body.bukti,
         status: "menunggu",
         clientUuid: body.clientUuid,
+        dibuatPadaKlien: waktu.klien?.toISOString() ?? null,
         dateUpdated: now,
       };
       // Laporan yang ditolak dikoreksi di tempat (200), bukan dibuat ulang.
@@ -417,4 +424,14 @@ export async function navigateSidebar(page, name, path) {
   await link.click();
   // The mobile sidebar is a modal sheet that stays open after navigating.
   if (opened && (await page.getByRole("dialog").count())) await page.keyboard.press("Escape");
+}
+
+/**
+ * Client-side navigation to any dashboard path through the app's router. Pages that read the
+ * mocked browser routes (not the SSR mock server) must be reached this way, never by `page.goto`.
+ */
+export async function pindahKlien(page, path) {
+  // The app handle exists only once Vue has mounted; a freshly server-rendered page has none yet.
+  await page.waitForFunction(() => Boolean(document.querySelector("#__nuxt")?.__vue_app__));
+  await page.evaluate((target) => document.querySelector("#__nuxt").__vue_app__.config.globalProperties.$router.push(target), path);
 }

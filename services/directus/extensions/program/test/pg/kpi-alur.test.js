@@ -5,7 +5,7 @@ import { createKpi } from "../../src/endpoints/kpi/service.js";
 import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const { APPLICATION_ROLE_ID } = require("../../../../analytics-shared/cakupan.cjs");
-import { buatKota, buatPeserta, buatUsaha, buatUser, uuid } from "../../../../test-support/fixtures.mjs";
+import { buatKota, buatPeserta, buatUsaha, buatUser, jumatTerakhir, uuid } from "../../../../test-support/fixtures.mjs";
 import { pgSkipReason, withDatabase } from "../../../../test-support/pg-harness.mjs";
 import { mountEndpoint } from "../helpers.js";
 
@@ -17,6 +17,7 @@ const isi = (mingguKe, patch = {}) => ({
   kendala: null,
   clientUuid: uuid(),
   bukti: [],
+  dibuatPada: jumatTerakhir(),
   ...patch,
 });
 const kode = (hasil) => hasil.res.body?.errors?.[0]?.extensions?.code;
@@ -71,12 +72,13 @@ test("minggu yang belum mulai atau melewati jumlah_minggu ditolak 400", { skip: 
 
 test("use case memakai jam yang diinjeksi untuk minggu berjalan", { skip: pgSkipReason() }, async (t) => {
   const { db } = await withDatabase(t);
-  const { owner, peserta } = await siapkan(db, { tanggalMulai: "2026-09-02" });
+  // Program mulai Jumat 4 Sep; 16:00 UTC 3 Sep masih Kamis WIB, 17:30 UTC sudah Jumat WIB.
+  const { owner, peserta } = await siapkan(db, { tanggalMulai: "2026-09-04" });
   const pemanggil = { id: owner.id, admin: false, peran: "umkm", usahaId: owner.usahaId, kotaId: null };
-  const sebelum = createKpi({ db, clock: () => new Date("2026-09-01T16:00:00Z") });
-  await assert.rejects(sebelum.kirimLaporan(pemanggil, peserta.id, isi(1)), { statusCode: 400, code: "MINGGU_TIDAK_VALID" });
-  const sesudah = createKpi({ db, clock: () => new Date("2026-09-01T17:30:00Z") });
-  const hasil = await sesudah.kirimLaporan(pemanggil, peserta.id, isi(1));
+  const sebelum = createKpi({ db, clock: () => new Date("2026-09-03T16:00:00Z") });
+  await assert.rejects(sebelum.kirimLaporan(pemanggil, peserta.id, isi(1, { dibuatPada: null })), { statusCode: 400, code: "MINGGU_TIDAK_VALID" });
+  const sesudah = createKpi({ db, clock: () => new Date("2026-09-03T17:30:00Z") });
+  const hasil = await sesudah.kirimLaporan(pemanggil, peserta.id, isi(1, { dibuatPada: null }));
   assert.equal(hasil.hasil, "dibuat");
 });
 

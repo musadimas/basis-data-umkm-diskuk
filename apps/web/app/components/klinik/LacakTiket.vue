@@ -3,10 +3,10 @@
 // check the status without an account and nobody can enumerate other people's tickets. The answers
 // come straight from `POST /v1/program/klinik/tiket/lacak`, including the honest state of the
 // WhatsApp notification (there is no gateway yet, so "belum dikirim" is a valid answer).
-import { Search } from "@lucide/vue";
+import { Search, Star } from "@lucide/vue";
 import { labelStatusKlinik } from "~/constants";
-import { KlinikError, lacakTiket } from "~/lib/klinik";
-import type { KlinikTiketLacak } from "~/types/program";
+import { KlinikError, lacakTiket, nilaiTiket } from "~/lib/klinik";
+import type { KlinikCsatTersimpan, KlinikTiketLacak } from "~/types/program";
 
 const TIDAK_COCOK = "Nomor tiket dan nomor WhatsApp tidak cocok dengan tiket mana pun. Periksa juga format nomor tiket (contoh: KLN-2026-09-0042).";
 
@@ -18,9 +18,23 @@ const hasil = ref<KlinikTiketLacak | null>(null);
 const error = ref("");
 const mencari = ref(false);
 
+// Penilaian layanan (CSAT, R04): memakai nomor + WhatsApp yang barusan cocok pada pelacakan, bukan isian
+// yang mungkin sudah diubah sesudahnya. Captcha lama sekali pakai, jadi pengiriman meminta token baru.
+const kunciTiket = ref<{ nomor: string; whatsapp: string } | null>(null);
+const nilai = ref(0);
+const consent = ref(false);
+const mengirimCsat = ref(false);
+const errorCsat = ref("");
+const csatTersimpan = ref<KlinikCsatTersimpan | null>(null);
+
 async function cari() {
   error.value = "";
   hasil.value = null;
+  kunciTiket.value = null;
+  nilai.value = 0;
+  consent.value = false;
+  errorCsat.value = "";
+  csatTersimpan.value = null;
   mencari.value = true;
   try {
     const token = await captcha.value?.solve();
@@ -29,12 +43,38 @@ async function cari() {
       return;
     }
     hasil.value = await lacakTiket(directus, form.nomor, form.whatsapp, token);
-    if (!hasil.value) error.value = TIDAK_COCOK;
+    if (hasil.value) kunciTiket.value = { nomor: hasil.value.nomor, whatsapp: form.whatsapp };
+    else error.value = TIDAK_COCOK;
   } catch (cause) {
     error.value = cause instanceof KlinikError ? cause.pesan : "Tiket tidak dapat dilacak. Coba lagi.";
   } finally {
     captcha.value?.reset();
     mencari.value = false;
+  }
+}
+
+async function kirimCsat() {
+  if (!hasil.value || !kunciTiket.value || mengirimCsat.value) return;
+  errorCsat.value = "";
+  if (!nilai.value) {
+    errorCsat.value = "Pilih nilai 1–5 lebih dulu.";
+    return;
+  }
+  mengirimCsat.value = true;
+  try {
+    const token = await captcha.value?.solve();
+    if (!token) {
+      errorCsat.value = "Verifikasi captcha belum selesai.";
+      return;
+    }
+    csatTersimpan.value = await nilaiTiket(directus, { ...kunciTiket.value, nilai: nilai.value, consent: consent.value }, token);
+    hasil.value.csat = { bisaMenilai: false, sudahMenilai: true };
+  } catch (cause) {
+    if (cause instanceof KlinikError && cause.code === "CSAT_SUDAH_ADA") hasil.value.csat = { bisaMenilai: false, sudahMenilai: true };
+    else errorCsat.value = cause instanceof KlinikError ? cause.pesan : "Penilaian tidak dapat dikirim. Coba lagi.";
+  } finally {
+    captcha.value?.reset();
+    mengirimCsat.value = false;
   }
 }
 
@@ -72,5 +112,35 @@ const tanggalPanjang = (value: string) => new Intl.DateTimeFormat("id-ID", { dat
       <div><dt class="text-xs text-emerald-700">Jadwal</dt><dd>{{ tanggalPanjang(hasil.tanggal) }}, {{ hasil.slot }} WIB · {{ hasil.moda === "daring" ? "Daring" : "Luring" }}</dd></div>
       <div><dt class="text-xs text-emerald-700">Notifikasi WhatsApp</dt><dd data-testid="status-notifikasi-lacak">{{ hasil.notifikasi.label }}</dd></div>
     </dl>
+
+    <section v-if="hasil && (hasil.csat.bisaMenilai || hasil.csat.sudahMenilai || csatTersimpan)" class="grid gap-3 rounded-lg border p-4 text-sm" aria-label="Penilaian layanan" data-testid="csat">
+      <form v-if="hasil.csat.bisaMenilai" class="grid gap-3" novalidate data-testid="csat-form" @submit.prevent="kirimCsat">
+        <fieldset class="grid gap-1.5">
+          <legend class="font-semibold">Bagaimana konsultasi Anda?</legend>
+          <p class="text-xs text-muted-foreground">Beri nilai 1 (sangat tidak puas) sampai 5 (sangat puas).</p>
+          <div class="flex gap-1">
+            <label v-for="angka in 5" :key="angka" class="relative cursor-pointer rounded-md p-1 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring">
+              <input v-model.number="nilai" type="radio" name="csat-nilai" :value="angka" class="absolute inset-0 size-full cursor-pointer opacity-0">
+              <Star class="size-7 transition-colors" :class="angka <= nilai ? 'fill-amber-400 text-amber-500' : 'text-muted-foreground'" aria-hidden="true" />
+              <span class="sr-only">{{ angka }} dari 5</span>
+            </label>
+          </div>
+        </fieldset>
+        <label class="flex items-start gap-2 rounded-lg border p-3">
+          <input v-model="consent" type="checkbox" name="csat-consent" class="mt-0.5">
+          <span>Saya setuju penilaian saya (tanpa identitas) dihitung dalam statistik layanan</span>
+        </label>
+        <p v-if="!consent" class="text-xs text-muted-foreground" data-testid="csat-tanpa-consent">
+          Tanpa persetujuan ini, penilaian Anda tetap tersimpan tetapi tidak dihitung dalam statistik layanan.
+        </p>
+        <p v-if="errorCsat" role="alert" class="text-sm text-destructive">{{ errorCsat }}</p>
+        <UiButton type="submit" class="w-fit" :disabled="mengirimCsat">{{ mengirimCsat ? "Mengirim…" : "Kirim penilaian" }}</UiButton>
+      </form>
+      <p v-else-if="csatTersimpan" role="status" class="text-emerald-900" data-testid="csat-terima-kasih">
+        <strong>Terima kasih atas penilaian Anda.</strong>
+        {{ csatTersimpan.dihitung ? "Penilaian Anda dihitung dalam statistik layanan, tanpa identitas." : "Penilaian tersimpan, tetapi tidak dihitung dalam statistik layanan karena Anda tidak memberi persetujuan." }}
+      </p>
+      <p v-else role="status" data-testid="csat-sudah-menilai">Terima kasih, penilaian sudah tercatat.</p>
+    </section>
   </section>
 </template>

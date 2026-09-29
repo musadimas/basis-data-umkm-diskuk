@@ -78,8 +78,16 @@ test("there is no public NIB/NIK lookup left to act as an identity oracle", asyn
       "GET /slot",
       "POST /tiket",
       "POST /tiket/lacak",
+      "GET /statistik",
+      "GET /konsultan",
+      "POST /tiket/csat",
       "GET /tiket",
       "PATCH /tiket/:id",
+      "POST /tiket/:id/outcome",
+      "GET /outcome",
+      "POST /outcome/:id/verifikasi",
+      "POST /outcome/:id/koreksi",
+      "POST /outcome/:id/cabut",
       "GET /lampiran/:fileId",
       "POST /notifikasi/receipt",
     ],
@@ -88,7 +96,9 @@ test("there is no public NIB/NIK lookup left to act as an identity oracle", asyn
 
 test("only the kanban, prefill and attachment routes require a session", async () => {
   const { call, routes } = mountEndpoint(registerKlinik, { env });
-  const publik = new Set(["POST /tiket", "POST /tiket/lacak", "POST /notifikasi/receipt", "GET /poli", "GET /slot"]);
+  const publik = new Set([
+    "POST /tiket", "POST /tiket/lacak", "POST /notifikasi/receipt", "GET /poli", "GET /slot", "GET /statistik", "GET /konsultan", "POST /tiket/csat",
+  ]);
   for (const { method, path } of routes) {
     if (publik.has(`${method} ${path}`)) continue;
     const { nextError, res } = await call(method, path.replace(/:\w+/g, FILE), { accountability: null });
@@ -110,6 +120,15 @@ test("public inputs are validated before the captcha or any query", async () => 
   assert.equal(res.body.errors[0].extensions.code, "TANGGAL_TIDAK_VALID");
   ({ res } = await call("POST", "/tiket", { accountability: null, headers: { "content-type": "application/json" } }));
   assert.equal(res.statusCode, 400);
+  // CSAT: nomor rusak, nilai di luar 1-5, dan consent bukan boolean ditolak sebelum captcha/query.
+  ({ res } = await call("POST", "/tiket/csat", { accountability: null, body: { nomor: "bukan-nomor", whatsapp: "081234567890", nilai: 5, consent: true } }));
+  assert.equal(res.statusCode, 404);
+  for (const badan of [{ nilai: 0 }, { nilai: 6 }, { nilai: 4.5 }, { nilai: "lima" }, { nilai: 5, consent: "ya" }]) {
+    ({ res } = await call("POST", "/tiket/csat", { accountability: null, body: { nomor: "KLN-2026-09-0007", whatsapp: "081234567890", consent: true, ...badan } }));
+    assert.equal(res.body.errors[0].extensions.code, "INVALID_PAYLOAD", JSON.stringify(badan));
+  }
+  ({ res } = await call("GET", "/konsultan", { accountability: null, query: { hari: "31" } }));
+  assert.equal(res.body.errors[0].extensions.code, "HORIZON_TIDAK_VALID");
   assert.equal(queries.length, 0);
 });
 
@@ -127,15 +146,23 @@ test("semua route klinik bertanda terjaga/publik dengan peran yang tepat (01)", 
   const require = createRequire(import.meta.url);
   const cakupan = require("../../../analytics-shared/cakupan.cjs");
   const { routes } = mountEndpoint(registerKlinik, { env });
-  assert.equal(routes.length, 9);
+  assert.equal(routes.length, 17);
   const ekspektasi = [
     ["GET", "/poli", "publik", []],
     ["GET", "/prefill", "terjaga", ["kabkota", "pendamping", "provinsi", "umkm"]],
     ["GET", "/slot", "publik", []],
     ["POST", "/tiket", "publik", []],
     ["POST", "/tiket/lacak", "publik", []],
+    ["GET", "/statistik", "publik", []],
+    ["GET", "/konsultan", "publik", []],
+    ["POST", "/tiket/csat", "publik", []],
     ["GET", "/tiket", "terjaga", ["kabkota", "pendamping", "provinsi"]],
     ["PATCH", "/tiket/:id", "terjaga", ["kabkota", "pendamping", "provinsi"]],
+    ["POST", "/tiket/:id/outcome", "terjaga", ["kabkota", "pendamping", "provinsi"]],
+    ["GET", "/outcome", "terjaga", ["kabkota", "provinsi"]],
+    ["POST", "/outcome/:id/verifikasi", "terjaga", ["kabkota", "provinsi"]],
+    ["POST", "/outcome/:id/koreksi", "terjaga", ["kabkota", "provinsi"]],
+    ["POST", "/outcome/:id/cabut", "terjaga", ["kabkota", "provinsi"]],
     ["GET", "/lampiran/:fileId", "terjaga", ["kabkota", "pendamping", "provinsi", "umkm"]],
     ["POST", "/notifikasi/receipt", "publik", []],
   ];

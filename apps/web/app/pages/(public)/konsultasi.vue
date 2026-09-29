@@ -215,9 +215,11 @@ const tanggalPanjang = (value: string) => new Intl.DateTimeFormat("id-ID", { dat
   <div class="min-h-dvh">
     <LandingHeaderMask title="Klinik Konsultasi" subtitle="Konsultasi" badge-color="#cbd5e1" />
 
-    <!-- Landing klinik: the six desks, the four-step flow and the narahubung, before the form. -->
-    <div v-if="!tiket && tampilan === 'ajukan' && step === 0" class="mx-auto max-w-7xl px-3 pb-10 | lg:px-12 xl:px-0">
+    <!-- Landing klinik: the six desks, the four-step flow and the narahubung, then the service figures and consultant directory, before the form. -->
+    <div v-if="!tiket && tampilan === 'ajukan' && step === 0" class="mx-auto grid max-w-7xl gap-8 px-3 pb-10 | lg:px-12 xl:px-0">
       <KlinikPengantarKlinik :poli="poliList ?? []" @mulai="keForm" @lacak="tampilan = 'lacak'" />
+      <KlinikStatistik />
+      <KlinikDirektori />
     </div>
 
     <div class="mx-auto max-w-3xl px-3 pb-20 | lg:px-0">

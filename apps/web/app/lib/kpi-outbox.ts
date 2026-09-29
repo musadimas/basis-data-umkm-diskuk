@@ -108,6 +108,7 @@ export async function flushOutbox(directus: Directus): Promise<{ sent: KpiLapora
             kendala: entry.kendala,
             bukti: entry.photos.map((photo) => photo.fileId).filter((id): id is string => Boolean(id)),
             clientUuid: entry.clientUuid,
+            dibuatPada: entry.createdAt,
           },
         }),
       );

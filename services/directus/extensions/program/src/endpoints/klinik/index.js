@@ -15,6 +15,8 @@ const { publik, terjaga } = cakupan;
 // (captcha/rahasia tetap di handler).
 const SEMUA = { peran: ["provinsi", "kabkota", "pendamping", "umkm"] };
 const PETUGAS = { peran: ["provinsi", "kabkota", "pendamping"] };
+// Verifikasi, koreksi, dan pencabutan outcome adalah hak provinsi dan kab/kota pemilik wilayah; pendamping hanya mengajukan.
+const VERIFIKATOR = { peran: ["provinsi", "kabkota"] };
 
 // Klinik Konsultasi (Brief Fitur Modul 7.3 / M7-11…M7-14):
 //   GET   /v1/program/klinik/poli                 PUBLIC: the six consultation desks
@@ -24,6 +26,12 @@ const PETUGAS = { peran: ["provinsi", "kabkota", "pendamping"] };
 //   POST  /v1/program/klinik/tiket/lacak          PUBLIC, captcha: read back a ticket
 //   GET   /v1/program/klinik/tiket                staff: kanban
 //   PATCH /v1/program/klinik/tiket/:id            staff: status, assignment, session record, referrals
+//   GET   /v1/program/klinik/statistik            PUBLIC: total selesai, waktu respons, CSAT (aggregates only)
+//   GET   /v1/program/klinik/konsultan            PUBLIC: konsultan directory + free slots (?hari=1..30)
+//   POST  /v1/program/klinik/tiket/csat           PUBLIC, captcha: applicant rates a completed ticket
+//   POST  /v1/program/klinik/tiket/:id/outcome    staff: submit the outcome of a completed ticket
+//   GET   /v1/program/klinik/outcome              provinsi/kabkota: verification queue
+//   POST  /v1/program/klinik/outcome/:id/{verifikasi,koreksi,cabut}   provinsi/kabkota: verify, correct, revoke
 //   GET   /v1/program/klinik/lampiran/:fileId     applicant or staff: private attachment
 //   POST  /v1/program/klinik/notifikasi/receipt   provider callback: WhatsApp delivery receipt
 //
@@ -78,10 +86,36 @@ export default (router, context) => {
     )(konteks),
   );
   router.post("/tiket/lacak", publik(jalan(async (req) => ({ data: await klinik.lacakTiket(req.body) })))(konteks));
+  router.get("/statistik", publik(jalan(async () => ({ data: await klinik.statistik() })))(konteks));
+  router.get("/konsultan", publik(jalan(async (req) => ({ data: await klinik.konsultan(req.query) })))(konteks));
+  router.post("/tiket/csat", publik(jalan(async (req) => ({ data: await klinik.jawabCsat(req.body), status: 201 })))(konteks));
   router.get("/tiket", terjaga(PETUGAS, jalan(async (req, p) => ({ data: await klinik.listTiket(p, req.query) })))(konteks));
   router.patch(
     "/tiket/:id",
     terjaga(PETUGAS, jalan(async (req, p) => ({ data: await klinik.ubahStatusTiket(p, req.params?.id, req.body, req.body?.versi) })))(konteks),
+  );
+  router.post(
+    "/tiket/:id/outcome",
+    terjaga(
+      PETUGAS,
+      jalan(async (req, p) => {
+        const hasil = await klinik.catatOutcome(p, req.params?.id, req.body);
+        return { data: hasil, status: hasil.duplikat ? 200 : 201 };
+      }),
+    )(konteks),
+  );
+  router.get("/outcome", terjaga(VERIFIKATOR, jalan(async (req, p) => ({ data: await klinik.daftarOutcome(p, req.query) })))(konteks));
+  router.post(
+    "/outcome/:id/verifikasi",
+    terjaga(VERIFIKATOR, jalan(async (req, p) => ({ data: await klinik.verifikasiOutcome(p, req.params?.id) })))(konteks),
+  );
+  router.post(
+    "/outcome/:id/koreksi",
+    terjaga(VERIFIKATOR, jalan(async (req, p) => ({ data: await klinik.koreksiOutcome(p, req.params?.id, req.body) })))(konteks),
+  );
+  router.post(
+    "/outcome/:id/cabut",
+    terjaga(VERIFIKATOR, jalan(async (req, p) => ({ data: await klinik.cabutOutcome(p, req.params?.id, req.body) })))(konteks),
   );
   router.get("/lampiran/:fileId", terjaga(SEMUA, () => lampiran(klinik, context.logger))(konteks));
   router.post("/notifikasi/receipt", publik(() => receipt(konteks))(konteks));

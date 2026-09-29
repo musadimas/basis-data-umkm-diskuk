@@ -10,6 +10,17 @@ export function uuid() {
   return randomUUID();
 }
 
+/**
+ * Jumat WIB terakhir (hari ini bila Jumat) sebagai ISO, dipakai sebagai `dibuatPada` laporan KPI
+ * supaya tes lewat HTTP (jam server nyata) tidak bergantung pada hari dijalankan (M5-03).
+ */
+export function jumatTerakhir(now = new Date()) {
+  const hari = (d) => new Date(`${new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(d)}T00:00:00Z`).getUTCDay();
+  let waktu = new Date(now.getTime() - 60_000);
+  while (hari(waktu) !== 5) waktu = new Date(waktu.getTime() - 86_400_000);
+  return waktu.toISOString();
+}
+
 export async function buatProvinsi(db, { id = 32, nama = `PROVINSI ${id}`, kode = String(id) } = {}) {
   await db("provinsi").insert({ id, nama, kode }).onConflict("id").ignore();
   return { id, nama, kode };

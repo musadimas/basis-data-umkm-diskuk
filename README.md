@@ -8,7 +8,7 @@ extension domain, read model analitik, dan worker terpisah untuk proyeksi/rebuil
 | Paket | Isi |
 | --- | --- |
 | `apps/web` | Nuxt 4 — panel privat `/panel/*`, dashboard publik, proxy session Directus |
-| `services/directus` | Directus + extension bundles: `analytics` (`/v1/analytics`: analysis, infographic, tabular, watchdog), `authentication` (`/v1/auth` + auth guards), `shared/` auth |
+| `services/directus` | Directus + extension bundles: `analytics` (`/v1/analytics`: analysis, infographic, tabular, watchdog), `authentication` (`/v1/auth` + auth guards), `program` (`/v1/program`: talent, kpi, katalog, passport, klinik, kegiatan, registrasi, fasilitasi, peta, executive), `directus-extension-operasional` (`/operasional`), `shared/` auth |
 | `services/analytics-worker` | Worker proyeksi/rebuild/reconcile/export read model analitik (process terpisah) |
 | `services/caddy`, `services/storage` | Reverse proxy dan object storage (MinIO) |
 | `docker/`, `docker-compose.yml` | PostGIS, PgBouncer, Redis, MinIO, Directus, web, worker |
@@ -55,6 +55,15 @@ pnpm --dir services/directus/extensions/analytics test
 ```
 
 Worker mengharuskan `ANALYTICS_DATABASE_URL` dedicated (lihat `services/analytics-worker/src/config.js`).
+
+## Dashboard operasional (rencana E2E Y/R)
+
+Rencana, urutan phase, dan verdict per requirement ada di
+`docs/dashboard-operasional-e2e-plan/main_plan.md`; status gate akhir di
+`docs/dashboard-operasional-e2e-plan/stage_2/receipt_R05_acceptance.md` (saat ini `blocked`).
+Tes Postgres nyata untuk extension `program` (`pnpm --dir services/directus/extensions/program test:pg`)
+membutuhkan `DISKUK_TEST_PG_URL` dan template dari `scripts/test-db-template.sh` pada stack disposable.
+Data dummy hanya untuk stack disposable: `docs/operasional/dummy-data-runbook.md`.
 
 ## Batas bukti
 

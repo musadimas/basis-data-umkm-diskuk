@@ -4,7 +4,7 @@ import { KANBAN_KOLOM, KLINIK_ASPEK, KLINIK_PRIORITAS, KLINIK_RUJUKAN, KLINIK_ST
 import { useAuth } from "~/composables/useAuth";
 import { KlinikError, daftarTiket, klaim, majukan, simpanSesi, tahapBerikutnya } from "~/lib/klinik";
 import type { RuntimeLabelMap } from "~/types/directus";
-import type { KlinikAspek, KlinikPrioritas, KlinikRujukan, KlinikStatus, KlinikTiket, KlinikTiketAudit } from "~/types/program";
+import type { KlinikAspek, KlinikOutcomeIsi, KlinikPrioritas, KlinikRujukan, KlinikStatus, KlinikTiket, KlinikTiketAudit } from "~/types/program";
 
 definePageMeta({ layout: "dashboard" });
 useSeoMeta({ title: "Klinik Konsultasi – Dashboard UMKM" });
@@ -17,6 +17,8 @@ const view = ref<"kanban" | "list">("kanban");
 // tracking form instead of the staff list, which the API refuses for non-staff roles.
 const peran = computed(() => auth.user.value?.app_role ?? null);
 const petugas = computed(() => ["provinsi", "kabkota", "pendamping"].includes(peran.value ?? ""));
+/** Antrean verifikasi outcome hanya untuk provinsi dan kab/kota; pendamping hanya mengajukan (server menolak 403). */
+const verifikator = computed(() => ["provinsi", "kabkota"].includes(peran.value ?? ""));
 
 /** Arsip batal (B34, K23): kanban tetap lima kolom; toggle di bawah memanggil `?status=batal`. */
 const tampilBatal = ref(false);
@@ -68,9 +70,16 @@ const draft = reactive<DraftTiket>({
 const saving = ref(false);
 const sheetError = ref("");
 
+/** Outcome opsional yang dikirim bersama penutupan tiket (R04); kosong berarti tiket ditutup tanpa outcome. */
+const draftOutcome = ref<KlinikOutcomeIsi[]>([]);
+/** Checklist tampil saat petugas menetapkan Selesai pada tiket yang belum selesai; tiket selesai memakai "Catat outcome". */
+const menutTiket = computed(() => active.value !== null && draft.status === "selesai" && active.value.status !== "selesai");
+const antrean = useTemplateRef<{ muatUlang: () => Promise<void> }>("antrean");
+
 function open(item: KlinikTiket) {
   active.value = item;
   sheetError.value = "";
+  draftOutcome.value = [];
   Object.assign(draft, {
     status: item.status,
     prioritas: item.prioritas,
@@ -100,8 +109,10 @@ async function simpan() {
       actionPlan: draft.actionPlan.trim() || null,
       rujukan: draft.rujukan,
       catatan: draft.catatan.trim() || null,
+      outcome: menutTiket.value && active.value.usaha && draftOutcome.value.length ? { items: draftOutcome.value } : undefined,
     });
-    await refresh();
+    draftOutcome.value = [];
+    await Promise.all([refresh(), antrean.value?.muatUlang()]);
   } catch (cause) {
     sheetError.value = pesanGagal(cause, "Perubahan tidak dapat disimpan.");
     if (cause instanceof KlinikError && cause.muatUlang) await refresh();
@@ -119,6 +130,14 @@ async function ambil() {
   } catch (cause) {
     sheetError.value = pesanGagal(cause, "Tiket tidak dapat diambil.");
   }
+}
+
+/** Setelah outcome dicatat, diverifikasi, dikoreksi, atau dicabut: muat ulang daftar dan tiket yang terbuka. */
+async function outcomeBerubah() {
+  await refresh();
+  const segar = tiket.value?.find((item) => item.id === active.value?.id);
+  if (segar) active.value = segar;
+  await antrean.value?.muatUlang();
 }
 
 const aksiError = ref("");
@@ -240,6 +259,8 @@ const tanggal = (value: string) => new Intl.DateTimeFormat("id-ID", { weekday: "
       </UiCardContent>
     </UiCard>
 
+    <KlinikOutcomeAntrean v-if="verifikator" ref="antrean" @berubah="refresh" />
+
     <UiSheet :open="Boolean(active)" @update:open="(value) => !value && (active = null)">
       <UiSheetContent v-if="active" class="w-full overflow-y-auto sm:max-w-xl">
         <UiSheetHeader>
@@ -311,13 +332,28 @@ const tanggal = (value: string) => new Intl.DateTimeFormat("id-ID", { weekday: "
           </div>
           <UiField class="gap-1"><UiFieldLabel for="catatan-klinik">Catatan internal</UiFieldLabel><UiTextarea id="catatan-klinik" v-model="draft.catatan" rows="2" maxlength="5000" /></UiField>
 
+          <fieldset v-if="menutTiket" class="grid gap-2" data-testid="outcome-penutupan">
+            <legend class="mb-1 font-bold">Hasil konsultasi (outcome), opsional</legend>
+            <template v-if="active.usaha">
+              <p class="text-xs text-muted-foreground">Tandai atribut usaha yang berubah. Dikirim bersama penutupan tiket dan menunggu verifikasi petugas lain; boleh dikosongkan.</p>
+              <KlinikOutcomeForm v-model="draftOutcome" :disabled="saving" />
+            </template>
+            <p v-else class="text-xs text-muted-foreground">Tiket tanpa usaha terdaftar tidak dapat memiliki outcome.</p>
+          </fieldset>
+
           <p v-if="sheetError" role="alert" class="text-destructive">{{ sheetError }}</p>
           <UiButton :disabled="saving" @click="simpan">{{ saving ? "Menyimpan…" : "Simpan" }}</UiButton>
 
           <p class="rounded-md bg-muted/50 p-3 text-xs text-muted-foreground">
-            Menutup tiket tidak mengubah profil UMKM. Integrasi hasil konsultasi ke profil dan indikator
-            usaha menyusul pada tahap berikutnya (N7-05).
+            Menutup tiket tanpa outcome tidak mengubah profil UMKM. Outcome baru masuk ke profil dan
+            indikator usaha setelah diverifikasi oleh petugas lain (provinsi atau kab/kota wilayah usaha).
           </p>
+
+          <section v-if="active.outcome || active.outcomeBisaDicatat" class="grid gap-3 border-t pt-4" aria-label="Outcome konsultasi" data-testid="outcome-tiket">
+            <h3 class="font-bold">Outcome konsultasi</h3>
+            <KlinikOutcomePanel v-if="active.outcome" :outcome="active.outcome" @berubah="outcomeBerubah" />
+            <KlinikOutcomeCatat v-if="active.outcomeBisaDicatat" :tiket="active" @berubah="outcomeBerubah" />
+          </section>
 
           <section class="grid gap-2 border-t pt-4" aria-label="Jejak audit tiket">
             <h3 class="inline-flex items-center gap-2 font-bold"><History class="size-4" aria-hidden="true" /> Jejak audit</h3>

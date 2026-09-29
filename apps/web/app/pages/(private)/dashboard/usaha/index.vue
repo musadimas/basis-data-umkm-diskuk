@@ -4,6 +4,7 @@ import { FASE_LABEL, LAPORAN_STATUS, assetUrl } from "~/constants";
 import { useKpiOutbox } from "~/composables/useKpiOutbox";
 import { formatAnalyticsCurrency } from "~/lib/analytics-format";
 import { endpoint } from "~/lib/directus";
+import { hariLaporWib, pesanKpi } from "~/lib/kpi";
 import { isQueryString } from "~/lib/utils";
 import type { KpiLaporan, KpiPesertaDetail, KpiPesertaListItem } from "~/types/program";
 
@@ -118,6 +119,11 @@ async function submit() {
   }
   if (!photos.value.length) {
     formError.value = "Tambahkan minimal satu foto bukti transaksi.";
+    return;
+  }
+  // Perbaikan laporan yang ditolak boleh kapan saja; laporan baru hanya pada Jumat WIB.
+  if (laporanByWeek.value.get(form.mingguKe)?.status !== "ditolak" && !hariLaporWib()) {
+    formError.value = pesanKpi("BUKAN_HARI_LAPOR");
     return;
   }
   submitting.value = true;
@@ -247,6 +253,9 @@ const history = computed<KpiLaporan[]>(() => [...(detail.value?.laporan ?? [])].
 
         <form v-if="detail?.akses.kirim" class="grid gap-4" novalidate @submit.prevent="submit">
           <h2 class="text-base font-bold">Kirim Laporan</h2>
+          <p class="text-xs text-muted-foreground" data-testid="aturan-jumat">
+            Laporan dibuat setiap hari Jumat (WIB). Bila sedang offline, laporan tersimpan di perangkat dan terkirim otomatis saat terhubung. Perbaikan laporan yang ditolak dapat dikirim kapan saja.
+          </p>
           <p v-if="!openWeeks.length" class="rounded-md bg-muted p-3 text-sm text-muted-foreground">
             Semua minggu yang berjalan sudah dilaporkan.
           </p>

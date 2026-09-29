@@ -19,6 +19,8 @@ function kunciPeta(sumber: string, nama: string): string[] {
 const SUMBER_SERVER = [
   "services/directus/extensions/program/src/endpoints/klinik/service.js",
   "services/directus/extensions/program/src/endpoints/klinik/penugasan.js",
+  "services/directus/extensions/program/src/endpoints/klinik/direktori.js",
+  "services/directus/extensions/program/src/endpoints/klinik/outcome.js",
   "services/directus/extensions/program/src/endpoints/klinik/rules.js",
   "services/directus/extensions/program/src/endpoints/klinik/index.js",
   "services/directus/extensions/program/src/endpoints/kpi/service.js",

@@ -129,6 +129,8 @@ export interface KpiLaporan {
   catatanPendamping: string | null;
   direviewAt: string | null;
   clientUuid: string;
+  /** Device time of an offline draft (M5-03 provenance); null when sent directly. */
+  dibuatPadaKlien: string | null;
   dateCreated: string;
   dateUpdated: string;
 }
@@ -151,6 +153,8 @@ export interface KpiLaporanInput {
   kendala: string | null;
   bukti: string[];
   clientUuid: string;
+  /** When the report was drafted on the device; a Friday draft may sync later. */
+  dibuatPada?: string | null;
 }
 
 export type KurasiStatus = "menunggu" | "tayang" | "rekomendasi_marketplace" | "ditolak";
@@ -506,6 +510,47 @@ export interface KlinikTiketDibuat {
 export interface KlinikTiketLacak extends KlinikTiketDibuat {
   namaUsaha: string;
   status: KlinikStatus;
+  /** Penilaian layanan (CSAT): hanya ditawarkan pada tiket selesai yang belum dinilai. */
+  csat: { bisaMenilai: boolean; sudahMenilai: boolean };
+}
+
+/** Statistik layanan publik (`GET /v1/program/klinik/statistik`); `null` berarti belum ada data, bukan nol. */
+export interface KlinikStatistik {
+  totalSelesai: number;
+  respons: { rataRataJam: number | null; sampel: number; targetJam: number };
+  csat: { rataRata: number | null; sampel: number; skalaMaks: number };
+  /** Definisi tiap angka dari server, satu sumber dengan dokumen. */
+  definisi: { totalSelesai: string; respons: string; csat: string };
+  dihitungPada: string;
+}
+
+export type KlinikAfiliasi = "plut" | "dinas" | "praktisi";
+
+/** Satu konsultan di direktori publik (`GET /v1/program/klinik/konsultan`): tanpa kontak maupun id akun. */
+export interface KlinikKonsultan {
+  id: number;
+  nama: string;
+  poli: { id: number; kode: string; nama: string };
+  afiliasi: KlinikAfiliasi | null;
+  afiliasiLabel: string | null;
+  /** Hari layanan mingguan (`senin`…`jumat`) dan slot tetapnya. */
+  hari: string[];
+  slot: string[];
+  /** Slot bebas per tanggal dalam rentang; kosong bila belum ada. */
+  ketersediaan: { tanggal: string; slot: string[] }[];
+  totalSlotBebas: number;
+}
+
+export interface KlinikDirektori {
+  rentang: { dari: string | null; sampai: string | null };
+  konsultan: KlinikKonsultan[];
+}
+
+/** Jawaban `POST /v1/program/klinik/tiket/csat`; `dihitung` false bila pemohon tidak memberi consent. */
+export interface KlinikCsatTersimpan {
+  nomor: string;
+  tersimpan: boolean;
+  dihitung: boolean;
 }
 
 export type KlinikStatus = "masuk" | "dijadwalkan" | "berjalan" | "tindak_lanjut" | "selesai" | "batal";
@@ -556,8 +601,64 @@ export interface KlinikTiket {
   versi: string;
   /** Actor/time trail of the accepted changes, newest first. */
   riwayat?: KlinikTiketAudit[];
+  /** Outcome konsultasi terbaru tiket ini (R04); `null` bila belum pernah dicatat. */
+  outcome: KlinikOutcome | null;
+  /** Keputusan server: tawarkan "Catat outcome" (tiket selesai milik usaha terdaftar tanpa outcome hidup). */
+  outcomeBisaDicatat: boolean;
   dateCreated: string;
   dateUpdated: string;
+}
+
+export type KlinikJenisOutcome = "kepatuhan" | "perbaikan";
+export type KlinikStatusOutcome = "diajukan" | "terverifikasi" | "dicabut";
+/** Tombol yang boleh ditekan pemanggil pada outcome; server yang memutuskan, UI hanya mengikuti. */
+export type KlinikAksiOutcome = "verifikasi" | "koreksi" | "cabut";
+
+/** Isian outcome yang dikirim petugas: atribut (snake_case, satu dari 15) dan jenisnya. */
+export interface KlinikOutcomeIsi {
+  atribut: string;
+  jenis: KlinikJenisOutcome;
+}
+
+export interface KlinikOutcomeItem extends KlinikOutcomeIsi {
+  label: string;
+}
+
+export interface KlinikOutcome {
+  id: string;
+  versi: number;
+  status: KlinikStatusOutcome;
+  statusLabel: string;
+  diajukanNama: string | null;
+  diajukanPada: string;
+  diverifikasiNama: string | null;
+  diverifikasiPada: string | null;
+  dicabutNama: string | null;
+  dicabutPada: string | null;
+  alasanCabut: string | null;
+  items: KlinikOutcomeItem[];
+  aksi: KlinikAksiOutcome[];
+}
+
+/** Baris antrean verifikasi (`GET /v1/program/klinik/outcome`): outcome plus tiket dan usahanya. */
+export interface KlinikOutcomeAntrean extends KlinikOutcome {
+  nomorTiket: string;
+  namaUsaha: string;
+  poli: string;
+}
+
+/** Jawaban `POST /tiket/:id/outcome` (`duplikat` bila retry atas isi yang sama). */
+export interface KlinikOutcomeDicatat {
+  id: string;
+  duplikat?: boolean;
+}
+
+/** Jawaban verifikasi, koreksi, dan pencabutan outcome. */
+export interface KlinikOutcomeDiputuskan {
+  id: string;
+  versi: number;
+  status: KlinikStatusOutcome;
+  duplikat: boolean;
 }
 
 /** One accepted change of a ticket, as the kanban shows it (Y09/M7-13). */

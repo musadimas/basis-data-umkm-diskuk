@@ -7,6 +7,14 @@ const PNG = Buffer.from(
   "base64",
 );
 
+/** Jumat WIB terakhir (bukan masa depan), dalam jendela sinkron 7 hari server (M5-03). */
+function jumatTerakhir(now = new Date()): Date {
+  const hari = (d: Date) => new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Jakarta", weekday: "short" }).format(d);
+  let waktu = new Date(now.getTime() - 60_000);
+  while (hari(waktu) !== "Fri") waktu = new Date(waktu.getTime() - 86_400_000);
+  return waktu;
+}
+
 function laporan(mingguKe: number, realisasiOmzet: number, status: "menunggu" | "disetujui") {
   return {
     id: `44444444-4444-4444-8444-00000000010${mingguKe}`,
@@ -30,6 +38,8 @@ function laporan(mingguKe: number, realisasiOmzet: number, status: "menunggu" | 
 test.describe("Modul 5 · Monitoring KPI mingguan", () => {
   test("UMKM view queues a report offline and syncs it once the connection returns", async ({ page, context }) => {
     const state = createProgramState();
+    const jumat = jumatTerakhir();
+    await page.clock.setFixedTime(jumat);
     await installMockDirectus(page, { authenticated: true, role: "umkm" });
     await installMockProgram(page, state);
     await loginMock(page, "/dashboard/usaha");
@@ -59,7 +69,27 @@ test.describe("Modul 5 · Monitoring KPI mingguan", () => {
     expect(posts).toHaveLength(1);
     expect(posts[0]!.body).toMatchObject({ mingguKe: 6, realisasiOmzet: 1120000, jumlahTransaksi: 34, kendala: "Hujan deras", bukti: [state.uploads[0]] });
     expect(posts[0]!.body.clientUuid).toMatch(/^[0-9a-f-]{36}$/);
+    // The draft carries its device time so a Friday report stays valid when it syncs later.
+    expect(posts[0]!.body.dibuatPada).toBe(jumat.toISOString());
     await expect(page.getByRole("region", { name: "Riwayat laporan" }).getByText("Minggu ke-6")).toBeVisible();
+  });
+
+  test("a new report outside Friday (WIB) is refused before it is queued", async ({ page }) => {
+    const state = createProgramState();
+    await page.clock.setFixedTime(new Date(jumatTerakhir().getTime() - 86_400_000));
+    await installMockDirectus(page, { authenticated: true, role: "umkm" });
+    await installMockProgram(page, state);
+    await loginMock(page, "/dashboard/usaha");
+
+    await expect(page.getByTestId("aturan-jumat")).toContainText("setiap hari Jumat (WIB)");
+    await page.getByLabel("Omzet minggu ini (Rp)").fill("1120000");
+    await page.getByLabel("Jumlah transaksi").fill("34");
+    await page.getByTestId("galeri-input").setInputFiles({ name: "nota.png", mimeType: "image/png", buffer: PNG });
+    await page.getByRole("button", { name: "Kirim Laporan" }).click();
+
+    await expect(page.getByRole("alert")).toHaveText("Laporan mingguan hanya dapat dibuat pada hari Jumat (WIB).");
+    await expect(page.getByText("laporan menunggu sinkronisasi")).toHaveCount(0);
+    expect(state.requests.filter((request) => request.path.endsWith("/laporan"))).toHaveLength(0);
   });
 
   test("pendamping reviews evidence, must explain a rejection, and approves", async ({ page }) => {

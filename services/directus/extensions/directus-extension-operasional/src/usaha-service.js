@@ -51,6 +51,40 @@ function toCamelAtribut(row) {
   return out;
 }
 
+const CAMEL_DARI_KOLOM = Object.fromEntries(Object.entries(ATRIBUT_CAMEL).map(([camel, kolom]) => [kolom, camel]));
+
+// Outcome klinik terverifikasi (R04): hanya atribut + jenis + asal tiket/verifikator/tanggal.
+// Sengaja tanpa diagnosis, rencana aksi, catatan, kontak, atau tautan rapat tiket.
+async function getHasilKonsultasi(database, usahaId) {
+  const result = await database.raw(
+    `SELECT o.id, o.versi, o.diverifikasi_nama, o.diverifikasi_pada, t.nomor, po.nama AS poli,
+            i.atribut, i.jenis
+       FROM konsultasi_outcome o
+       JOIN konsultasi_tiket t ON t.id = o.tiket
+       JOIN konsultasi_poli po ON po.id = t.poli
+       JOIN konsultasi_outcome_item i ON i.outcome = o.id
+      WHERE o.usaha = ? AND o.status = 'terverifikasi'
+      ORDER BY o.diverifikasi_pada DESC, o.id, i.atribut`,
+    [usahaId],
+  );
+  const perOutcome = new Map();
+  for (const row of rowsOf(result)) {
+    if (!perOutcome.has(row.id)) {
+      perOutcome.set(row.id, {
+        id: row.id,
+        versi: row.versi,
+        nomorTiket: row.nomor,
+        poli: row.poli,
+        diverifikasiOleh: row.diverifikasi_nama ?? null,
+        diverifikasiPada: row.diverifikasi_pada ? new Date(row.diverifikasi_pada).toISOString() : null,
+        items: [],
+      });
+    }
+    perOutcome.get(row.id).items.push({ atribut: CAMEL_DARI_KOLOM[row.atribut] ?? row.atribut, jenis: row.jenis });
+  }
+  return [...perOutcome.values()];
+}
+
 async function getUsahaLapangan(database, usahaId, pemanggil) {
   await pastikanUsaha(database, pemanggil, usahaId);
   const detail = await database.raw(
@@ -91,6 +125,7 @@ async function getUsahaLapangan(database, usahaId, pemanggil) {
       verifikator = { id: v.id, nama: nama || v.email || String(v.id) };
     }
   }
+  const hasilKonsultasi = await getHasilKonsultasi(database, usahaId);
   return {
     data: {
       id: usahaId,
@@ -115,6 +150,7 @@ async function getUsahaLapangan(database, usahaId, pemanggil) {
       },
       pemilik: { nama: row.pemilik_nama ?? null },
       atribut: toCamelAtribut(atributRow),
+      hasilKonsultasi,
       verifikasi: {
         terverifikasiOleh: verifikator,
         terverifikasiPada: atributRow?.terverifikasi_pada

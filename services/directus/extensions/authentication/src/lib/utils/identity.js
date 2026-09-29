@@ -20,9 +20,13 @@ export async function resolveNibEmail(database, nib) {
   return list.length === 1 ? list[0].email : null;
 }
 
-/** Unregistered email so an unknown NIB takes the same failure path as an unknown email. */
+/**
+ * Unregistered email so an unknown NIB takes the same failure path as an unknown email.
+ * The TLD must pass Directus' Joi email check (IANA list): `.invalid` is rejected with 400
+ * before the credential check, which would tell apart registered and unknown NIBs.
+ */
 export function unmatchedEmail() {
-  return `nib-${crypto.randomUUID()}@unmatched.invalid`;
+  return `nib-${crypto.randomUUID()}@unmatched.example.com`;
 }
 
 /**

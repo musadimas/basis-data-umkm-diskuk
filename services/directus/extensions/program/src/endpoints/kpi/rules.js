@@ -7,6 +7,36 @@ export function jakartaDate(now = new Date()) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
 }
 
+/** Day of week in Asia/Jakarta: 0 = Sunday … 5 = Friday. */
+export function jakartaWeekday(now = new Date()) {
+  return new Date(`${jakartaDate(now)}T00:00:00Z`).getUTCDay();
+}
+
+/** M5-03: weekly reports are made on Friday, Asia/Jakarta. */
+export const HARI_LAPOR = 5;
+/** A report drafted offline on a Friday may sync up to this many days later. */
+export const BATAS_SINKRON_HARI = 7;
+/** Device clocks ahead of the server by more than this are refused. */
+export const TOLERANSI_JAM_MS = 5 * 60_000;
+
+/**
+ * When a report counts as made: the server clock, or the device time of an offline draft
+ * (`dibuatPada`). A device time must be a valid instant, not ahead of the server beyond the
+ * tolerance, and at most BATAS_SINKRON_HARI old. Returns null when the device time is refused.
+ */
+export function waktuLaporan(dibuatPada, now = new Date()) {
+  if (dibuatPada == null) return { waktu: now, klien: null };
+  if (typeof dibuatPada !== "string") return null;
+  const waktu = new Date(dibuatPada);
+  const selisih = now.getTime() - waktu.getTime();
+  if (!Number.isFinite(selisih) || selisih < -TOLERANSI_JAM_MS || selisih > BATAS_SINKRON_HARI * 86_400_000) return null;
+  return { waktu, klien: waktu };
+}
+
+export function hariLapor(waktu) {
+  return jakartaWeekday(waktu) === HARI_LAPOR;
+}
+
 /**
  * Programme week for a date: week 1 starts on tanggal_mulai. 0 before the start; capped at
  * jumlah_minggu after the end.

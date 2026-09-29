@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ATRIBUT_JABAR } from "~/constants/OPERASIONAL";
+import { KLINIK_JENIS_OUTCOME } from "~/constants/PROGRAM";
 import { formatAnalyticsCurrency, formatAnalyticsWib } from "~/lib/analytics-format";
 import type { UsahaLapangan } from "~/types/operasional";
 
@@ -116,6 +117,11 @@ interface LapanganPatch {
 }
 
 const verifikasiInfo = computed(() => data.value?.data?.verifikasi);
+
+// Hasil konsultasi klinik (R04): hanya outcome terverifikasi, tanpa diagnosis atau catatan sesi.
+const hasilKonsultasi = computed(() => data.value?.data?.hasilKonsultasi ?? []);
+const labelAtribut = (atribut: string) => ATRIBUT_JABAR.find((item) => item.key === atribut)?.label ?? atribut;
+const labelJenis = (jenis: string) => KLINIK_JENIS_OUTCOME.find((item) => item.value === jenis)?.label ?? jenis;
 </script>
 
 <template>
@@ -196,6 +202,24 @@ const verifikasiInfo = computed(() => data.value?.data?.verifikasi);
         <UiButton variant="outline" size="sm" :disabled="memverifikasi" @click="verifikasi">
           {{ memverifikasi ? "Memproses…" : "Tandai Terverifikasi" }}
         </UiButton>
+      </section>
+
+      <section aria-label="Hasil konsultasi klinik" class="space-y-3 rounded-lg border bg-card p-4" data-testid="hasil-konsultasi">
+        <h2 class="font-semibold">Hasil konsultasi klinik (terverifikasi)</h2>
+        <p v-if="!hasilKonsultasi.length" class="text-sm text-muted-foreground">Belum ada hasil konsultasi terverifikasi.</p>
+        <ul v-else class="space-y-3">
+          <li v-for="hasil in hasilKonsultasi" :key="hasil.id" class="space-y-2 rounded-md border p-3 text-sm" data-testid="hasil-konsultasi-item">
+            <p><span class="font-mono text-xs">{{ hasil.nomorTiket }}</span> · {{ hasil.poli }}</p>
+            <p class="text-xs text-muted-foreground">
+              Diverifikasi oleh {{ hasil.diverifikasiOleh ?? "petugas" }}<template v-if="hasil.diverifikasiPada"> pada {{ formatAnalyticsWib(hasil.diverifikasiPada) }}</template>
+            </p>
+            <ul class="flex flex-wrap gap-1.5">
+              <li v-for="item in hasil.items" :key="item.atribut" class="rounded-full border bg-background px-2.5 py-0.5 text-xs">
+                {{ labelAtribut(item.atribut) }} <span class="text-muted-foreground">· {{ labelJenis(item.jenis) }}</span>
+              </li>
+            </ul>
+          </li>
+        </ul>
       </section>
 
       <div class="flex items-center gap-3">

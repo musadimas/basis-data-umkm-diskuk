@@ -11,12 +11,20 @@ import { requestErrorCode, requestStatus } from "~/lib/request-error";
 import type { RuntimeLabelMap } from "~/types/directus";
 import type {
   KlinikAspek,
+  KlinikCsatTersimpan,
+  KlinikDirektori,
+  KlinikOutcomeAntrean,
+  KlinikOutcomeDicatat,
+  KlinikOutcomeDiputuskan,
+  KlinikOutcomeIsi,
   KlinikPoli,
   KlinikPrefill,
   KlinikPrioritas,
   KlinikRujukan,
   KlinikSlot,
+  KlinikStatistik,
   KlinikStatus,
+  KlinikStatusOutcome,
   KlinikTiket,
   KlinikTiketDibuat,
   KlinikTiketLacak,
@@ -55,6 +63,16 @@ export const PESAN_KLINIK: RuntimeLabelMap = {
   FORBIDDEN: "Akun ini tidak dapat mengakses klinik konsultasi.",
   AUTHENTICATION_REQUIRED: "Masuk terlebih dahulu.",
   RECEIPT_NOT_CONFIGURED: "Penerimaan status pesan belum dikonfigurasi.",
+  TIKET_BELUM_SELESAI: "Tiket ini belum berstatus Selesai, jadi belum dapat dinilai atau dicatat hasilnya.",
+  CSAT_SUDAH_ADA: "Penilaian untuk tiket ini sudah tercatat. Terima kasih.",
+  OUTCOME_TIDAK_VALID: "Isi outcome tidak valid. Pilih 1–15 atribut tanpa duplikat, masing-masing kepatuhan atau perbaikan; outcome hanya dapat dikirim bersama status Selesai.",
+  OUTCOME_TIDAK_DITEMUKAN: "Outcome tidak ditemukan atau di luar wilayah Anda.",
+  OUTCOME_SUDAH_ADA: "Tiket ini sudah memiliki outcome. Gunakan Koreksi untuk mengubah isinya.",
+  OUTCOME_DICABUT: "Outcome ini sudah dicabut.",
+  OUTCOME_TIDAK_BERUBAH: "Isi koreksi sama dengan outcome saat ini. Ubah minimal satu atribut.",
+  USAHA_TIDAK_TERTAUT: "Tiket tanpa usaha terdaftar tidak dapat memiliki outcome.",
+  VERIFIKATOR_SAMA: "Outcome harus diverifikasi oleh petugas lain, bukan pengaju.",
+  HORIZON_TIDAK_VALID: "Rentang hari direktori konsultan tidak valid.",
 };
 
 /** Kegagalan klinik: `code` dari server (atau `UNKNOWN`), `pesan` siap tampil, `muatUlang` bila daftar harus dimuat ulang. */
@@ -97,6 +115,19 @@ export function daftarPoli(client: KlinikClient): Promise<KlinikPoli[]> {
 
 export function slotTersedia(client: KlinikClient, poli: number, tanggal: string): Promise<KlinikSlot[]> {
   return jalankan(() => client.request(endpoint<KlinikSlot[]>("/v1/program/klinik/slot", { query: { poli, tanggal } })));
+}
+
+/** Horizon direktori konsultan (hari ke depan); dikirim eksplisit supaya teks "belum ada slot" jujur soal rentangnya. */
+export const HARI_DIREKTORI = 14;
+
+/** Statistik layanan publik; angka `null` berarti belum ada data dan tidak boleh tampil sebagai nol. */
+export function statistikKlinik(client: KlinikClient): Promise<KlinikStatistik> {
+  return jalankan(() => client.request(endpoint<KlinikStatistik>("/v1/program/klinik/statistik")));
+}
+
+/** Direktori konsultan aktif beserta slot bebas `HARI_DIREKTORI` hari ke depan. */
+export function direktoriKonsultan(client: KlinikClient): Promise<KlinikDirektori> {
+  return jalankan(() => client.request(endpoint<KlinikDirektori>("/v1/program/klinik/konsultan", { query: { hari: HARI_DIREKTORI } })));
 }
 
 /** Prefill dari akun yang masuk; `null` bila tidak ada sesi (401). */
@@ -151,6 +182,25 @@ export async function lacakTiket(client: KlinikClient, nomor: string, whatsapp: 
   }
 }
 
+/** Penilaian (CSAT) pemohon: kunci yang sama dengan lacak tiket, captcha baru (token sekali pakai). */
+export interface FormCsat {
+  nomor: string;
+  whatsapp: string;
+  nilai: number;
+  consent: boolean;
+}
+
+export function nilaiTiket(client: KlinikClient, form: FormCsat, captcha: string): Promise<KlinikCsatTersimpan> {
+  return jalankan(() =>
+    client.request(
+      endpoint<KlinikCsatTersimpan, FormCsat & { captcha: string }>("/v1/program/klinik/tiket/csat", {
+        method: "POST",
+        body: { ...form, nomor: form.nomor.trim().toUpperCase(), whatsapp: form.whatsapp.trim(), captcha },
+      }),
+    ),
+  );
+}
+
 // ── Petugas ─────────────────────────────────────────────────────────────────
 
 /** Kolom tiket yang boleh dikirim petugas lewat PATCH; `versi` ditambahkan module ini, bukan halaman. */
@@ -163,6 +213,8 @@ export interface SesiTiket {
   rujukan?: KlinikRujukan[];
   catatan?: string | null;
   pendamping?: string;
+  /** Hanya bersama `status: "selesai"`; menutup tiket dan mencatat outcome dalam satu transaksi server. */
+  outcome?: { items: KlinikOutcomeIsi[] };
 }
 
 /** Tiket dalam cakupan petugas; tiket batal hanya muncul bila diminta lewat `status: "batal"`. */
@@ -205,4 +257,46 @@ export async function batalkan(client: KlinikClient, tiket: KlinikTiket): Promis
 /** Tiket batal kembali ke kalender; `null` (tanpa request) bila server tidak menawarkannya. */
 export async function jadwalkanUlang(client: KlinikClient, tiket: KlinikTiket): Promise<KlinikTiket | null> {
   return tiket.status === "batal" && tiket.transisi.includes("dijadwalkan") ? ubah(client, tiket, { status: "dijadwalkan" }) : null;
+}
+
+// ── Outcome konsultasi (R04) ────────────────────────────────────────────────
+// Aturan siapa boleh apa ada di server: DTO tiket dan antrean membawa `aksi` dan `outcomeBisaDicatat`,
+// module ini hanya meneruskan permintaan.
+
+/** Mengajukan outcome untuk tiket yang sudah Selesai; retry dengan isi sama dijawab `duplikat: true`. */
+export function catatOutcome(client: KlinikClient, tiket: KlinikTiket, items: KlinikOutcomeIsi[]): Promise<KlinikOutcomeDicatat> {
+  return jalankan(() =>
+    client.request(
+      endpoint<KlinikOutcomeDicatat, { items: KlinikOutcomeIsi[] }>(`/v1/program/klinik/tiket/${tiket.id}/outcome`, { method: "POST", body: { items } }),
+    ),
+  );
+}
+
+/** Antrean outcome untuk provinsi/kab-kota; tanpa `status` server menjawab antrean verifikasi (`diajukan`). */
+export function daftarOutcome(client: KlinikClient, status?: KlinikStatusOutcome): Promise<KlinikOutcomeAntrean[]> {
+  return jalankan(() => client.request(endpoint<KlinikOutcomeAntrean[]>("/v1/program/klinik/outcome", { query: { status } })));
+}
+
+export function verifikasiOutcome(client: KlinikClient, id: string): Promise<KlinikOutcomeDiputuskan> {
+  return jalankan(() => client.request(endpoint<KlinikOutcomeDiputuskan>(`/v1/program/klinik/outcome/${id}/verifikasi`, { method: "POST" })));
+}
+
+/** Koreksi selalu beralasan (minimal 5 karakter, dijaga server) dan menghasilkan versi baru yang langsung terverifikasi. */
+export function koreksiOutcome(client: KlinikClient, id: string, items: KlinikOutcomeIsi[], alasan: string): Promise<KlinikOutcomeDiputuskan> {
+  return jalankan(() =>
+    client.request(
+      endpoint<KlinikOutcomeDiputuskan, { items: KlinikOutcomeIsi[]; alasan: string }>(`/v1/program/klinik/outcome/${id}/koreksi`, {
+        method: "POST",
+        body: { items, alasan: alasan.trim() },
+      }),
+    ),
+  );
+}
+
+export function cabutOutcome(client: KlinikClient, id: string, alasan: string): Promise<KlinikOutcomeDiputuskan> {
+  return jalankan(() =>
+    client.request(
+      endpoint<KlinikOutcomeDiputuskan, { alasan: string }>(`/v1/program/klinik/outcome/${id}/cabut`, { method: "POST", body: { alasan: alasan.trim() } }),
+    ),
+  );
 }

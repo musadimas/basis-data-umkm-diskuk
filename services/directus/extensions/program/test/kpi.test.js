@@ -3,7 +3,7 @@ import test from "node:test";
 import { createRequire } from "node:module";
 import registerKpi from "../src/endpoints/kpi/index.js";
 import { canReview, canSubmit } from "../src/endpoints/kpi/service.js";
-import { capaian, currentWeek, jakartaDate, longestTargetStreak, pitchingEligible } from "../src/endpoints/kpi/rules.js";
+import { capaian, currentWeek, hariLapor, jakartaDate, longestTargetStreak, pitchingEligible, waktuLaporan } from "../src/endpoints/kpi/rules.js";
 import { mountEndpoint } from "./helpers.js";
 
 const require = createRequire(import.meta.url);
@@ -29,6 +29,19 @@ test("programme weeks start on tanggal_mulai in Jakarta time and cap at jumlah_m
   assert.equal(currentWeek("2026-09-02", 12, new Date("2026-09-09T00:00:00Z")), 2);
   assert.equal(currentWeek("2026-01-01", 12, new Date("2026-09-09T00:00:00Z")), 12);
   assert.equal(currentWeek("garbage", 12), 0);
+});
+
+test("reports are made on Friday in Jakarta time; a device time must be recent and not ahead", () => {
+  assert.equal(hariLapor(new Date("2026-10-01T16:59:59Z")), false, "Thursday 23:59 WIB");
+  assert.equal(hariLapor(new Date("2026-10-01T17:00:00Z")), true, "Friday 00:00 WIB");
+  assert.equal(hariLapor(new Date("2026-10-02T17:00:00Z")), false, "Saturday 00:00 WIB");
+  const now = new Date("2026-10-03T02:00:00Z");
+  assert.deepEqual(waktuLaporan(undefined, now), { waktu: now, klien: null });
+  assert.equal(waktuLaporan("2026-10-02T08:00:00Z", now).klien.toISOString(), "2026-10-02T08:00:00.000Z");
+  assert.equal(waktuLaporan("2026-10-03T02:06:00Z", now), null, "ahead of the server");
+  assert.equal(waktuLaporan("2026-09-26T01:59:00Z", now), null, "older than 7 days");
+  assert.equal(waktuLaporan("garbage", now), null);
+  assert.equal(waktuLaporan(42, now), null);
 });
 
 test("the pitching streak counts only approved weeks at or above target, consecutively", () => {

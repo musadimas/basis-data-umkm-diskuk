@@ -23,7 +23,10 @@ test("an unknown NIB becomes an unmatched email so it fails like an unknown emai
   const { middlewares } = setup();
   const req = { body: { email: "9999999999999", password: "x" } };
   await runMiddleware(middlewares["POST /auth/login"], req);
-  assert.match(req.body.email, /^nib-[0-9a-f-]{36}@unmatched\.invalid$/);
+  assert.match(req.body.email, /^nib-[0-9a-f-]{36}@unmatched\.example\.com$/);
+  // Reserved TLDs (.invalid/.test/.localhost/.local) fail Directus' Joi email validation with 400
+  // instead of 401, which turns the login endpoint into a NIB existence oracle.
+  assert.doesNotMatch(req.body.email, /\.(invalid|test|localhost|local|example)$/);
 });
 
 test("emails pass through the login middleware untouched", async () => {

@@ -4,7 +4,7 @@ import registerKpi from "../../src/endpoints/kpi/index.js";
 import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const { APPLICATION_ROLE_ID } = require("../../../../analytics-shared/cakupan.cjs");
-import { buatFile, buatKota, buatPeserta, buatUsaha, buatUser, uuid } from "../../../../test-support/fixtures.mjs";
+import { buatFile, buatKota, buatPeserta, buatUsaha, buatUser, jumatTerakhir, uuid } from "../../../../test-support/fixtures.mjs";
 import { pgSkipReason, withDatabase } from "../../../../test-support/pg-harness.mjs";
 import { mountEndpoint } from "../helpers.js";
 
@@ -16,6 +16,7 @@ const laporan = (clientUuid, bukti) => ({
   kendala: null,
   clientUuid,
   bukti,
+  dibuatPada: jumatTerakhir(),
 });
 
 async function siapkan(db) {

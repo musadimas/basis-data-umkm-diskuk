@@ -120,6 +120,99 @@ export function tanggalTidakValid(tanggal, now = new Date()) {
   return null;
 }
 
+export const HARI = ["senin", "selasa", "rabu", "kamis", "jumat"];
+export const AFILIASI = ["plut", "dinas", "praktisi"];
+export const LABEL_AFILIASI = { plut: "PLUT", dinas: "Dinas", praktisi: "Praktisi" };
+/** Berapa hari ke depan direktori menghitung ketersediaan bila klien tidak meminta lain. */
+export const HORIZON_DIREKTORI = 14;
+
+/** Nama hari kerja (senin…jumat) dari tanggal Jakarta YYYY-MM-DD; null pada akhir pekan. */
+export const namaHari = (tanggal) => HARI[new Date(`${tanggal}T00:00:00Z`).getUTCDay() - 1] ?? null;
+
+/** Tanggal yang bisa dipesan dalam `hari` hari ke depan: memakai aturan `tanggalTidakValid` yang sama dengan pemesanan. */
+export function tanggalDapatDipesan(now = new Date(), hari = HORIZON_DIREKTORI) {
+  const today = Date.parse(`${jakartaDate(now)}T00:00:00Z`);
+  const batas = Math.min(Math.max(hari, 1), MAX_HARI_KE_DEPAN);
+  const hasil = [];
+  for (let ke = 1; ke <= batas; ke += 1) {
+    const tanggal = new Date(today + ke * DAY).toISOString().slice(0, 10);
+    if (tanggalTidakValid(tanggal, now) === null) hasil.push(tanggal);
+  }
+  return hasil;
+}
+
+/**
+ * Slot bebas satu konsultan per tanggal. Sebuah slot bebas bila konsultan melayaninya menurut jadwal
+ * mingguan, slot poli-nya belum dipesan tiket aktif, dan (bila konsultan juga akun pendamping) pendamping
+ * itu tidak memegang tiket aktif lain pada tanggal+slot yang sama. `terpakaiPoli` berisi `poli|tanggal|slot`,
+ * `terpakaiPendamping` berisi `pendamping|tanggal|slot`.
+ */
+export function ketersediaanKonsultan(konsultan, tanggalList, { terpakaiPoli, terpakaiPendamping }) {
+  const hariKerja = new Set(konsultan.hari);
+  const dilayani = SLOTS.filter((slot) => konsultan.slot.includes(slot));
+  const hasil = [];
+  for (const tanggal of tanggalList) {
+    if (!hariKerja.has(namaHari(tanggal))) continue;
+    const bebas = dilayani.filter(
+      (slot) =>
+        !terpakaiPoli.has(`${konsultan.poli}|${tanggal}|${slot}`) &&
+        !(konsultan.pendamping && terpakaiPendamping.has(`${konsultan.pendamping}|${tanggal}|${slot}`)),
+    );
+    if (bebas.length) hasil.push({ tanggal, slot: bebas });
+  }
+  return hasil;
+}
+
+/** Kolom JSONB jadwal dari DB → hanya nilai yang dikenal, supaya baris yang diedit tangan tidak merusak DTO. */
+export const nilaiDikenal = (nilai, daftar) => (Array.isArray(nilai) ? daftar.filter((item) => nilai.includes(item)) : []);
+
+/** Atribut Jabar yang boleh menjadi outcome (sama dengan 15 kolom `usaha_atribut_jabar`; dijaga contract test). */
+export const ATRIBUT_OUTCOME = {
+  npwp_usaha: "NPWP Usaha",
+  izin_edar: "Izin Edar",
+  sertifikat_halal: "Sertifikat Halal",
+  pirt_bpom: "PIRT/BPOM",
+  hki_merek: "HKI/Merek",
+  sni: "SNI",
+  rekening_terpisah: "Rekening Usaha Terpisah",
+  sop_tertulis: "SOP Tertulis",
+  ecommerce: "Pemanfaatan E-commerce",
+  medsos_bisnis: "Media Sosial Bisnis",
+  qris: "QRIS",
+  pembukuan_digital: "Pembukuan Digital",
+  akses_kur: "Akses KUR/Perbankan",
+  rantai_pasok_industri: "Rantai Pasok Industri",
+  kontrak_offtaker: "Kontrak Offtaker",
+};
+export const JENIS_OUTCOME = ["kepatuhan", "perbaikan"];
+export const STATUS_OUTCOME = ["diajukan", "terverifikasi", "dicabut"];
+export const LABEL_STATUS_OUTCOME = { diajukan: "Menunggu verifikasi", terverifikasi: "Terverifikasi", dicabut: "Dicabut" };
+
+/** Sidik jari isi outcome (urut atribut) — dua permintaan dengan isi sama adalah retry, bukan outcome baru. */
+export const sidikOutcome = (items) =>
+  [...items].sort((a, b) => a.atribut.localeCompare(b.atribut)).map((item) => `${item.atribut}:${item.jenis}`).join(",");
+
+/** Verifikator outcome: provinsi/admin, atau kab/kota yang wilayahnya memuat usaha tiketnya. */
+export function bolehVerifikasiOutcome(pemanggil, kotaId) {
+  if (pemanggil?.admin || pemanggil?.peran === "provinsi") return true;
+  if (pemanggil?.peran === "kabkota") {
+    return pemanggil.kotaId != null && kotaId !== null && kotaId !== undefined && Number(kotaId) === Number(pemanggil.kotaId);
+  }
+  return false;
+}
+
+/**
+ * Aksi yang boleh ditekan pemanggil pada outcome ini: jawaban server atas "tombol apa yang tampil".
+ * `verifikasi` menuntut aktor berbeda dari pengaju; koreksi/cabut adalah hak verifikator dan selalu beralasan.
+ */
+export function aksiOutcomeUntuk(pemanggil, outcome, kotaId) {
+  if (outcome.status === "dicabut" || !bolehVerifikasiOutcome(pemanggil, kotaId)) return [];
+  const aksi = [];
+  if (outcome.status === "diajukan" && outcome.diajukanOleh !== pemanggil.id) aksi.push("verifikasi");
+  aksi.push("koreksi", "cabut");
+  return aksi;
+}
+
 /** A well-formed ticket number; anything else can never match a ticket. */
 export const NOMOR_TIKET = /^KLN-\d{4}-\d{2}-\d{4,}$/;
 

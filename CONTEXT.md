@@ -114,7 +114,19 @@ _Avoid_: jadwal (tanpa keterangan)
 
 **Petugas Klinik**:
 Admin Provinsi, Admin Kab/Kota, atau Pendamping yang menangani tiket dalam cakupannya.
-_Avoid_: staf, konsultan
+_Avoid_: staf
+
+**Konsultan Klinik**:
+Orang yang tampil di direktori klinik beserta poli, afiliasi (PLUT, Dinas, atau Praktisi), dan jadwal mingguannya. Belum tentu Petugas Klinik: hanya yang tertaut ke akun Pendamping yang slotnya ikut berkurang oleh tiket yang dipegangnya.
+_Avoid_: coach, ahli
+
+**Outcome Klinik**:
+Hasil kepatuhan atau perbaikan usaha yang dicatat petugas saat menutup tiket: daftar atribut Jabar beserta jenisnya (kepatuhan atau perbaikan), bukan catatan sesi. Diajukan oleh satu petugas, lalu diverifikasi petugas lain yang berwenang atas wilayah usahanya; hanya yang terverifikasi masuk profil usaha dan indikator IP-UMKM. Dikoreksi atau dicabut dengan alasan, tidak pernah ditimpa.
+_Avoid_: hasil konsultasi (untuk record), rekomendasi, tindak lanjut
+
+**CSAT**:
+Nilai 1–5 yang diberikan pemohon atas tiket yang selesai, satu per tiket. Hanya jawaban dengan persetujuan yang dihitung di statistik; tanpa jawaban tersebut nilainya kosong, bukan nol.
+_Avoid_: rating, survei
 
 **Lampiran**:
 Berkas yang dilampirkan pemohon ke tiket klinik. Hanya pemohon dan petugas klinik dalam cakupan tiket itu yang boleh membacanya.

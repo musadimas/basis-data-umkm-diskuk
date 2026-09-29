@@ -5,6 +5,9 @@ const { OperasionalError } = require("./errors.js");
 // These are descriptive SIDT/field indicators, not a legal-compliance verdict.
 // The two IP-UMKM impact indicators (R03) come from issued e-certificates
 // (kegiatan_sertifikat_dampak): absence means "belum ada data", never "tidak".
+// Since R04 an attribute indicator is also "ya" when a verified clinic outcome
+// (konsultasi_outcome, status terverifikasi) names that attribute; a revoked or
+// still-pending outcome contributes nothing. Never overrides a field "ya" with "tidak".
 const ASPEK = [
   { id: "legalitas", label: "Legalitas dan formalitas", indicators: [
     ["nib", "NIB tercatat", "usaha.nib"],
@@ -48,9 +51,21 @@ const EKSPRESI = {
   peningkatan_kapasitas_sdm: "CASE WHEN EXISTS (SELECT 1 FROM kegiatan_sertifikat_dampak d WHERE d.usaha = t.id AND d.aktif = TRUE AND d.capaian = 'peningkatan_kapasitas_sdm') THEN TRUE ELSE NULL END",
 };
 
+// Indikator yang bersumber dari kolom usaha_atribut_jabar (semua yang tidak punya ekspresi khusus).
+const ATRIBUT_KEYS = ASPEK.flatMap((aspek) => aspek.indicators).map(([key]) => key).filter((key) => !EKSPRESI[key]);
+
+// Satu agregat outcome klinik terverifikasi per usaha, di-join sekali (bukan EXISTS per baris per indikator).
+const KLINIK_CTE = `klinik AS (
+       SELECT o.usaha, ${ATRIBUT_KEYS.map((key) => `BOOL_OR(i.atribut = '${key}') AS ${key}`).join(", ")}
+         FROM konsultasi_outcome o
+         JOIN konsultasi_outcome_item i ON i.outcome = o.id
+        WHERE o.status = 'terverifikasi'
+        GROUP BY o.usaha
+     )`;
+
 function columnsForQuery() {
   return ASPEK.flatMap((aspek) => aspek.indicators).flatMap(([key]) => {
-    const value = EKSPRESI[key] ?? `a.${key}`;
+    const value = EKSPRESI[key] ?? `CASE WHEN a.${key} IS TRUE OR k.${key} IS TRUE THEN TRUE ELSE a.${key} END`;
     return [
       `COUNT(*) FILTER (WHERE (${value}) IS TRUE)::int AS ${key}_ya`,
       `COUNT(*) FILTER (WHERE (${value}) IS FALSE)::int AS ${key}_tidak`,
@@ -74,10 +89,12 @@ async function getAspekPerkembangan(database, query, operator) {
     }
   }
   const result = await database.raw(
-    `SELECT COUNT(*)::int AS total, ${columnsForQuery().join(", ")}
+    `WITH ${KLINIK_CTE}
+     SELECT COUNT(*)::int AS total, ${columnsForQuery().join(", ")}
      FROM usaha_tabular t
      LEFT JOIN usaha u ON u.id = t.id
      LEFT JOIN usaha_atribut_jabar a ON a.usaha = t.id
+     LEFT JOIN klinik k ON k.usaha = t.id
      ${clauses.length ? `WHERE ${clauses.join(" AND ")}` : ""}`,
     params,
   );
@@ -85,8 +102,8 @@ async function getAspekPerkembangan(database, query, operator) {
   const total = Number(counts.total ?? 0);
   return { data: {
     totalUsaha: total,
-    sumber: "Snapshot usaha_tabular, usaha, usaha_atribut_jabar, dan kegiatan_sertifikat_dampak (indikator dampak)",
-    definisiVersi: "indikator-operasional-v1",
+    sumber: "Snapshot usaha_tabular, usaha, usaha_atribut_jabar, kegiatan_sertifikat_dampak (indikator dampak), dan konsultasi_outcome terverifikasi (hasil klinik)",
+    definisiVersi: "indikator-operasional-v2",
     kepatuhanRegulasi: false,
     aspek: ASPEK.map((aspek) => ({
       id: aspek.id,
