@@ -195,7 +195,7 @@ const tanggal = (value: string) => new Intl.DateTimeFormat("id-ID", { weekday: "
           @click="hanyaPmse = !hanyaPmse"
         >Aduan PMSE mendesak ({{ jumlahPmse }})</button>
         <label v-if="petugas" class="inline-flex cursor-pointer items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm hover:bg-muted">
-          <input v-model="tampilBatal" type="checkbox" data-testid="toggle-batal" class="size-4 accent-current" />
+          <input v-model="tampilBatal" type="checkbox" data-testid="toggle-batal" class="size-4 accent-current" >
           Tampilkan dibatalkan
         </label>
         <div v-if="petugas" class="flex rounded-md border p-0.5" role="group" aria-label="Tampilan">

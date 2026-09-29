@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { KATEGORI_PRODUK, KURASI_STATUS } from "~/constants";
 import { KURASI_ANTREAN, KatalogError, katalogApi, katalogFotoUrl, kurasiLabel, type KurasiKeputusan } from "~/lib/katalog";
-import type { KurasiStatus, Produk, ProdukLoi } from "~/types/program";
+import type { KurasiStatus, Produk } from "~/types/program";
 
 definePageMeta({ layout: "dashboard" });
 useSeoMeta({ title: "Kurasi Katalog – Dashboard UMKM" });

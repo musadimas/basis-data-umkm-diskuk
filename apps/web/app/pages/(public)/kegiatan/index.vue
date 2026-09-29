@@ -11,7 +11,6 @@ import {
   batasRegistrasiTeks,
   filterDariQuery,
   hariIniJakarta,
-  hariJakarta,
   jadwalPengingatTeks,
   kegiatanPadaHari,
   labelBulan,
@@ -225,7 +224,8 @@ async function batalkanPengingat(item: KegiatanAgenda) {
         body: { token: tersimpan.batalToken },
       }),
     );
-    delete pengingat.value[item.id];
+    const { [item.id]: _hapus, ...sisa } = pengingat.value;
+    pengingat.value = sisa;
     simpanLokal();
     pesanAksi.value = "Pengingat dibatalkan.";
   } catch {
@@ -249,7 +249,7 @@ async function batalkanPengingat(item: KegiatanAgenda) {
           Kategori
           <select v-model="filters.kategori" data-testid="filter-kategori" class="h-9 rounded-md border border-input bg-transparent px-2 text-sm font-normal text-foreground">
             <option value="">Semua</option>
-            <option v-for="(meta, key) in KATEGORI_KEGIATAN" :key="key" :value="key">{{ meta.label }}</option>
+            <option v-for="(kategoriMeta, key) in KATEGORI_KEGIATAN" :key="key" :value="key">{{ kategoriMeta.label }}</option>
           </select>
         </label>
         <label class="grid gap-1 text-xs font-semibold text-muted-foreground">
