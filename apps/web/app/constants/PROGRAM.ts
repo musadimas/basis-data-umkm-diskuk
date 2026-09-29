@@ -105,6 +105,14 @@ export const KURASI_STATUS = {
   ditolak: { label: "Ditolak", className: "bg-red-100 text-red-800" },
 } satisfies Record<import("~/types/program").KurasiStatus, { label: string; className: string }>;
 
+/** Status profil kemitraan investor pada panel kurasi investor. */
+export const KURASI_INVESTOR_STATUS = {
+  disetujui: { label: "Disetujui", className: "bg-emerald-100 text-emerald-800" },
+  menunggu: { label: "Menunggu kurasi", className: "bg-amber-100 text-amber-900" },
+  belum_disetujui: { label: "Belum disetujui usaha", className: "bg-slate-100 text-slate-700" },
+  dicabut: { label: "Persetujuan dicabut", className: "bg-slate-200 text-slate-700" },
+};
+
 /** Talent statuses the catalogue shows as a "Talent Jabar" badge. */
 export const TALENT_BADGE_STATUS = ["talent_pool", "accelerator", "champion"] as const;
 
