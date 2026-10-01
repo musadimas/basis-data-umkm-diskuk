@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import type { AnalyticsField, AnalyticsFilter } from "~/types/analytics";
+import { builderLabel } from "~/lib/analytics-filters";
 const props = defineProps<{
   filters: Array<AnalyticsFilter>;
   fields: Array<AnalyticsField>;
 }>();
 const emit = defineEmits<{ (event: "remove", fieldId: string): void }>();
-const label = (id: string) =>
-  props.fields.find((field) => field.key === id || field.id === id)?.label ||
-  "Filter";
+const label = (id: string) => {
+  const field = props.fields.find((item) => item.key === id || item.id === id);
+  return field ? builderLabel(field) : "Filter";
+};
 const operator = (value: AnalyticsFilter["operator"]) =>
   value === "neq"
     ? "≠"

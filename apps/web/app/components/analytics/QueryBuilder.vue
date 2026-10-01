@@ -5,7 +5,12 @@ import type {
   AnalyticsFilter,
 } from "~/types/analytics";
 import {
+  BUILDER_HIDDEN_FIELDS,
+  LABEL_VALUE_FIELDS,
+  MAX_IN_VALUES,
+  builderLabel,
   filterConfigFor,
+  mergeFilter,
   operatorsFor,
   type FilterOption,
 } from "~/lib/analytics-filters";
@@ -21,14 +26,34 @@ const emit = defineEmits<{
   update: [patch: Partial<AnalysisConfig>];
 }>();
 
+/**
+ * reka-ui menolak `SelectItem` bernilai kosong, jadi opsi "Tidak ada" memakai
+ * sentinel dan dipetakan kembali ke breakdown kosong saat dipilih.
+ */
+const TANPA_BREAKDOWN = "__tanpa_breakdown__";
+
 const dimensions = computed(() =>
   props.fields.filter(
-    (field) => field.status === "active" && field.role === "dimension",
+    (field) =>
+      field.status === "active" &&
+      field.role === "dimension" &&
+      (!BUILDER_HIDDEN_FIELDS.has(field.key) ||
+        field.key === props.modelValue.groupBy ||
+        field.key === props.modelValue.breakdown),
   ),
 );
 const metrics = computed(() =>
   props.fields.filter(
     (field) => field.status === "active" && field.role === "metric",
+  ),
+);
+/** Field filter: role filter/dimension aktif, tanpa field wilayah duplikat (BUG-003). */
+const filterFields = computed(() =>
+  props.fields.filter(
+    (item) =>
+      item.status === "active" &&
+      (item.role === 'filter' || item.role === 'dimension') &&
+      !BUILDER_HIDDEN_FIELDS.has(item.key),
   ),
 );
 
@@ -73,6 +98,7 @@ const dimensionGroups = computed(() => {
 });
 const filterField = ref("");
 const filterValue = ref("");
+const filterLimitHit = ref(false);
 const filterOperator = ref<AnalyticsFilter["operator"]>("eq");
 const selectedField = computed(() =>
   props.fields.find((field) => field.key === filterField.value),
@@ -112,10 +138,15 @@ async function loadOptions() {
       cascade?.parentValue,
     );
     if (requestId !== optionSequence) return;
-    optionList.value = response.options.map((option) => ({
-      id: String(option.id),
-      label: option.label,
-    }));
+    const byLabel = LABEL_VALUE_FIELDS.has(filterField.value);
+    const seen = new Set<string>();
+    optionList.value = response.options.flatMap((option) => {
+      // `*_nama` disaring server dengan nama; nama kembar lintas induk cukup muncul sekali.
+      const id = byLabel ? option.label : String(option.id);
+      if (seen.has(id)) return [];
+      seen.add(id);
+      return [{ id, label: option.label }];
+    });
   } catch {
     if (requestId === optionSequence) optionList.value = [];
   } finally {
@@ -135,6 +166,7 @@ watch(searchDebounce, () => {
 watch(selectedField, () => {
   filterOperator.value = operatorsFor(selectedField.value)[0] || "eq";
   filterValue.value = "";
+  filterLimitHit.value = false;
   if (searchTimer) {
     clearTimeout(searchTimer);
     searchTimer = null;
@@ -199,19 +231,14 @@ function patch(value: string, key: keyof AnalysisConfig) {
 function addFilter() {
   const value = filterValue.value.trim();
   if (!filterField.value || !value) return;
-  const filter: AnalyticsFilter = {
+  const next = mergeFilter(props.modelValue.filters, {
     fieldId: filterField.value,
     operator: filterOperator.value,
     value,
-  };
-  emit("update", {
-    filters: [
-      ...props.modelValue.filters.filter(
-        (item) => item.fieldId !== filter.fieldId,
-      ),
-      filter,
-    ],
   });
+  filterLimitHit.value = next === props.modelValue.filters;
+  if (filterLimitHit.value) return;
+  emit("update", { filters: next });
   filterValue.value = "";
 }
 </script>
@@ -285,7 +312,7 @@ function addFilter() {
                 :key="field.key"
                 :value="field.key"
               >
-                {{ field.label }}
+                {{ builderLabel(field) }}
               </UiSelectItem>
             </UiSelectGroup>
           </UiSelectContent>
@@ -297,12 +324,14 @@ function addFilter() {
       >
         Breakdown opsional
         <UiSelect
-          :model-value="modelValue.breakdown || ''"
-          @update:model-value="patch($event as string, 'breakdown')"
+          :model-value="modelValue.breakdown || TANPA_BREAKDOWN"
+          @update:model-value="
+            patch($event === TANPA_BREAKDOWN ? '' : ($event as string), 'breakdown')
+          "
         >
           <UiSelectTrigger aria-label="Breakdown opsional" class="h-8 w-full text-sm font-normal text-foreground"><UiSelectValue placeholder="Tidak ada" /></UiSelectTrigger>
           <UiSelectContent>
-            <UiSelectItem value="">Tidak ada</UiSelectItem>
+            <UiSelectItem :value="TANPA_BREAKDOWN">Tidak ada</UiSelectItem>
             <UiSelectGroup
               v-for="group in dimensionGroups"
               :key="group.key"
@@ -314,7 +343,7 @@ function addFilter() {
                 :value="field.key"
                 :disabled="field.key === modelValue.groupBy"
               >
-                {{ field.label }}
+                {{ builderLabel(field) }}
               </UiSelectItem>
             </UiSelectGroup>
           </UiSelectContent>
@@ -358,15 +387,11 @@ function addFilter() {
             <UiSelectTrigger id="analytics-filter-field" aria-label="Field filter" class="min-w-0 text-sm"><UiSelectValue placeholder="Pilih field" /></UiSelectTrigger>
             <UiSelectContent>
               <UiSelectItem
-                v-for="field in fields.filter(
-                  (item) =>
-                    item.status === 'active' &&
-                    (item.role === 'filter' || item.role === 'dimension'),
-                )"
+                v-for="field in filterFields"
                 :key="field.key"
                 :value="field.key"
               >
-                {{ field.label }}
+                {{ builderLabel(field) }}
               </UiSelectItem>
             </UiSelectContent>
           </UiSelect>
@@ -402,7 +427,7 @@ function addFilter() {
                     v-model="searchDebounce"
                     type="search"
                     class="h-8 w-full min-w-0 pr-12 text-sm"
-                    :placeholder="`Cari ${selectedField.label.toLowerCase()}…`"
+                    :placeholder="`Cari ${builderLabel(selectedField).toLowerCase()}…`"
                     aria-label="Cari nilai filter"
                   />
                   <span
@@ -428,7 +453,7 @@ function addFilter() {
                 v-else
                 v-model="filterValue"
                 class="h-8 min-w-0 text-sm"
-                :placeholder="selectedField.label"
+                :placeholder="builderLabel(selectedField)"
                 aria-label="Nilai filter"
                 @keyup.enter="addFilter"
               />
@@ -438,6 +463,13 @@ function addFilter() {
               class="text-[10px] leading-tight text-muted-foreground"
             >
               {{ cascadeHint }}
+            </p>
+            <p
+              v-if="filterLimitHit"
+              role="alert"
+              class="text-[10px] leading-tight text-destructive"
+            >
+              Maksimal {{ MAX_IN_VALUES }} nilai per filter.
             </p>
             <UiButton
               type="button"

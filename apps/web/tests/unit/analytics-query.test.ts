@@ -60,6 +60,18 @@ describe("analytics query URL contract", () => {
     expect(parsed.config.page).toBe(2);
     expect(parseAnalysisUrl("groupBy=masked_nik").warning).toBe(true);
   });
+  it("round trips in-filters whose joined value exceeds 100 characters", () => {
+    const names = ["KAB. BOGOR", "KAB. SUKABUMI", "KAB. CIANJUR", "KAB. BANDUNG", "KAB. GARUT", "KAB. TASIKMALAYA", "KAB. CIAMIS", "KAB. KUNINGAN", "KAB. CIREBON"];
+    const config = { ...defaultAnalysis, filters: [{ fieldId: "kota_nama", operator: "in" as const, value: names }] };
+    const parsed = parseAnalysisUrl(serializeAnalysisUrl(config));
+    expect(names.join(",").length).toBeGreaterThan(100);
+    expect(parsed.warning).toBe(false);
+    expect(parsed.config.filters).toEqual(config.filters);
+  });
+  it("rejects in-filters with more than 100 values", () => {
+    const value = Array.from({ length: 101 }, (_, i) => `K${i}`).join(",");
+    expect(parseAnalysisUrl(`filter=kota_nama~in~${encodeURIComponent(value)}`).warning).toBe(true);
+  });
 });
 
 describe("canonical analytics cache keys", () => {

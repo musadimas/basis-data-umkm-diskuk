@@ -3,6 +3,7 @@ import { useAnalyticsCatalog } from "~/composables/useAnalyticsCatalog";
 import { useAnalysisState } from "~/composables/useAnalysisState";
 import { useAnalyticsQuery } from "~/composables/useAnalyticsQuery";
 import { canonicalRecordsKey } from "~/lib/analytics-query";
+import { builderLabel } from "~/lib/analytics-filters";
 import type {
   AnalysisConfig,
   AnalyticsGroup,
@@ -127,11 +128,10 @@ onMounted(() => {
 const groups = computed(() => response.value?.data.groups || []);
 const metric = computed(() => response.value?.data.metric);
 const drillField = computed(() => DRILL_PATH.get(applied.groupBy) || null);
-const dimensionLabel = computed(
-  () =>
-    fields.value.find((field) => field.key === applied.groupBy)?.label ||
-    "kelompok",
-);
+const dimensionLabel = computed(() => {
+  const field = fields.value.find((item) => item.key === applied.groupBy);
+  return field ? builderLabel(field) : "kelompok";
+});
 const coverageTotal = computed(() =>
   Number(meta.value?.coverage?.total || meta.value?.matched || 0),
 );

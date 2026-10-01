@@ -116,4 +116,76 @@ test.describe("canvas analitik", () => {
     await page.goForward();
     await expect(group).toContainText("Skala");
   });
+  test("BUG-003: builder menampilkan satu field per level wilayah", async ({
+    page,
+  }) => {
+    await installMockDirectus(page, { authenticated: true });
+    await loginMock(page, "/dashboard/analitik");
+    await page.getByLabel("Kelompokkan menurut").click();
+    await expect(
+      page.getByRole("option", { name: "Kabupaten/kota", exact: true }),
+    ).toHaveCount(1);
+    await expect(
+      page.getByRole("option", { name: "Kecamatan", exact: true }),
+    ).toHaveCount(1);
+    await expect(
+      page.getByRole("option", {
+        name: /Nama kabupaten|Kode kabupaten|Nama kecamatan/,
+      }),
+    ).toHaveCount(0);
+    await page.keyboard.press("Escape");
+    await page.getByLabel("Field filter").click();
+    await expect(
+      page.getByRole("option", { name: "Kabupaten/kota", exact: true }),
+    ).toHaveCount(1);
+    await expect(page.getByRole("option", { name: /Kode kabupaten/ })).toHaveCount(
+      0,
+    );
+  });
+  test("BUG-004: dua kabupaten/kota digabung menjadi filter salah satu", async ({
+    page,
+  }) => {
+    await installMockDirectus(page, { authenticated: true });
+    const queryBodies: Array<{
+      filters?: Array<{ fieldId: string; operator: string; value: unknown }>;
+    }> = [];
+    page.on("request", (request) => {
+      if (request.url().includes("/panel/v1/analytics/analysis/query"))
+        queryBodies.push(request.postDataJSON() || {});
+    });
+    await loginMock(page, "/dashboard/analitik");
+    for (const name of ["Kabupaten Bogor", "Kota Depok"]) {
+      await page.getByLabel("Field filter").click();
+      await page
+        .getByRole("option", { name: "Kabupaten/kota", exact: true })
+        .click();
+      await page.getByLabel("Nilai filter", { exact: true }).click();
+      await page.getByRole("option", { name, exact: true }).click();
+      await page.getByRole("button", { name: "Tambah", exact: true }).click();
+    }
+    await expect(page.getByLabel("Filter aktif")).toContainText(
+      "Kabupaten/kota salah satu Kabupaten Bogor, Kota Depok",
+    );
+    await page.getByRole("button", { name: "Terapkan" }).click();
+    await expect
+      .poll(() =>
+        queryBodies.some((body) =>
+          body.filters?.some(
+            (f) =>
+              f.fieldId === "kota_nama" &&
+              f.operator === "in" &&
+              JSON.stringify(f.value) ===
+                JSON.stringify(["Kabupaten Bogor", "Kota Depok"]),
+          ),
+        ),
+      )
+      .toBe(true);
+    await expect
+      .poll(() => new URL(page.url()).searchParams.getAll("filter"))
+      .toContain("kota_nama~in~Kabupaten%20Bogor%2CKota%20Depok");
+    await page.reload();
+    await expect(page.getByLabel("Filter aktif")).toContainText(
+      "Kabupaten Bogor, Kota Depok",
+    );
+  });
 });

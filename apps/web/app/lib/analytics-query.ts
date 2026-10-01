@@ -229,13 +229,14 @@ export function parseAnalysisUrl(
       !operator ||
       !safeIdentifier(fieldId) ||
       !ALLOWED_OPERATORS.has(operator as AnalyticsFilter["operator"]) ||
-      !safeFilterValue(value)
+      // `in` divalidasi per nilai di bawah; string gabungannya boleh > 100 karakter.
+      (operator !== "in" && !safeFilterValue(value))
     ) {
       warning = true;
       continue;
     }
     const values = operator === "in" ? value.split(",") : [value];
-    if (!values.length || values.some((item) => !safeFilterValue(item))) {
+    if (!values.length || values.length > 100 || values.some((item) => !safeFilterValue(item))) {
       warning = true;
       continue;
     }
