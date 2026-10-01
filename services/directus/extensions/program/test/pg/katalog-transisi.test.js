@@ -132,3 +132,20 @@ test("dua PATCH tutup paralel pada LOI baru menghasilkan [200, 409] (R3)", { ski
   const gagal = [a, b].find((hasil) => hasil.res.statusCode === 409);
   assert.equal(kode(gagal), "TRANSISI_LOI_TIDAK_VALID");
 });
+
+test("GET /loi tidak mengirim kontak pengirim yang tidak menyetujui kontak", { skip: pgSkipReason() }, async (t) => {
+  const { db, kurator, owner, produk } = await siapkan(t);
+  const item = await produk("tayang");
+  await db("produk_loi").insert([
+    { produk: item.id, nama: "Tanpa izin", email: "diam@contoh.id", telepon: "081200000001", pesan: "Lama", persetujuan_kontak: false },
+    { produk: item.id, nama: "Dengan izin", email: "boleh@contoh.id", telepon: "081200000002", pesan: "Baru", persetujuan_kontak: true },
+  ]);
+  const { call } = mountEndpoint(registerKatalog, { database: db });
+  for (const pemanggil of [kurator.id, owner.id]) {
+    const hasil = await call("GET", "/loi", { accountability: akun(pemanggil) });
+    assert.equal(hasil.res.statusCode, 200, JSON.stringify(hasil.res.body));
+    const kontak = Object.fromEntries(hasil.res.body.data.map((loi) => [loi.nama, [loi.email, loi.telepon]]));
+    assert.deepEqual(kontak["Tanpa izin"], [null, null]);
+    assert.deepEqual(kontak["Dengan izin"], ["boleh@contoh.id", "081200000002"]);
+  }
+});

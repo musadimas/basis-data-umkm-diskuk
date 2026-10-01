@@ -331,9 +331,12 @@ export function createKatalog({ db, assets, env, clock = () => new Date() }) {
       const curator = isCurator(pemanggil);
       const owner = pemanggil.usahaId !== null && pemanggil.usahaId !== undefined;
       if (!curator && !owner) throw new ProgramError(403, "FORBIDDEN", "Only authorised officers and owners can read letters of intent.");
+      // Kontak hanya keluar bila pengirim setuju dihubungi; LOI lama (pra-20260926R) bernilai false.
       const result = await db.raw(
-        `SELECT l.id, l.produk, p.nama AS "produkNama", p.usaha_nama AS "usahaNama", l.nama, l.instansi, l.email,
-                l.telepon, l.jumlah, l.pesan, l.persetujuan_kontak AS "persetujuanKontak", l.status,
+        `SELECT l.id, l.produk, p.nama AS "produkNama", p.usaha_nama AS "usahaNama", l.nama, l.instansi,
+                CASE WHEN l.persetujuan_kontak THEN l.email END AS email,
+                CASE WHEN l.persetujuan_kontak THEN l.telepon END AS telepon,
+                l.jumlah, l.pesan, l.persetujuan_kontak AS "persetujuanKontak", l.status,
                 l.date_created AS "dateCreated"
            FROM produk_loi l JOIN produk p ON p.id = l.produk
           WHERE ?::boolean OR p.usaha = ?::uuid

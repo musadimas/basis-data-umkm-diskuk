@@ -262,7 +262,8 @@ export interface ProdukLoi {
   usahaNama: string | null;
   nama: string;
   instansi: string | null;
-  email: string;
+  /** null bila pengirim tidak menyetujui kontak (disaring server). */
+  email: string | null;
   telepon: string | null;
   jumlah: string | null;
   pesan: string;
