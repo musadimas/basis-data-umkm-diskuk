@@ -50,16 +50,16 @@ export function currentWeek(tanggalMulai, jumlahMinggu, now = new Date()) {
 }
 
 /**
- * Rangkaian minggu terbaru yang disetujui dan mencapai target (BUG-014). Laporan `menunggu`
- * di ujung belum dihitung; L = minggu tertinggi di antara laporan yang sudah ditinjau. Berjalan
- * mundur dari L: berhenti pada minggu yang hilang, ditolak, di bawah target, atau masih menunggu.
+ * Rangkaian minggu terbaru yang disetujui dan mencapai target (BUG-014). Berjalan mundur dari
+ * laporan terbaru apa pun statusnya: berhenti pada minggu yang hilang, ditolak, di bawah target,
+ * atau masih menunggu. Laporan terbaru yang menunggu (termasuk revisi laporan ditolak) membuat
+ * rangkaian 0 sampai ditinjau, supaya revisi tidak menghidupkan lagi rangkaian lama.
  */
 export function latestTargetStreak(reports) {
+  if (!reports.length) return 0;
   const byWeek = new Map(reports.map((report) => [Number(report.mingguKe), report]));
-  const reviewed = reports.filter((report) => report.status !== "menunggu").map((report) => Number(report.mingguKe));
-  if (!reviewed.length) return 0;
   let streak = 0;
-  for (let week = Math.max(...reviewed); week >= 1; week -= 1) {
+  for (let week = Math.max(...byWeek.keys()); week >= 1; week -= 1) {
     const report = byWeek.get(week);
     if (!report || report.status !== "disetujui" || !(Number(report.realisasiOmzet) >= Number(report.target))) break;
     streak += 1;

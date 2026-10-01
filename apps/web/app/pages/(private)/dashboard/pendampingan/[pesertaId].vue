@@ -86,7 +86,7 @@ const rupiah = (value: number) => formatAnalyticsCurrency(value);
             Rekomendasikan ke Talent Investment Day / Champion
           </label>
           <p v-if="!data.pitching.memenuhi && !data.peserta.rekomendasiPitching" class="text-xs text-muted-foreground">
-            Aktif bila {{ data.pitching.dibutuhkan }} minggu terbaru berturut-turut disetujui dan mencapai target. Laporan terbaru yang ditolak atau minggu yang terlewat memutus rangkaian; laporan yang masih menunggu belum dihitung.
+            Aktif bila {{ data.pitching.dibutuhkan }} minggu terbaru berturut-turut disetujui dan mencapai target. Rangkaian dihitung mundur dari laporan terbaru: laporan ditolak, minggu tanpa laporan, atau laporan yang masih menunggu tinjauan memutusnya.
           </p>
           <p v-if="!data.pitching.memenuhi && data.peserta.rekomendasiPitching" role="status" class="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900">
             Syarat rekomendasi tidak lagi terpenuhi (rangkaian terbaru {{ data.pitching.streak }} minggu). Rekomendasi tetap tersimpan sampai dicabut.

@@ -53,7 +53,7 @@ test("pitching memakai rangkaian terbaru yang disetujui dan mencapai target (BUG
   const enamPlusDitolak = [1, 2, 3, 4, 5, 6].map((w) => r(w, 110)).concat(r(7, 120, "ditolak"));
   assert.equal(latestTargetStreak(enamPlusDitolak), 0, "laporan terbaru ditolak");
   const enamPlusMenunggu = [1, 2, 3, 4, 5, 6].map((w) => r(w, 110)).concat(r(7, 120, "menunggu"));
-  assert.equal(latestTargetStreak(enamPlusMenunggu), 6, "menunggu di ujung belum dihitung");
+  assert.equal(latestTargetStreak(enamPlusMenunggu), 0, "terbaru menunggu (mis. revisi laporan ditolak): 0 sampai ditinjau");
   assert.equal(latestTargetStreak([r(1, 100), r(2, 100, "menunggu"), r(3, 100), r(4, 100)]), 2, "menunggu di tengah memutus");
   assert.equal(latestTargetStreak([r(1, 100), r(2, 100), r(4, 100), r(5, 100)]), 2, "minggu hilang memutus");
   assert.equal(latestTargetStreak([r(1, 100), r(2, 100), r(3, 100), r(4, 100), r(5, 50)]), 0, "terbaru di bawah target");
