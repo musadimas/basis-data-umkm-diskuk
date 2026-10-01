@@ -7,11 +7,12 @@ const props = defineProps<{
   metric?: AnalyticsMetric
   dimensionLabel?: string
   drillField?: string | null
-  /** Key kelompok yang sedang menyeleksi canvas (cross-filter aktif). */
-  selectedKey?: string | null
+  /** Key kelompok yang sedang menyeleksi canvas (cross-filter aktif; >1 untuk filter `in`). */
+  selectedKeys?: string[]
 }>()
 const emit = defineEmits<{ select: [group: AnalyticsGroup]; drill: [group: AnalyticsGroup] }>()
 const formatValue = (value: number | null | undefined) => formatAnalyticsMetricValue(value, props.metric?.unit, props.metric?.unit === "IDR")
+const isSelected = (key: string) => props.selectedKeys?.includes(key) ?? false
 
 const search = ref("")
 const sort = ref<"value_desc" | "value_asc" | "label_asc">("value_desc")
@@ -85,20 +86,20 @@ watch([search, sort, () => props.groups], () => { visibleCount.value = RENDER_CH
           :key="`${row.group.key}-${row.group.breakdown?.key || ''}`"
           role="listitem"
           class="rounded-sm py-1 transition-colors"
-          :class="selectedKey === row.group.key ? 'bg-emerald-50 ring-1 ring-inset ring-emerald-300' : ''"
-          :aria-selected="selectedKey === row.group.key"
+          :class="isSelected(row.group.key) ? 'bg-emerald-50 ring-1 ring-inset ring-emerald-300' : ''"
+          :aria-selected="isSelected(row.group.key)"
         >
           <div class="flex items-center gap-2 px-0.5 text-xs">
             <span class="w-5 shrink-0 text-right text-muted-foreground">{{ row.rank }}</span>
             <button
               type="button"
               class="flex min-w-0 flex-1 items-center gap-2 text-left hover:underline"
-              :aria-pressed="selectedKey === row.group.key"
+              :aria-pressed="isSelected(row.group.key)"
               @click="emit('select', row.group)"
             >
               <span class="min-w-0 flex-1 truncate" :title="row.group.label">
                 {{ row.group.label }}
-                <span v-if="selectedKey === row.group.key" class="ml-1 rounded-full bg-emerald-600 px-1.5 py-px text-[9px] font-bold uppercase text-white">terfilter</span>
+                <span v-if="isSelected(row.group.key)" class="ml-1 rounded-full bg-emerald-600 px-1.5 py-px text-[9px] font-bold uppercase text-white">terfilter</span>
               </span>
               <span class="w-14 shrink-0 text-right font-semibold" :title="formatAnalyticsMetricValue(row.group.value, metric?.unit)">{{ formatValue(row.group.value) }}</span>
               <span class="w-12 shrink-0 text-right">{{ formatAnalyticsPercent(row.group.share) }}</span>

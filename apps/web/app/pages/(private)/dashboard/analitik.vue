@@ -246,15 +246,15 @@ function resetFromEmptyState() {
 }
 
 // ── Cross-filter selected state (ux-spec §8) ────────────────────────────────
-/** Nilai filter eq pada dimensi aktif = kelompok yang sedang menyeleksi canvas. */
-const selectedGroupKey = computed(() => {
+/** Nilai filter eq/in pada dimensi aktif = kelompok yang sedang menyeleksi canvas. */
+const selectedGroupKeys = computed(() => {
   const filter = applied.filters.find(
     (item) => item.fieldId === applied.groupBy && item.operator !== "neq",
   );
-  if (!filter) return null;
+  if (!filter) return [];
   return Array.isArray(filter.value)
-    ? String(filter.value[0])
-    : String(filter.value);
+    ? filter.value.map(String)
+    : [String(filter.value)];
 });
 function removeFilter(fieldId: string) {
   state.removeFilter(fieldId);
@@ -349,7 +349,7 @@ function clearGroupSelection() {
             :groups="groups"
             :metric="metric"
             :visual="applied.visual"
-            :selected-key="selectedGroupKey"
+            :selected-keys="selectedGroupKeys"
             :include-others="applied.includeOthers !== false"
             @update:visual="state.setVisual"
             @select="selectGroup"
@@ -360,7 +360,7 @@ function clearGroupSelection() {
             :metric="metric"
             :dimension-label="dimensionLabel"
             :drill-field="drillField"
-            :selected-key="selectedGroupKey"
+            :selected-keys="selectedGroupKeys"
             @select="selectGroup"
             @drill="drillGroup"
           />

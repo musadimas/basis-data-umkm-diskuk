@@ -22,8 +22,8 @@ const props = defineProps<{
   metric?: AnalyticsMetric;
   visual: AnalyticsVisual;
   tableOpen?: boolean;
-  /** Key kelompok yang sedang menyeleksi canvas (cross-filter aktif). */
-  selectedKey?: string | null;
+  /** Key kelompok yang sedang menyeleksi canvas (cross-filter aktif; >1 untuk filter `in`). */
+  selectedKeys?: string[];
   /** Ikuti config.includeOthers: false = jangan agregasi “Lainnya” di klien. */
   includeOthers?: boolean;
 }>();
@@ -35,6 +35,8 @@ const emit = defineEmits<{
 }>();
 const formatValue = (value: number | null | undefined, compact = false) =>
   formatAnalyticsMetricValue(value, props.metric?.unit, compact);
+const activeKeys = computed(() => props.selectedKeys ?? []);
+const isSelected = (key: string) => activeKeys.value.includes(key);
 
 const CHART_LIMIT = 20;
 /** ux-spec §7: donut hanya untuk part-to-whole dengan maksimal 6 kategori. */
@@ -437,8 +439,9 @@ function onRegionClick(region: { name: string }) {
     (item) => item.label.toLowerCase() === region.name.toLowerCase(),
   );
   if (!group) return;
-  // Klik wilayah yang sudah terpilih = batal pilih (toggle), sesuai model cross-filter.
-  if (props.selectedKey === group.key) emit("clearSelect");
+  // Klik satu-satunya wilayah terpilih = batal pilih (toggle), sesuai model cross-filter;
+  // bila beberapa terpilih (filter `in`), klik mempersempit ke wilayah itu.
+  if (isSelected(group.key) && activeKeys.value.length === 1) emit("clearSelect");
   else emit("select", group);
 }
 
@@ -456,8 +459,8 @@ const barX = (row: ChartRow) => row.index;
  * batang terpilih memakai warna seri, sisanya diredupkan ke abu-abu.
  */
 function barColorFor(row: ChartRow): string {
-  if (!props.selectedKey) return SERIES_COLORS[0]!;
-  return row.group.key === props.selectedKey ? SERIES_COLORS[0]! : "#cbd5e1";
+  if (!activeKeys.value.length) return SERIES_COLORS[0]!;
+  return isSelected(row.group.key) ? SERIES_COLORS[0]! : "#cbd5e1";
 }
 const barColors = computed(() =>
   stacked.value
@@ -466,9 +469,8 @@ const barColors = computed(() =>
       )
     : (row: ChartRow) => barColorFor(row),
 );
-const selectedRow = computed(
-  () =>
-    chartRows.value.find((row) => row.group.key === props.selectedKey) || null,
+const selectedRows = computed(() =>
+  chartRows.value.filter((row) => isSelected(row.group.key)),
 );
 const categoryTicks = computed(() => chartRows.value.map((row) => row.index));
 const categoryLabels = computed(
@@ -520,13 +522,14 @@ const barHeight = computed(() =>
       </h2>
       <div class="flex shrink-0 items-center gap-2">
         <button
-          v-if="selectedRow"
+          v-if="selectedRows.length"
           type="button"
           class="rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-bold text-white"
           :title="'Klik untuk menghapus filter kelompok'"
           @click="emit('clearSelect')"
         >
-          {{ selectedRow.label }} ✕
+          {{ selectedRows[0]!.label
+          }}{{ selectedRows.length > 1 ? ` +${selectedRows.length - 1}` : "" }} ✕
         </button>
         <label
           class="flex items-center gap-1 text-[10px] font-semibold text-muted-foreground"
@@ -596,15 +599,15 @@ const barHeight = computed(() =>
               v-for="polygon in choroplethPolygons"
               :key="polygon.id"
               :fill="
-                selectedKey && selectedKey !== polygon.id
+                activeKeys.length && !isSelected(polygon.id)
                   ? '#cbd5e1'
                   : polygon.color
               "
               :fill-opacity="
-                !selectedKey || selectedKey === polygon.id ? 0.85 : 0.5
+                !activeKeys.length || isSelected(polygon.id) ? 0.85 : 0.5
               "
               stroke="#ffffff"
-              :stroke-width="selectedKey === polygon.id ? 0.5 : 0.15"
+              :stroke-width="isSelected(polygon.id) ? 0.5 : 0.15"
               class="cursor-pointer hover:[fill-opacity:1]"
               @click="onRegionClick(polygon)"
             >

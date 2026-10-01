@@ -579,13 +579,13 @@ export async function installMockDirectus(
                   total: 150000000,
                   groups: [
                     {
-                      key: "bogor",
+                      key: "Kabupaten Bogor",
                       label: "Kabupaten Bogor",
                       value: 100000000,
                       share: 66.7,
                     },
                     {
-                      key: "depok",
+                      key: "Kota Depok",
                       label: "Kota Depok",
                       value: 50000000,
                       share: 33.3,
@@ -615,13 +615,13 @@ export async function installMockDirectus(
                   total: 3,
                   groups: [
                     {
-                      key: "bogor",
+                      key: "Kabupaten Bogor",
                       label: "Kabupaten Bogor",
                       value: 2,
                       share: 66.7,
                     },
                     {
-                      key: "depok",
+                      key: "Kota Depok",
                       label: "Kota Depok",
                       value: 1,
                       share: 33.3,

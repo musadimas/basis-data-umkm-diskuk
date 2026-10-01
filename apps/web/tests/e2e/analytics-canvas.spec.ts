@@ -183,6 +183,13 @@ test.describe("canvas analitik", () => {
     await expect
       .poll(() => new URL(page.url()).searchParams.getAll("filter"))
       .toContain("kota_nama~in~Kabupaten%20Bogor%2CKota%20Depok");
+    // Kedua nilai filter `in` menyeleksi canvas, bukan hanya nilai pertama.
+    const kelompok = page.getByRole("list", { name: "Kelompok hasil" });
+    for (const name of ["Kabupaten Bogor", "Kota Depok"]) {
+      await expect(
+        kelompok.getByRole("listitem").filter({ hasText: name }),
+      ).toContainText("terfilter");
+    }
     await page.reload();
     await expect(page.getByLabel("Filter aktif")).toContainText(
       "Kabupaten Bogor, Kota Depok",
