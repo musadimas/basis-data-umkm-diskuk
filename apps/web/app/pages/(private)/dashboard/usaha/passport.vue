@@ -60,35 +60,46 @@ watch(
 
 const busy = ref(false);
 const message = ref<{ tone: "success" | "error"; text: string } | null>(null);
+const konfirmasiError = ref("");
 
-async function terbitkan() {
-  if (!usahaId.value) return;
+// `terbitkan` & `cabut` mengembalikan `true` bila sukses. Error saat dialog terbuka tampil di dalam
+// dialog (`konfirmasiError`); tanpa dialog (penerbitan pertama) tetap di banner halaman.
+async function terbitkan(): Promise<boolean> {
+  if (!usahaId.value) return false;
+  if (busy.value) return false;
   busy.value = true;
   message.value = null;
   try {
     const issued = await directus.request(endpoint<Passport, { usaha: string }>("/v1/program/passport", { method: "POST", body: { usaha: usahaId.value } }));
     message.value = { tone: "success", text: `Talent Passport ${issued.kode} diterbitkan.` };
     await refresh();
+    return true;
   } catch (cause) {
-    message.value = {
-      tone: "error",
-      text: requestErrorCode(cause) === "PASSPORT_BELUM_MEMENUHI" ? (data.value?.alasan ?? "Usaha belum memenuhi syarat.") : "Passport tidak dapat diterbitkan. Coba lagi.",
-    };
+    const teks = requestErrorCode(cause) === "PASSPORT_BELUM_MEMENUHI" ? (data.value?.alasan ?? "Usaha belum memenuhi syarat.") : "Passport tidak dapat diterbitkan. Coba lagi.";
+    if (konfirmasi.value !== null) konfirmasiError.value = teks;
+    else message.value = { tone: "error", text: teks };
+    return false;
   } finally {
     busy.value = false;
   }
 }
 
-async function cabut() {
-  if (!passport.value) return;
+async function cabut(): Promise<boolean> {
+  if (!passport.value) return false;
+  if (busy.value) return false;
   busy.value = true;
   message.value = null;
+  const kode = passport.value.kode;
   try {
     await directus.request(endpoint<Passport>(`/v1/program/passport/${passport.value.id}/cabut`, { method: "POST" }));
-    message.value = { tone: "success", text: "Talent Passport dicabut." };
+    message.value = { tone: "success", text: `Talent Passport ${kode} dicabut.` };
     await refresh();
+    return true;
   } catch {
-    message.value = { tone: "error", text: "Talent Passport tidak dapat dicabut. Coba lagi." };
+    const teks = "Talent Passport tidak dapat dicabut. Coba lagi.";
+    if (konfirmasi.value !== null) konfirmasiError.value = teks;
+    else message.value = { tone: "error", text: teks };
+    return false;
   } finally {
     busy.value = false;
   }
@@ -96,13 +107,45 @@ async function cabut() {
 
 // Terbitkan ulang & cabut melewati dialog konfirmasi karena efeknya pada QR lama (P4).
 const konfirmasi = ref<"terbitkan" | "cabut" | null>(null);
+
+function bukaKonfirmasi(jenis: "terbitkan" | "cabut") {
+  konfirmasi.value = jenis;
+  konfirmasiError.value = "";
+}
+
+/** Dialog tetap terbuka (dan isinya tetap) selama proses; hanya ditutup setelah sukses (R4/R14). */
 async function jalankanKonfirmasi() {
   const jenis = konfirmasi.value;
-  if (!jenis) return;
-  konfirmasi.value = null;
-  if (jenis === "terbitkan") await terbitkan();
-  else await cabut();
+  if (!jenis || busy.value) return;
+  konfirmasiError.value = "";
+  const berhasil = jenis === "terbitkan" ? await terbitkan() : await cabut();
+  if (berhasil) konfirmasi.value = null;
 }
+
+function ubahDialog(open: boolean) {
+  if (!open && !busy.value) konfirmasi.value = null;
+}
+
+/** Salinan dialog mengikuti jenis konfirmasi yang tetap terisi sampai request sukses (R14). */
+const salinanKonfirmasi = computed(() => {
+  if (!konfirmasi.value) return null;
+  const kode = passport.value?.kode ?? "";
+  const nama = data.value?.usaha.nama ?? "usaha ini";
+  if (konfirmasi.value === "cabut") {
+    return {
+      judul: `Cabut Talent Passport ${kode}?`,
+      deskripsi: `Passport milik ${nama} tidak dapat diverifikasi lagi dan QR-nya menjadi tidak berlaku. Halaman publik akan menampilkan status dicabut.`,
+      tombol: "Ya, cabut",
+      varian: "destructive" as const,
+    };
+  }
+  return {
+    judul: `Terbitkan ulang Talent Passport ${nama}?`,
+    deskripsi: `Passport ${kode} akan dicabut dan QR lamanya tidak berlaku lagi. Passport baru diterbitkan dengan kode dan QR baru.`,
+    tombol: "Ya, terbitkan ulang",
+    varian: "default" as const,
+  };
+});
 
 function pilih(id: string) {
   void router.replace({ query: { ...route.query, usaha: id } });
@@ -281,26 +324,26 @@ const tanggal = (value: string) => new Intl.DateTimeFormat("id-ID", { dateStyle:
             Unduh Katalog Ekspor Resmi (PDF)
           </UiButton>
           <template v-if="data.bisaMenerbitkan">
-            <UiButton variant="outline" :disabled="busy" @click="konfirmasi = 'terbitkan'">Terbitkan ulang</UiButton>
-            <UiButton variant="destructive" :disabled="busy" @click="konfirmasi = 'cabut'">Cabut passport</UiButton>
+            <UiButton variant="outline" :disabled="busy" @click="bukaKonfirmasi('terbitkan')">Terbitkan ulang</UiButton>
+            <UiButton variant="destructive" :disabled="busy" @click="bukaKonfirmasi('cabut')">Cabut passport</UiButton>
           </template>
         </div>
       </template>
     </template>
 
-    <UiDialog :open="Boolean(konfirmasi)" @update:open="(value) => !value && (konfirmasi = null)">
-      <UiDialogContent class="max-w-md">
+    <UiDialog :open="Boolean(konfirmasi)" @update:open="ubahDialog">
+      <UiDialogContent v-if="salinanKonfirmasi" class="sm:max-w-md" :show-close-button="!busy">
         <UiDialogHeader>
-          <UiDialogTitle>{{ konfirmasi === "cabut" ? "Cabut Talent Passport?" : "Terbitkan ulang Talent Passport?" }}</UiDialogTitle>
-          <UiDialogDescription>
-            {{ konfirmasi === "cabut"
-              ? "Passport tidak dapat diverifikasi lagi dan QR-nya menjadi tidak berlaku."
-              : "Passport lama akan dicabut dan QR lama tidak berlaku lagi." }}
-          </UiDialogDescription>
+          <UiDialogTitle class="pr-6 leading-snug">{{ salinanKonfirmasi.judul }}</UiDialogTitle>
+          <UiDialogDescription>{{ salinanKonfirmasi.deskripsi }}</UiDialogDescription>
         </UiDialogHeader>
-        <UiDialogFooter class="gap-2">
-          <UiButton variant="outline" @click="konfirmasi = null">Batal</UiButton>
-          <UiButton :variant="konfirmasi === 'cabut' ? 'destructive' : 'default'" @click="jalankanKonfirmasi">{{ konfirmasi === "cabut" ? "Ya, cabut" : "Ya, terbitkan ulang" }}</UiButton>
+        <p v-if="konfirmasiError" role="alert" class="text-sm text-destructive">{{ konfirmasiError }}</p>
+        <UiDialogFooter>
+          <UiButton variant="outline" :disabled="busy" @click="ubahDialog(false)">Batal</UiButton>
+          <UiButton :variant="salinanKonfirmasi.varian" :disabled="busy" @click="jalankanKonfirmasi">
+            <LoaderCircle v-if="busy" class="size-4 animate-spin" />
+            {{ busy ? "Memproses…" : salinanKonfirmasi.tombol }}
+          </UiButton>
         </UiDialogFooter>
       </UiDialogContent>
     </UiDialog>

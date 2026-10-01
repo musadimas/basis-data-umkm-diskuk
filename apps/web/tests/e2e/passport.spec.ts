@@ -25,6 +25,58 @@ test.describe("Modul 6 · Talent Passport", () => {
     await expect(page.getByRole("img", { name: /Radar skor: Finansial 35, Pasar 100/ })).toBeVisible();
   });
 
+  test("kurator mencabut passport lewat dialog yang tetap stabil saat proses dan gagal", async ({ page }) => {
+    const state = createProgramState();
+    state.usaha.talentStatus = "talent_pool";
+    await installMockDirectus(page, { authenticated: true });
+    await installMockProgram(page, state);
+    await loginMock(page, "/dashboard/usaha/passport");
+
+    // Masuk ke passport usaha lalu terbitkan (penerbitan pertama tanpa dialog).
+    await page.getByLabel("Cari usaha").fill("Usaha 01");
+    await page.getByRole("button", { name: "Cari" }).click();
+    await page.getByRole("button", { name: "Buka passport" }).click();
+    await page.getByRole("button", { name: "Terbitkan Talent Passport" }).click();
+    await expect(page.getByText(`Talent Passport ${PASSPORT_KODE} diterbitkan.`)).toBeVisible();
+
+    // Dialog terbitkan ulang memuat nama usaha dan bisa dibatalkan.
+    await page.getByRole("button", { name: "Terbitkan ulang" }).click();
+    const dialogUlang = page.getByRole("dialog");
+    await expect(dialogUlang).toContainText(`Terbitkan ulang Talent Passport Usaha 01?`);
+    await dialogUlang.getByRole("button", { name: "Batal" }).click();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+
+    // Jalur gagal: dialog tetap terbuka, galat inline, judul tetap varian "Cabut".
+    state.gagalCabutPassport = true;
+    await page.getByRole("button", { name: "Cabut passport" }).click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toContainText(`Cabut Talent Passport ${PASSPORT_KODE}?`);
+    await expect(dialog).toContainText("Usaha 01");
+    await dialog.getByRole("button", { name: "Ya, cabut" }).click();
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole("alert")).toHaveText("Talent Passport tidak dapat dicabut. Coba lagi.");
+    await expect(dialog).toContainText(`Cabut Talent Passport ${PASSPORT_KODE}?`);
+
+    // Jalur sukses (lambat): isi dialog tidak berganti selama proses, Esc diabaikan.
+    state.gagalCabutPassport = false;
+    state.tundaCabutPassport = true;
+    await dialog.getByRole("button", { name: "Ya, cabut" }).click();
+    const tombolProses = dialog.getByRole("button", { name: "Memproses…" });
+    await expect(tombolProses).toBeVisible();
+    await expect(tombolProses).toBeDisabled();
+    await expect(dialog).toContainText(`Cabut Talent Passport ${PASSPORT_KODE}?`);
+    await expect(dialog).not.toContainText("Terbitkan ulang Talent Passport");
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeVisible();
+
+    // Sukses menutup dialog dan menampilkan banner halaman.
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(page.getByText(`Talent Passport ${PASSPORT_KODE} dicabut.`)).toBeVisible();
+
+    // Dua POST cabut: satu gagal + satu sukses; guard sibuk mencegah request ganda.
+    expect(state.requests.filter((request) => request.method === "POST" && /\/passport\/.+\/cabut$/.test(request.path)).length).toBe(2);
+  });
+
   test("a business outside the talent pool cannot get a passport yet", async ({ page }) => {
     const state = createProgramState();
     await installMockDirectus(page, { authenticated: true });

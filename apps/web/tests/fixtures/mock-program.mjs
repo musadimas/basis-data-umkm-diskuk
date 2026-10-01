@@ -254,6 +254,14 @@ export async function installMockProgram(page, state = createProgramState()) {
       state.passport = { id: "99999999-9999-4999-8999-000000000001", kode: PASSPORT_PAYLOAD.kode, status: "aktif", statusBadge: PASSPORT_PAYLOAD.statusBadge, skor: PASSPORT_PAYLOAD.skor, payload: PASSPORT_PAYLOAD, diterbitkanAt: PASSPORT_PAYLOAD.diterbitkanAt };
       return json(route, 201, state.passport);
     }
+    const cabutPassport = path.match(/^\/passport\/([^/]+)\/cabut$/);
+    if (method === "POST" && cabutPassport) {
+      if (state.gagalCabutPassport) return json(route, 500, "INTERNAL");
+      if (!state.passport || state.passport.id !== cabutPassport[1]) return json(route, 404, "PASSPORT_NOT_FOUND");
+      if (state.tundaCabutPassport) await new Promise((resolve) => setTimeout(resolve, 800));
+      state.passport = { ...state.passport, status: "dicabut" };
+      return json(route, 200, state.passport);
+    }
     if (method === "GET" && (path === "/passport/pdf/summary" || path === "/passport/pdf/katalog")) {
       const pdfSample = "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] >>\nendobj\nxref\n0 4\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \ntrailer\n<< /Size 4 /Root 1 0 R >>\nstartxref\n200\n%%EOF";
       return route.fulfill({
