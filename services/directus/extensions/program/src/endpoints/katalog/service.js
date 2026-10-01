@@ -4,7 +4,7 @@ import { requireCaptcha } from "../../lib/captcha.js";
 import { flag, normalisasiTeleponSeluler, objectBody, oneOf, optionalNumber, optionalText, optionalUuid, uuidParam, UUID } from "../../lib/validate.js";
 import dokumen from "../../../../../analytics-shared/dokumen.cjs";
 import { qrModul } from "../../lib/qr.js";
-import { KURASI_STATUS, LOI_DUPLIKAT_JAM, LOI_MAX_PER_WINDOW, LOI_WINDOW_MINUTES, STATUS_TAYANG, hargaRange, validasiKurasi } from "./rules.js";
+import { KURASI_ASAL, KURASI_STATUS, LOI_ASAL, LOI_DUPLIKAT_JAM, LOI_MAX_PER_WINDOW, LOI_WINDOW_MINUTES, STATUS_TAYANG, hargaRange, validasiKurasi } from "./rules.js";
 
 export { LOI_MAX_PER_WINDOW, LOI_WINDOW_MINUTES, STATUS_TAYANG };
 
@@ -298,7 +298,8 @@ export function createKatalog({ db, assets, env, clock = () => new Date() }) {
       return rows(result).map(toProduk);
     },
 
-    /** Tayang, rekomendasi marketplace, atau tolak dengan catatan. */
+    /** Tayang, rekomendasi marketplace, atau tolak dengan catatan. Transisi dijaga UPDATE
+     * bersyarat (`KURASI_ASAL`): keputusan yang tidak lagi sah dibalas 409 dan foto tidak dipindah. */
     async kurasiProduk(pemanggil, produkIdRaw, body) {
       const id = uuidParam(produkIdRaw);
       const payload = objectBody({ body });
@@ -307,11 +308,17 @@ export function createKatalog({ db, assets, env, clock = () => new Date() }) {
       const decided = await db.transaction(async (trx) => {
         // Lock baris keputusan: dua kurator tidak boleh memutuskan produk yang sama bersamaan.
         await findProduk(trx, id, { lock: true });
-        await trx.raw(
-          `UPDATE produk SET status_kurasi = ?, catatan_kurasi = ?, dikurasi_oleh = ?, dikurasi_at = NOW(), date_updated = NOW()
-            WHERE id = ?`,
-          [keputusan, catatan, pemanggil.id, id],
+        // Asal yang sah dikirim sebagai satu teks JSON: Knex mengembangkan binding larik (lihat ID_LIST).
+        const diubah = rows(
+          await trx.raw(
+            `UPDATE produk SET status_kurasi = ?, catatan_kurasi = ?, dikurasi_oleh = ?, dikurasi_at = NOW(), date_updated = NOW()
+              WHERE id = ? AND status_kurasi IN (SELECT jsonb_array_elements_text(?::jsonb)) RETURNING id`,
+            [keputusan, catatan, pemanggil.id, id, JSON.stringify(KURASI_ASAL[keputusan])],
+          ),
         );
+        if (!diubah.length) {
+          throw new ProgramError(409, "TRANSISI_KURASI_TIDAK_VALID", "The product's curation status no longer allows this decision.");
+        }
         // Keputusan menentukan lokasi foto: tayang -> folder publik, selain itu folder kurasi (M6-04).
         await pindahkanFoto(trx, id, STATUS_TAYANG.includes(keputusan));
         return findProduk(trx, id);
@@ -334,6 +341,24 @@ export function createKatalog({ db, assets, env, clock = () => new Date() }) {
         [curator, pemanggil.usahaId],
       );
       return rows(result);
+    },
+
+    /** Kurator menandai tindak lanjut LOI (BUG-020); transisi dijaga UPDATE bersyarat. */
+    async ubahStatusLoi(pemanggil, loiIdRaw, body) {
+      const id = uuidParam(loiIdRaw);
+      const status = oneOf(objectBody({ body }), "status", Object.keys(LOI_ASAL));
+      if (!isCurator(pemanggil)) throw new ProgramError(403, "FORBIDDEN", "Only curators can update letters of intent.");
+      const diubah = rows(
+        await db.raw(
+          `UPDATE produk_loi SET status = ? WHERE id = ? AND status IN (SELECT jsonb_array_elements_text(?::jsonb))
+           RETURNING id, status`,
+          [status, id, JSON.stringify(LOI_ASAL[status])],
+        ),
+      )[0];
+      if (diubah) return diubah;
+      const ada = rows(await db.raw(`SELECT 1 FROM produk_loi WHERE id = ?`, [id]))[0];
+      if (!ada) throw new ProgramError(404, "LOI_NOT_FOUND", "The letter of intent was not found.");
+      throw new ProgramError(409, "TRANSISI_LOI_TIDAK_VALID", "The letter of intent can no longer move to this status.");
     },
 
     /** LOI PUBLIK. Urutan: validasi -> idempotensi -> captcha (sekali pakai) -> produk tayang ->

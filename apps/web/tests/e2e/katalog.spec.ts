@@ -8,6 +8,15 @@ const PNG = Buffer.from(
   "base64",
 );
 
+/** Produk lengkap seperti objek `created` di handler mock, satu per status kurasi (BUG-019). */
+const produkKurasi = (id: string, nama: string, statusKurasi: string, catatanKurasi: string | null = null) => ({
+  id, usaha: USAHA_ID, nama, deskripsi: "Produk uji kurasi.", kategori: "makanan", kbli: "10794",
+  hargaRetail: 15000, hargaGrosir: 12000, moq: 50, videoUrl: null, dimensi: null, berat: null, shelfLife: null,
+  bahanBaku: null, tkdnPersen: 80, kapasitasBulanan: null, leadTime: null, ujiLab: null, persenBahanLokal: null,
+  pdnDeklarasi: false, foto: [], statusKurasi, catatanKurasi, dikurasiAt: null, usahaNama: "Usaha 01",
+  usahaKota: "Kabupaten Bogor", dateCreated: "2026-09-20T00:00:00Z", dateUpdated: "2026-09-21T00:00:00Z",
+});
+
 test.describe("Modul 7.1 · Katalog", () => {
   test("public catalogue renders curated products with the five chips, all 27 regions and a shareable URL", async ({ page }) => {
     const state = createProgramState();
@@ -101,13 +110,13 @@ test.describe("Modul 7.1 · Katalog", () => {
     await expect(page.getByRole("button", { name: "Fesyen & Tekstil" })).toHaveAttribute("aria-pressed", "true");
 
     // Switching to Kota Bandung (whose product is not fashion) empties the result and says why.
+    // Wilayah memakai combobox reka-ui: buka trigger sampai opsi stabil, klik, ulangi bila perlu.
+    const kotaBandung = page.getByRole("option").filter({ hasText: "Kota Bandung (" });
     await expect(async () => {
-      await page.keyboard.press("Escape");
-      await page.locator("#filter-wilayah").click();
-      // Tunggu animasi popper selesai agar klik tidak mendarat di opsi yang bergeser.
-      await page.getByRole("option", { name: "Kota Bandung (1)" }).waitFor({ state: "visible" });
-      await page.waitForTimeout(300);
-      await page.getByRole("option", { name: "Kota Bandung (1)" }).click();
+      if ((await page.locator("#filter-wilayah").getAttribute("aria-expanded")) !== "true") await page.locator("#filter-wilayah").click();
+      await expect(kotaBandung).toBeVisible({ timeout: 1_500 });
+      await page.waitForTimeout(200);
+      await kotaBandung.click();
       await expect(page.getByTestId("katalog-total")).toHaveText("0", { timeout: 2_000 });
     }).toPass({ timeout: 30_000 });
     await expect(page.getByText("Tidak ada produk yang cocok dengan kombinasi filter ini.")).toBeVisible();
@@ -220,5 +229,97 @@ test.describe("Modul 7.1 · Katalog", () => {
     await page.getByRole("button", { name: "Tayangkan" }).click();
     await expect(page.getByText("Keripik Pedas: Tayang.")).toBeVisible();
     expect(state.produk[0].statusKurasi).toBe("tayang");
+  });
+
+  test("kurator hanya melihat aksi yang sah untuk tiap status (BUG-019)", async ({ page }) => {
+    const state = createProgramState();
+    state.produk.push(
+      produkKurasi("dddddddd-0000-4000-8000-000000000001", "Produk Tayang", "tayang"),
+      produkKurasi("dddddddd-0000-4000-8000-000000000002", "Produk Rekomendasi", "rekomendasi_marketplace"),
+      produkKurasi("dddddddd-0000-4000-8000-000000000003", "Produk Ditolak", "ditolak", "Foto buram"),
+    );
+    await installMockDirectus(page, { authenticated: true });
+    await installMockProgram(page, state);
+    await loginMock(page, "/dashboard/katalog/kurasi");
+
+    // Tab Tayang: tanpa "Tayangkan", dengan "Turunkan" dan tautan ke katalog publik.
+    await page.getByRole("tab", { name: "Tayang", exact: true }).click();
+    await page.locator("li", { hasText: "Produk Tayang" }).getByRole("button", { name: "Lihat" }).click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByRole("heading", { name: "Produk Tayang" })).toBeVisible();
+    await expect(dialog.getByRole("button", { name: "Tayangkan", exact: true })).toHaveCount(0);
+    await expect(dialog.getByRole("button", { name: "Turunkan", exact: true })).toBeVisible();
+    await expect(dialog.getByRole("link", { name: "Lihat di katalog" })).toHaveAttribute("href", "/katalog/dddddddd-0000-4000-8000-000000000001");
+
+    // Turunkan tanpa catatan ditolak dengan pesan yang sama seperti server; dialog tetap terbuka.
+    await dialog.getByRole("button", { name: "Turunkan", exact: true }).click();
+    await expect(dialog.getByText("Tulis alasan penolakan untuk pelaku usaha.")).toBeVisible();
+    await expect(dialog).toBeVisible();
+    expect(state.requests.filter((request) => request.method === "POST" && request.path.endsWith("/kurasi"))).toHaveLength(0);
+
+    await dialog.getByLabel("Catatan kurasi").fill("Stok sedang kosong.");
+    await dialog.getByRole("button", { name: "Turunkan", exact: true }).click();
+    await expect(page.getByText("Produk Tayang: Ditolak.")).toBeVisible();
+    await expect(dialog).toHaveCount(0);
+
+    // Tab Ditolak: read-only dengan catatan kurasi dan hanya tombol "Tutup".
+    await page.getByRole("tab", { name: "Ditolak", exact: true }).click();
+    await page.locator("li", { hasText: "Produk Ditolak" }).getByRole("button", { name: "Lihat" }).click();
+    const dialogDitolak = page.getByRole("dialog");
+    await expect(dialogDitolak.getByText("Foto buram")).toBeVisible();
+    await expect(dialogDitolak.getByLabel("Catatan kurasi")).toHaveCount(0);
+    await expect(dialogDitolak.getByRole("button", { name: "Tutup", exact: true })).toBeVisible();
+    await expect(dialogDitolak.getByRole("button", { name: "Tolak", exact: true })).toHaveCount(0);
+  });
+
+  test("LOI dapat dibuka, dihubungi, dan ditindaklanjuti (BUG-020)", async ({ page }) => {
+    const state = createProgramState();
+    state.loi.push(
+      {
+        id: "eeeeeeee-0000-4000-8000-000000000001", produk: "dddddddd-0000-4000-8000-000000000001", produkNama: "Produk Tayang",
+        usahaNama: "Usaha 01", nama: "Pembeli Konsen", instansi: "PT Contoh", email: "beli@contoh.id", telepon: "0812345678",
+        jumlah: "1.000 pcs", pesan: "Minat kerja sama.", persetujuanKontak: true, status: "baru", dateCreated: "2026-09-25T02:00:00Z",
+      },
+      {
+        id: "eeeeeeee-0000-4000-8000-000000000002", produk: "dddddddd-0000-4000-8000-000000000001", produkNama: "Produk Tayang",
+        usahaNama: "Usaha 01", nama: "Pembeli Tanpa Kontak", instansi: null, email: "rahasia@contoh.id", telepon: null,
+        jumlah: null, pesan: "Saya tidak ingin dihubungi.", persetujuanKontak: false, status: "baru", dateCreated: "2026-09-24T02:00:00Z",
+      },
+    );
+    await installMockDirectus(page, { authenticated: true });
+    await installMockProgram(page, state);
+    await loginMock(page, "/dashboard/katalog/kurasi");
+
+    await page.getByRole("tab", { name: "Letter of Intent", exact: true }).click();
+    const baris = page.locator("li", { hasText: "Pembeli Konsen" });
+    await expect(baris.getByText("Baru", { exact: true })).toBeVisible();
+    await baris.getByRole("button", { name: "Detail" }).click();
+
+    // Kontak hanya tampil sebagai tautan bila pengirim menyetujui dihubungi.
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByRole("link", { name: "beli@contoh.id" })).toHaveAttribute("href", "mailto:beli@contoh.id");
+    await expect(dialog.getByRole("link", { name: "0812345678" })).toHaveAttribute("href", "tel:0812345678");
+
+    await dialog.getByRole("button", { name: "Tandai ditindaklanjuti" }).click();
+    await expect(dialog.getByText("Ditindaklanjuti", { exact: true })).toBeVisible();
+    await expect(page.getByText("LOI ditindaklanjuti.")).toBeVisible();
+
+    await dialog.getByRole("button", { name: "Tutup LOI" }).click();
+    await expect(dialog.getByText("Ditutup", { exact: true })).toBeVisible();
+    await expect(dialog.getByRole("button", { name: "Tutup", exact: true })).toBeVisible();
+    await dialog.getByRole("button", { name: "Tutup", exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+
+    // LOI lama tanpa persetujuan kontak: dijelaskan, tanpa tautan mailto (data campuran).
+    await page.locator("li", { hasText: "Pembeli Tanpa Kontak" }).getByRole("button", { name: "Detail" }).click();
+    const dialogKedua = page.getByRole("dialog");
+    await expect(dialogKedua.getByText("Pengirim tidak menyetujui kontaknya dibagikan.")).toBeVisible();
+    await expect(dialogKedua.locator('a[href^="mailto:"]')).toHaveCount(0);
+
+    // R4: penyimpanan gagal mempertahankan dialog dan menaruh error inline di dalamnya.
+    state.gagalLoi = true;
+    await dialogKedua.getByRole("button", { name: "Tutup LOI" }).click();
+    await expect(dialogKedua).toBeVisible();
+    await expect(dialogKedua.getByRole("alert")).toHaveText("Status LOI tidak dapat disimpan. Coba lagi.");
   });
 });

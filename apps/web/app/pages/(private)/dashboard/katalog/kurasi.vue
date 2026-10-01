@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { KATEGORI_PRODUK, KURASI_STATUS } from "~/constants";
+import { KATEGORI_PRODUK, KURASI_STATUS, LOI_STATUS } from "~/constants";
 import { KURASI_ANTREAN, KatalogError, katalogApi, katalogFotoUrl, kurasiLabel, type KurasiKeputusan } from "~/lib/katalog";
-import type { KurasiStatus, Produk } from "~/types/program";
+import type { KurasiStatus, Produk, ProdukLoi } from "~/types/program";
 
 definePageMeta({ layout: "dashboard" });
 useSeoMeta({ title: "Kurasi Katalog – Dashboard UMKM" });
@@ -21,7 +21,7 @@ const { data: produk, pending, error, refresh } = await useAsyncData<Produk[]>(
   () => (tab.value === "loi" ? Promise.resolve<Produk[]>([]) : api.antreanKurasi(tab.value)),
   { watch: [tab] },
 );
-const { data: loi } = await useAsyncData(
+const { data: loi, pending: loiPending, error: loiError, refresh: refreshLoi } = await useAsyncData(
   "katalog:loi",
   () => (tab.value === "loi" ? api.daftarLoi() : Promise.resolve(null)),
   { watch: [tab] },
@@ -32,6 +32,10 @@ const catatan = ref("");
 const deciding = ref<Keputusan | null>(null);
 const message = ref<{ tone: "success" | "error"; text: string } | null>(null);
 const dialogError = ref("");
+/** Status produk yang sedang ditinjau; `null` saat dialog tertutup. */
+const statusPreview = computed(() => preview.value?.statusKurasi ?? null);
+/** `ditolak` read-only: catatan kurasi hanya dibaca, keputusan baru menunggu pemilik mengubah produk. */
+const bisaUbah = computed(() => statusPreview.value !== null && statusPreview.value !== "ditolak");
 
 function open(item: Produk) {
   preview.value = item;
@@ -40,7 +44,8 @@ function open(item: Produk) {
 }
 
 async function decide(keputusan: Keputusan) {
-  if (!preview.value) return;
+  // R6: kunci sibuk diklaim sebelum await pertama supaya klik ganda hanya mengirim satu permintaan.
+  if (!preview.value || deciding.value) return;
   dialogError.value = "";
   deciding.value = keputusan;
   try {
@@ -49,9 +54,40 @@ async function decide(keputusan: Keputusan) {
     preview.value = null;
     await refresh();
   } catch (cause) {
+    // R4: dialog tetap terbuka dengan pesan inline; antrean basi dimuat ulang.
     dialogError.value = cause instanceof KatalogError ? cause.pesan : "Keputusan tidak dapat disimpan. Coba lagi.";
+    if (cause instanceof KatalogError && cause.code === "TRANSISI_KURASI_TIDAK_VALID") await refresh();
   } finally {
     deciding.value = null;
+  }
+}
+
+const loiTarget = ref<ProdukLoi | null>(null);
+const loiBusy = ref(false);
+const loiDialogError = ref("");
+
+function bukaLoi(item: ProdukLoi) {
+  loiTarget.value = item;
+  loiDialogError.value = "";
+}
+
+async function ubahLoi(status: "ditindaklanjuti" | "ditutup") {
+  // R6: sama seperti `deciding`, sibuk diklaim sebelum await pertama.
+  if (!loiTarget.value || loiBusy.value) return;
+  loiBusy.value = true;
+  loiDialogError.value = "";
+  try {
+    const id = loiTarget.value.id;
+    await api.ubahStatusLoi(id, status);
+    await refreshLoi();
+    loiTarget.value = loi.value?.find((item) => item.id === id) ?? null;
+    message.value = { tone: "success", text: `LOI ${LOI_STATUS[status].label.toLowerCase()}.` };
+  } catch (cause) {
+    // R4: dialog tetap terbuka; status yang sudah berubah memuat ulang daftarnya.
+    loiDialogError.value = cause instanceof KatalogError ? cause.pesan : "Status LOI tidak dapat disimpan. Coba lagi.";
+    if (cause instanceof KatalogError && cause.code === "TRANSISI_LOI_TIDAK_VALID") await refreshLoi();
+  } finally {
+    loiBusy.value = false;
   }
 }
 
@@ -84,12 +120,17 @@ const date = (value: string) => new Intl.DateTimeFormat("id-ID", { dateStyle: "m
     <UiCard>
       <UiCardContent class="overflow-x-auto p-0">
         <template v-if="tab === 'loi'">
-          <p v-if="!loi?.length" class="p-6 text-sm text-muted-foreground">Belum ada Letter of Intent.</p>
-          <ul v-else class="divide-y text-sm">
-            <li v-for="item in loi" :key="item.id" class="grid gap-1 px-4 py-3">
-              <p><span class="font-semibold">{{ item.nama }}</span><template v-if="item.instansi"> · {{ item.instansi }}</template> → {{ item.produkNama }} ({{ item.usahaNama }})</p>
-              <p class="text-xs text-muted-foreground">{{ date(item.dateCreated) }} · {{ item.email }}<template v-if="item.telepon"> · {{ item.telepon }}</template><template v-if="item.jumlah"> · {{ item.jumlah }}</template></p>
-              <p class="whitespace-pre-line">{{ item.pesan }}</p>
+          <div v-if="loiError" role="alert" class="p-6 text-sm text-destructive">Letter of Intent tidak dapat dimuat.</div>
+          <div v-else-if="loiPending && !loi?.length" class="p-6 text-sm text-muted-foreground">Memuat…</div>
+          <p v-else-if="!loi?.length" class="p-6 text-sm text-muted-foreground">Belum ada Letter of Intent.</p>
+          <ul v-else class="divide-y">
+            <li v-for="item in loi" :key="item.id" class="flex flex-wrap items-center gap-4 px-4 py-3 text-sm">
+              <div class="min-w-0 flex-1">
+                <p class="font-medium">{{ item.nama }}<template v-if="item.instansi"> · {{ item.instansi }}</template></p>
+                <p class="text-xs text-muted-foreground">{{ item.produkNama }} ({{ item.usahaNama }}) · {{ date(item.dateCreated) }}</p>
+              </div>
+              <ProgramStatusPill :meta="LOI_STATUS[item.status]" />
+              <button type="button" class="font-semibold underline" @click="bukaLoi(item)">Detail</button>
             </li>
           </ul>
         </template>
@@ -129,18 +170,68 @@ const date = (value: string) => new Intl.DateTimeFormat("id-ID", { dateStyle: "m
             <div><dt class="text-xs text-muted-foreground">Deklarasi PDN</dt><dd>{{ preview.pdnDeklarasi ? "Ya" : "Tidak" }}</dd></div>
             <div><dt class="text-xs text-muted-foreground">Video</dt><dd class="truncate">{{ preview.videoUrl || "—" }}</dd></div>
           </dl>
-          <UiField class="gap-1">
+          <UiField v-if="bisaUbah" class="gap-1">
             <UiFieldLabel for="catatan-kurasi">Catatan kurasi</UiFieldLabel>
-            <UiTextarea id="catatan-kurasi" v-model="catatan" rows="2" maxlength="2000" placeholder="Wajib diisi bila menolak" />
+            <UiTextarea id="catatan-kurasi" v-model="catatan" rows="2" maxlength="2000" placeholder="Wajib diisi bila menolak atau menurunkan" />
           </UiField>
+          <div v-else class="rounded-md bg-muted/40 p-3">
+            <p class="text-xs text-muted-foreground">Catatan kurasi</p>
+            <p class="whitespace-pre-line">{{ preview.catatanKurasi || "—" }}</p>
+            <p class="mt-2 text-xs text-muted-foreground">Produk kembali ke antrean setelah pelaku usaha mengubahnya.</p>
+          </div>
           <p v-if="dialogError" role="alert" class="text-destructive">{{ dialogError }}</p>
         </div>
-        <UiDialogFooter class="gap-2">
-          <UiButton variant="destructive" :disabled="Boolean(deciding)" @click="decide('ditolak')">Tolak</UiButton>
-          <UiButton variant="outline" :disabled="Boolean(deciding)" @click="decide('rekomendasi_marketplace')">Rekomendasikan ke Marketplace</UiButton>
-          <UiButton :disabled="Boolean(deciding)" @click="decide('tayang')">Tayangkan</UiButton>
+        <UiDialogFooter>
+          <template v-if="statusPreview === 'menunggu'">
+            <UiButton variant="destructive" :disabled="Boolean(deciding)" @click="decide('ditolak')">Tolak</UiButton>
+            <UiButton variant="outline" :disabled="Boolean(deciding)" @click="decide('rekomendasi_marketplace')">Rekomendasikan ke Marketplace</UiButton>
+            <UiButton :disabled="Boolean(deciding)" @click="decide('tayang')">Tayangkan</UiButton>
+          </template>
+          <template v-else-if="statusPreview === 'tayang' || statusPreview === 'rekomendasi_marketplace'">
+            <UiButton variant="destructive" :disabled="Boolean(deciding)" @click="decide('ditolak')">Turunkan</UiButton>
+            <UiButton v-if="statusPreview === 'tayang'" variant="outline" :disabled="Boolean(deciding)" @click="decide('rekomendasi_marketplace')">Rekomendasikan ke Marketplace</UiButton>
+            <UiButton as-child variant="outline">
+              <NuxtLink :to="`/katalog/${preview.id}`" target="_blank">Lihat di katalog</NuxtLink>
+            </UiButton>
+          </template>
+          <UiButton v-else variant="outline" @click="preview = null">Tutup</UiButton>
         </UiDialogFooter>
       </UiDialogScrollContent>
+    </UiDialog>
+
+    <UiDialog :open="Boolean(loiTarget)" @update:open="(value) => !value && !loiBusy && (loiTarget = null)">
+      <UiDialogContent v-if="loiTarget" class="sm:max-w-lg" :show-close-button="!loiBusy">
+        <UiDialogHeader>
+          <UiDialogTitle class="pr-6">LOI dari {{ loiTarget.nama }}</UiDialogTitle>
+          <UiDialogDescription>{{ loiTarget.instansi || "Perorangan" }} · {{ date(loiTarget.dateCreated) }}</UiDialogDescription>
+        </UiDialogHeader>
+        <dl class="grid gap-2 text-sm">
+          <div>
+            <dt class="text-xs text-muted-foreground">Produk</dt>
+            <dd>
+              <NuxtLink :to="`/katalog/${loiTarget.produk}`" target="_blank" class="underline">{{ loiTarget.produkNama }}</NuxtLink>
+              · {{ loiTarget.usahaNama || "—" }}
+            </dd>
+          </div>
+          <div><dt class="text-xs text-muted-foreground">Perkiraan jumlah</dt><dd>{{ loiTarget.jumlah || "—" }}</dd></div>
+          <div><dt class="text-xs text-muted-foreground">Pesan</dt><dd class="whitespace-pre-line">{{ loiTarget.pesan }}</dd></div>
+          <div>
+            <dt class="text-xs text-muted-foreground">Kontak</dt>
+            <dd v-if="loiTarget.persetujuanKontak" class="flex flex-wrap gap-3">
+              <a :href="`mailto:${loiTarget.email}`" class="underline">{{ loiTarget.email }}</a>
+              <a v-if="loiTarget.telepon" :href="`tel:${loiTarget.telepon}`" class="underline">{{ loiTarget.telepon }}</a>
+            </dd>
+            <dd v-else class="text-muted-foreground">Pengirim tidak menyetujui kontaknya dibagikan.</dd>
+          </div>
+          <div><dt class="text-xs text-muted-foreground">Status</dt><dd><ProgramStatusPill :meta="LOI_STATUS[loiTarget.status]" /></dd></div>
+        </dl>
+        <p v-if="loiDialogError" role="alert" class="text-sm text-destructive">{{ loiDialogError }}</p>
+        <UiDialogFooter>
+          <UiButton v-if="loiTarget.status === 'baru'" variant="outline" :disabled="loiBusy" @click="ubahLoi('ditindaklanjuti')">{{ loiBusy ? "Memproses…" : "Tandai ditindaklanjuti" }}</UiButton>
+          <UiButton v-if="loiTarget.status !== 'ditutup'" :disabled="loiBusy" @click="ubahLoi('ditutup')">{{ loiBusy ? "Memproses…" : "Tutup LOI" }}</UiButton>
+          <UiButton v-else variant="outline" @click="loiTarget = null">Tutup</UiButton>
+        </UiDialogFooter>
+      </UiDialogContent>
     </UiDialog>
   </div>
 </template>

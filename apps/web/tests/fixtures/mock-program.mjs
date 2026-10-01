@@ -5,7 +5,7 @@
  */
 import { PASSPORT_PAYLOAD, PDF_CONTOH, PNG_1PX, katalogResponse } from "./katalog-data.mjs";
 import { createKegiatanState, kegiatanApiResponse } from "./kegiatan-data.mjs";
-import { hargaRange, loiDuplikat, validasiKurasi } from "../../../../services/directus/extensions/program/src/endpoints/katalog/rules.js";
+import { KURASI_ASAL, LOI_ASAL, hargaRange, loiDuplikat, validasiKurasi } from "../../../../services/directus/extensions/program/src/endpoints/katalog/rules.js";
 import { PITCHING_STREAK, capaian, hariLapor, latestTargetStreak, waktuLaporan } from "../../../../services/directus/extensions/program/src/endpoints/kpi/rules.js";
 import { UUID } from "../../../../services/directus/extensions/program/src/lib/validate.js";
 import { VERSI_AWAL, klinikMockResponse } from "./klinik-data.mjs";
@@ -116,6 +116,8 @@ export function createProgramState() {
     ],
     /** Simulasi kegagalan penyimpanan keputusan kurasi investor (R4). */
     gagalKurasiInvestor: false,
+    /** Simulasi kegagalan penyimpanan status LOI (R4). */
+    gagalLoi: false,
     /** Jawaban CSAT `{ tiket, nilai, consent }` dan outcome konsultasi (semua versi) dari klinik (R04). */
     csat: [],
     outcomes: [],
@@ -299,10 +301,20 @@ export async function installMockProgram(page, state = createProgramState()) {
         return json(route, error.statusCode ?? 400, error.code ?? "INVALID_PAYLOAD");
       }
       if (!item) return json(route, 404, "PRODUK_NOT_FOUND");
+      if (!KURASI_ASAL[keputusan.keputusan].includes(item.statusKurasi)) return json(route, 409, "TRANSISI_KURASI_TIDAK_VALID");
       Object.assign(item, { statusKurasi: keputusan.keputusan, catatanKurasi: keputusan.catatan });
       return json(route, 200, item);
     }
     if (method === "GET" && path === "/katalog/loi") return json(route, 200, state.loi);
+    match = path.match(/^\/katalog\/loi\/([^/]+)$/);
+    if (method === "PATCH" && match) {
+      const item = state.loi.find((loi) => loi.id === match[1]);
+      if (!item) return json(route, 404, "LOI_NOT_FOUND");
+      if (state.gagalLoi) return json(route, 500, "INTERNAL_SERVER_ERROR");
+      if (!(LOI_ASAL[body?.status] ?? []).includes(item.status)) return json(route, 409, "TRANSISI_LOI_TIDAK_VALID");
+      item.status = body.status;
+      return json(route, 200, { id: item.id, status: item.status });
+    }
     match = path.match(/^\/katalog\/produk\/([^/]+)\/pdf$/);
     if (method === "GET" && match) {
       return route.fulfill({
@@ -319,7 +331,14 @@ export async function installMockProgram(page, state = createProgramState()) {
       // Urutan server: idempoten dulu (captcha sekali pakai), baru captcha. Duplikat per produk (M7).
       if (loiDuplikat(state.loi, body)) return json(route, 200, { diterima: true, duplikat: true });
       if (!body.captcha) return json(route, 400, "CAPTCHA_INVALID");
-      state.loi.push({ ...body, dateCreated: new Date().toISOString() });
+      state.loi.push({
+        id: `77777777-7777-4777-8777-${String(state.loi.length + 1).padStart(12, "0")}`,
+        status: "baru",
+        produkNama: "Produk",
+        usahaNama: state.usaha.nama,
+        ...body,
+        dateCreated: new Date().toISOString(),
+      });
       return json(route, 201, { diterima: true, duplikat: false });
     }
 

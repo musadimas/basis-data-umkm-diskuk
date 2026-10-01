@@ -1,4 +1,4 @@
-import type { JenisLegalitas, KesiapanLegalitas, KlinikJenisOutcome, PengajuanStatus, StatusLegalitas, TalentStatus } from "~/types/program";
+import type { JenisLegalitas, KesiapanLegalitas, KlinikJenisOutcome, LoiStatus, PengajuanStatus, StatusLegalitas, TalentStatus } from "~/types/program";
 import { ATRIBUT_JABAR } from "./OPERASIONAL";
 
 /** Peta label berkunci runtime (skala/fase): kunci di luar daftar tetap jatuh ke fallback pemanggil. */
@@ -104,6 +104,13 @@ export const KURASI_STATUS = {
   rekomendasi_marketplace: { label: "Rekomendasi Marketplace", className: "bg-indigo-100 text-indigo-800" },
   ditolak: { label: "Ditolak", className: "bg-red-100 text-red-800" },
 } satisfies Record<import("~/types/program").KurasiStatus, { label: string; className: string }>;
+
+/** Tindak lanjut Letter of Intent pada panel kurasi katalog; `ditutup` final. */
+export const LOI_STATUS = {
+  baru: { label: "Baru", className: "bg-amber-100 text-amber-900" },
+  ditindaklanjuti: { label: "Ditindaklanjuti", className: "bg-sky-100 text-sky-800" },
+  ditutup: { label: "Ditutup", className: "bg-slate-200 text-slate-700" },
+} satisfies Record<LoiStatus, { label: string; className: string }>;
 
 /** Status profil kemitraan investor pada panel kurasi investor. */
 export const KURASI_INVESTOR_STATUS = {

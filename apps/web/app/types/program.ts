@@ -266,9 +266,13 @@ export interface ProdukLoi {
   telepon: string | null;
   jumlah: string | null;
   pesan: string;
+  /** Pengirim setuju dihubungi kembali; kontak hanya ditampilkan bila true (M7-05). */
+  persetujuanKontak: boolean;
   status: "baru" | "ditindaklanjuti" | "ditutup";
   dateCreated: string;
 }
+
+export type LoiStatus = ProdukLoi["status"];
 
 export interface PassportSkor {
   finansial: number;

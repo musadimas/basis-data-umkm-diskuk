@@ -3,6 +3,7 @@
 // dijalankan (27 kabupaten/kota, satu produk tayang, satu produk draft, kontak penjualan
 // terverifikasi, satu sertifikat halal terbit). Tanpa stack: skip, bukan `done`.
 import { expect, test } from "@playwright/test";
+import { loginReal } from "./real-login";
 
 const PRODUK_TAYANG = process.env.DUMMY_PRODUK_TAYANG || "e1000000-0000-4000-8000-000000000001";
 const PRODUK_DRAFT = process.env.DUMMY_PRODUK_DRAFT || "e1000000-0000-4000-8000-000000000002";
@@ -130,6 +131,32 @@ test.describe("Y06 katalog publik pada stack disposable", () => {
     await isi();
     await page.getByRole("button", { name: "Kirim LOI" }).click();
     await expect(page.getByText("Letter of Intent ini sudah pernah terkirim.")).toBeVisible({ timeout: 30_000 });
+  });
+
+  // BUG-021: grant baca katalog disalin ke policy aplikasi dan investor, sehingga pengguna login
+  // melihat produk tayang (beserta fotonya) sementara draft tetap 403.
+  test("pengguna login (provinsi) tetap dapat membuka detail produk tayang beserta fotonya (BUG-021)", async ({ page }) => {
+    test.skip(!process.env.DEMO_ACCOUNT_PASSWORD, "butuh DEMO_ACCOUNT_PASSWORD");
+    await loginReal(page, process.env.DUMMY_PROVINSI_EMAIL || "dummy_admin@diskuk.jabarprov.go.id", process.env.DEMO_ACCOUNT_PASSWORD!);
+    expect((await page.request.get(`/panel/items/produk/${PRODUK_TAYANG}`)).status()).toBe(200);
+    expect((await page.request.get(`/panel/items/produk/${PRODUK_DRAFT}`)).status()).toBe(403);
+    await page.goto(`/katalog/${PRODUK_TAYANG}`);
+    await expect(page.getByRole("heading", { name: PRODUK_TAYANG_NAMA })).toBeVisible();
+    await expect(page.getByText("Produk tidak ditemukan")).toHaveCount(0);
+    await page.goto("/katalog");
+    await expect(page.getByTestId("katalog-total")).not.toHaveText("0");
+  });
+
+  test("pengguna login (umkm) tetap dapat membuka detail produk tayang beserta fotonya (BUG-021)", async ({ page }) => {
+    test.skip(!process.env.DEMO_ACCOUNT_PASSWORD, "butuh DEMO_ACCOUNT_PASSWORD");
+    await loginReal(page, process.env.DUMMY_UMKM_EMAIL || "dummy_wawan.leathercraft@gmail.com", process.env.DEMO_ACCOUNT_PASSWORD!);
+    expect((await page.request.get(`/panel/items/produk/${PRODUK_TAYANG}`)).status()).toBe(200);
+    expect((await page.request.get(`/panel/items/produk/${PRODUK_DRAFT}`)).status()).toBe(403);
+    await page.goto(`/katalog/${PRODUK_TAYANG}`);
+    await expect(page.getByRole("heading", { name: PRODUK_TAYANG_NAMA })).toBeVisible();
+    await expect(page.getByText("Produk tidak ditemukan")).toHaveCount(0);
+    await page.goto("/katalog");
+    await expect(page.getByTestId("katalog-total")).not.toHaveText("0");
   });
 });
 

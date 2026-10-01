@@ -21,7 +21,7 @@ const kodeGagal = async (janji) => {
 
 test("management routes require a session; only the letter-of-intent form and the spec sheet are public", async () => {
   const { call, routes, queries } = mountEndpoint(registerKatalog, { env: { SECRET: "x" } });
-  assert.equal(routes.length, 10);
+  assert.equal(routes.length, 11);
   for (const { method, path } of routes) {
     if (method === "POST" && path === "/loi") continue;
     if (method === "GET" && path === "/produk/:id/pdf") continue;
@@ -44,6 +44,11 @@ test("payload LOI publik divalidasi sebelum query apa pun", async () => {
   ]) {
     assert.deepEqual(await kodeGagal(katalog.kirimLoi({ ...valid, ...patch })), hasil, JSON.stringify(patch));
   }
+});
+
+test("PATCH LOI menolak id dan status yang tidak dikenal sebelum query apa pun", async () => {
+  assert.deepEqual(await kodeGagal(katalog.ubahStatusLoi(kurator, "bukan-uuid", { status: "ditutup" })), [400, "INVALID_ID"]);
+  assert.deepEqual(await kodeGagal(katalog.ubahStatusLoi(kurator, ID, { status: "baru" })), [400, "INVALID_PAYLOAD"]);
 });
 
 test("payload produk divalidasi sebelum query apa pun", async () => {
@@ -79,7 +84,7 @@ test("semua route katalog bertanda terjaga/publik dengan peran yang tepat (01)",
   const require = createRequire(import.meta.url);
   const cakupan = require("../../../analytics-shared/cakupan.cjs");
   const { routes } = mountEndpoint(registerKatalog, { env: { SECRET: "x" } });
-  assert.equal(routes.length, 10);
+  assert.equal(routes.length, 11);
   const ekspektasi = [
     ["GET", "/usaha", "terjaga", ["provinsi", "umkm"]],
     ["GET", "/produk", "terjaga", ["provinsi", "umkm"]],
@@ -90,6 +95,7 @@ test("semua route katalog bertanda terjaga/publik dengan peran yang tepat (01)",
     ["GET", "/foto/:fileId", "terjaga", ["provinsi", "umkm"]],
     ["GET", "/produk/:id/pdf", "publik", []],
     ["GET", "/loi", "terjaga", ["provinsi", "umkm"]],
+    ["PATCH", "/loi/:id", "terjaga", ["provinsi"]],
     ["POST", "/loi", "publik", []],
   ];
   for (const [method, path, jenis, peran] of ekspektasi) {

@@ -117,12 +117,15 @@ test("kurasi memindahkan foto: tayang → folder publik, ditolak → folder kura
   assert.equal(ditolak.res.body.data.catatanKurasi, "Foto tidak jelas.");
   assert.equal(await folderFoto(), KURASI_FOLDER_ID);
 
+  // `ditolak` final bagi kurator sejak phase 9 (`KURASI_ASAL.rekomendasi_marketplace = [menunggu, tayang]`);
+  // produk kembali ke antrean hanya lewat edit pemilik, jadi keputusan ini dibalas 409 tanpa memindah foto.
   const rekomendasi = await call("POST", `/produk/${produk.id}/kurasi`, {
     accountability: akun(kurator.id),
     body: { keputusan: "rekomendasi_marketplace" },
   });
-  assert.equal(rekomendasi.res.statusCode, 200);
-  assert.equal(await folderFoto(), KATALOG_FOLDER_ID);
+  assert.equal(rekomendasi.res.statusCode, 409);
+  assert.equal(kode(rekomendasi), "TRANSISI_KURASI_TIDAK_VALID");
+  assert.equal(await folderFoto(), KURASI_FOLDER_ID);
 
   // Hanya kurator yang boleh memutuskan; penolakan wajib bercatatan; produk tak dikenal 404.
   const olehPemilik = await call("POST", `/produk/${produk.id}/kurasi`, { accountability: akun(owner.id), body: { keputusan: "tayang" } });
@@ -135,7 +138,7 @@ test("kurasi memindahkan foto: tayang → folder publik, ditolak → folder kura
   });
   assert.equal(tidakAda.res.statusCode, 404);
   assert.equal(kode(tidakAda), "PRODUK_NOT_FOUND");
-  assert.equal(await folderFoto(), KATALOG_FOLDER_ID, "keputusan yang gagal tidak memindahkan foto");
+  assert.equal(await folderFoto(), KURASI_FOLDER_ID, "keputusan yang gagal tidak memindahkan foto");
 });
 
 test("uji_lab diterima dan disimpan bersama produk", { skip: pgSkipReason() }, async (t) => {

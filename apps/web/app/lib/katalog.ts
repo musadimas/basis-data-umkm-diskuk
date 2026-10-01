@@ -286,6 +286,9 @@ export const PESAN_KATALOG = {
   FOTO_TIDAK_DITEMUKAN: "Foto tidak ditemukan.",
   FOTO_TIDAK_VALID: "Foto harus diunggah ulang melalui formulir ini.",
   CATATAN_WAJIB: "Tulis alasan penolakan untuk pelaku usaha.",
+  TRANSISI_KURASI_TIDAK_VALID: "Status produk sudah berubah. Antrean dimuat ulang.",
+  TRANSISI_LOI_TIDAK_VALID: "Status LOI sudah berubah. Daftar dimuat ulang.",
+  LOI_NOT_FOUND: "Letter of Intent tidak ditemukan.",
   PERSETUJUAN_WAJIB: "Persetujuan kontak wajib dicentang.",
   CAPTCHA_INVALID: "Captcha kedaluwarsa. Centang ulang lalu kirim.",
   CAPTCHA_NOT_CONFIGURED: "Verifikasi captcha belum tersedia. Coba lagi nanti.",
@@ -368,6 +371,18 @@ export function katalogApi(client: KatalogClient) {
       );
     },
     daftarLoi: () => panggil(() => client.request<ProdukLoi[]>(endpoint<ProdukLoi[]>(`${dasar}/loi`)), "Letter of Intent tidak dapat dimuat."),
+    /** Tindak lanjut LOI oleh kurator (baru → ditindaklanjuti → ditutup). */
+    ubahStatusLoi: (loiId: string, status: "ditindaklanjuti" | "ditutup") =>
+      panggil(
+        () =>
+          client.request<{ id: string; status: ProdukLoi["status"] }>(
+            endpoint<{ id: string; status: ProdukLoi["status"] }, { status: "ditindaklanjuti" | "ditutup" }>(`${dasar}/loi/${loiId}`, {
+              method: "PATCH",
+              body: { status },
+            }),
+          ),
+        "Status LOI tidak dapat disimpan. Coba lagi.",
+      ),
     kirimLoi: (input: LoiInput) =>
       panggil(
         () =>

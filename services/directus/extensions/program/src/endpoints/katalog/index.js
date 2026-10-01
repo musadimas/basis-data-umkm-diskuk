@@ -15,6 +15,7 @@ const { publik, terjaga } = cakupan;
 //   GET   /v1/program/katalog/foto/:fileId        photo bytes (curator or owning business)
 //   GET   /v1/program/katalog/produk/:id/pdf      PUBLIC spec sheet of a published product
 //   GET   /v1/program/katalog/loi                 letters of intent (curator or owner)
+//   PATCH /v1/program/katalog/loi/:id             curator marks follow-up (baru → ditindaklanjuti → ditutup)
 //   POST  /v1/program/katalog/loi                 PUBLIC, captcha: send a letter of intent
 // Kandidat 01: kelola = provinsi/umkm, kurasi = provinsi saja,
 // lembar spesifikasi dan LOI publik lewat publik() (captcha tetap di use case).
@@ -66,6 +67,7 @@ export default (router, context) => {
     }),
   );
   router.get("/loi", jalur(KELOLA, async (req, res, p) => kirim(res, await katalog.daftarLoi(p))));
+  router.patch("/loi/:id", jalur(KURASI, async (req, res, p) => kirim(res, await katalog.ubahStatusLoi(p, req.params?.id, req.body))));
   router.post(
     "/loi",
     terbuka(async (req, res) => {

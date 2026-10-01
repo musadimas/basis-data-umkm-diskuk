@@ -8,6 +8,25 @@ export const KURASI_KEPUTUSAN = ["tayang", "rekomendasi_marketplace", "ditolak"]
 /** Only these states are catalog-worthy; everything else stays invisible to the public. */
 export const STATUS_TAYANG = ["tayang", "rekomendasi_marketplace"];
 
+/** Status asal yang sah untuk tiap keputusan kurator (BUG-019). `menunggu` hanya hasil pengajuan/ubah. */
+export const KURASI_ASAL = Object.freeze({
+  tayang: ["menunggu"],
+  rekomendasi_marketplace: ["menunggu", "tayang"],
+  ditolak: ["menunggu", "tayang", "rekomendasi_marketplace"],
+});
+export const LOI_STATUS = ["baru", "ditindaklanjuti", "ditutup"];
+/** Status asal yang sah untuk tiap status tujuan LOI (BUG-020); `ditutup` final. */
+export const LOI_ASAL = Object.freeze({
+  ditindaklanjuti: ["baru"],
+  ditutup: ["baru", "ditindaklanjuti"],
+});
+export function transisiKurasiSah(asal, keputusan) {
+  return (KURASI_ASAL[keputusan] ?? []).includes(asal);
+}
+export function transisiLoiSah(asal, tujuan) {
+  return (LOI_ASAL[tujuan] ?? []).includes(asal);
+}
+
 /** Anti-spam bound for the public letter-of-intent form: N letters per origin per window. */
 export const LOI_MAX_PER_WINDOW = 5;
 export const LOI_WINDOW_MINUTES = 10;
