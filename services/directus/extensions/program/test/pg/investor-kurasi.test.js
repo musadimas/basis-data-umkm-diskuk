@@ -157,3 +157,16 @@ test("kurasi investor: UMKM yang mengedit profil mengembalikan status ke menungg
   const item = daftar.res.body.data.items.find((row) => row.id === usaha.dicabut.id);
   assert.equal(item.status, "menunggu");
 });
+
+test("kurasi investor: akun kurator yang pernah mencabut dapat dihapus, status tetap dicabut", { skip: pgSkipReason() }, async (t) => {
+  const { db, call, kurator, usaha } = await siapkan(t);
+  const pencabut = await buatUser(db, { appRole: "provinsi" });
+  await db("investor_profil").where({ usaha: usaha.dicabut.id }).update({ kurator_dicabut_oleh: pencabut.id });
+
+  await db("directus_users").where({ id: pencabut.id }).del();
+  const baris = await db("investor_profil").where({ usaha: usaha.dicabut.id }).first();
+  assert.equal(baris.kurator_dicabut_oleh, null);
+  assert.notEqual(baris.kurator_dicabut_pada, null);
+  const daftar = await call("GET", "/investor/kurasi", { accountability: akun(kurator.id), query: { status: "dicabut" } });
+  assert.deepEqual(daftar.res.body.data.items.map((item) => item.id), [usaha.dicabut.id]);
+});
