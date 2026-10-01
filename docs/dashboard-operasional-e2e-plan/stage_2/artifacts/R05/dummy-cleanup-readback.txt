@@ -1,0 +1,16 @@
+R05 dummy cleanup on the disposable CLONE r04_clone (never on the shared stack)
+Populated first by r04-runtime.mjs + y04.mjs + y09.mjs (66 + 77 + 98 probes passed), then:
+
+  psql -v ON_ERROR_STOP=1 -f scripts/cleanup-dummy-operasional.sql   -> COMMIT (no FK error)
+  node scripts/seed-dummy-operasional.mjs cleanup                    -> FAILED: Directus DELETE /users/:id 500
+      cause: directus_files_uploaded_by_foreign (files uploaded by the dummy account under a non-"dummy_" name,
+      e.g. the probe PNGs, KPI evidence and clinic attachments, are not removed by the script's
+      filename_download LIKE 'dummy_%' step, so the account cannot be deleted)
+
+Readback after cleanup (columns: akun usaha pelaku kota kecamatan kelurahan provinsi klasifikasi | tiket outcome)
+  before: 4 8 8 27 5 5 1 8 | 38 6
+  after : 1 0 0 0 0 0 0 0 | 38 0
+Other tables (before -> after): produk 3 -> 0, talent_passport 10 -> 0, kpi_laporan 6 -> 0 (cascade from usaha);
+konsultasi_tiket 38 -> 38 (usaha set NULL), konsultasi_tiket_csat 3 -> 3, klinik_konsultan 5 -> 5.
+
+Verdict: NOT zero. Residual: 1 dummy account (dummy_wawan.leathercraft@gmail.com) and clinic rows the script does not know about.

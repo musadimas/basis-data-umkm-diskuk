@@ -1,0 +1,464 @@
+[
+  {
+    "probe": "umkm6 uploads photo to Katalog Kurasi (directus /files)",
+    "expected": "200",
+    "actual": "200",
+    "ok": true
+  },
+  {
+    "probe": "anonymous /assets of pre-curation photo denied",
+    "expected": "401/403",
+    "actual": 403,
+    "ok": true
+  },
+  {
+    "probe": "umkm6 POST produk (own business)",
+    "expected": "201",
+    "actual": "201",
+    "ok": true
+  },
+  {
+    "probe": "new product status_kurasi = menunggu",
+    "expected": "menunggu",
+    "actual": "menunggu",
+    "ok": true
+  },
+  {
+    "probe": "umkm1 references umkm6's photo -> 403",
+    "expected": "403",
+    "actual": "403",
+    "ok": true
+  },
+  {
+    "probe": "umkm1 creates product for usaha 6 -> refused (403/404), or forced to own usaha",
+    "expected": "403/404 or not usaha 6",
+    "actual": "403 usaha=undefined",
+    "ok": true
+  },
+  {
+    "probe": "umkm1 PATCH umkm6's product -> 403/404",
+    "expected": "403/404",
+    "actual": 403,
+    "ok": true
+  },
+  {
+    "probe": "umkm2 lists usaha 6 products -> 403/404",
+    "expected": "403/404",
+    "actual": 403,
+    "ok": true
+  },
+  {
+    "probe": "umkm6 GET /kurasi (curator only) -> 403",
+    "expected": "403",
+    "actual": "403",
+    "ok": true
+  },
+  {
+    "probe": "kabkota GET /kurasi -> 403",
+    "expected": "403",
+    "actual": "403",
+    "ok": true
+  },
+  {
+    "probe": "umkm6 self-approves -> 403",
+    "expected": "403",
+    "actual": "403",
+    "ok": true
+  },
+  {
+    "probe": "umkm1 reads umkm6 pre-curation photo via proxy -> 403/404",
+    "expected": "true",
+    "actual": "true",
+    "ok": true
+  },
+  {
+    "probe": "curator reads pre-curation photo via proxy",
+    "expected": "200",
+    "actual": "200",
+    "ok": true
+  },
+  {
+    "probe": "proxy content-type image/png",
+    "expected": "image/png",
+    "actual": "image/png",
+    "ok": true
+  },
+  {
+    "probe": "curator queue lists product",
+    "expected": "true",
+    "actual": "true",
+    "ok": true
+  },
+  {
+    "probe": "reject without note -> 400 CATATAN_WAJIB",
+    "expected": "400 CATATAN_WAJIB",
+    "actual": "400 CATATAN_WAJIB",
+    "ok": true
+  },
+  {
+    "probe": "curator rejects with note",
+    "expected": "200",
+    "actual": "200",
+    "ok": true
+  },
+  {
+    "probe": "SQL readback after reject",
+    "expected": "ditolak|foto kurang jelas (probe)",
+    "actual": "ditolak|foto kurang jelas (probe)",
+    "ok": true
+  },
+  {
+    "probe": "photo folder after reject stays curation",
+    "expected": "6f3c1a9e-2b7d-4e58-9a41-0d5e8c7b2f11",
+    "actual": "6f3c1a9e-2b7d-4e58-9a41-0d5e8c7b2f11",
+    "ok": true
+  },
+  {
+    "probe": "curator approves (tayang)",
+    "expected": "200",
+    "actual": "200",
+    "ok": true
+  },
+  {
+    "probe": "SQL readback approved + curator",
+    "expected": "tayang|true",
+    "actual": "tayang|true",
+    "ok": true
+  },
+  {
+    "probe": "photo moved to public catalogue folder",
+    "expected": "6f3c1a9e-2b7d-4e58-9a41-0d5e8c7b2f10",
+    "actual": "6f3c1a9e-2b7d-4e58-9a41-0d5e8c7b2f10",
+    "ok": true
+  },
+  {
+    "probe": "anonymous /assets after approval",
+    "expected": "200",
+    "actual": "200",
+    "ok": true
+  },
+  {
+    "probe": "public catalogue lists the approved product",
+    "expected": "true",
+    "actual": "true",
+    "ok": true
+  },
+  {
+    "probe": "umkm6 reads own passport state (eligible)",
+    "expected": "200 true",
+    "actual": "200 true",
+    "ok": true
+  },
+  {
+    "probe": "IDOR umkm1 (other owner, same city) reads usaha 6 passport",
+    "expected": "403/404",
+    "actual": 404,
+    "ok": true
+  },
+  {
+    "probe": "IDOR umkm2 (other city) reads usaha 6 passport",
+    "expected": "403/404",
+    "actual": 404,
+    "ok": true
+  },
+  {
+    "probe": "IDOR kabkota Sumedang reads Subang usaha passport",
+    "expected": "403/404",
+    "actual": 404,
+    "ok": true
+  },
+  {
+    "probe": "kabkota Subang reads own-city passport state",
+    "expected": "200",
+    "actual": "200",
+    "ok": true
+  },
+  {
+    "probe": "anonymous reads passport state -> 401",
+    "expected": "401",
+    "actual": "401",
+    "ok": true
+  },
+  {
+    "probe": "umkm6 issues passport -> 403",
+    "expected": "403",
+    "actual": "403",
+    "ok": true
+  },
+  {
+    "probe": "kabSubang issues passport -> 403",
+    "expected": "403",
+    "actual": "403",
+    "ok": true
+  },
+  {
+    "probe": "kabSumedang issues passport -> 403",
+    "expected": "403",
+    "actual": "403",
+    "ok": true
+  },
+  {
+    "probe": "anonymous issues passport -> 401",
+    "expected": "401",
+    "actual": "401",
+    "ok": true
+  },
+  {
+    "probe": "no passport rows created by refused calls",
+    "expected": "0",
+    "actual": "0",
+    "ok": true
+  },
+  {
+    "probe": "issue for non-talent usaha 1 -> 409 PASSPORT_BELUM_MEMENUHI",
+    "expected": "409 PASSPORT_BELUM_MEMENUHI",
+    "actual": "409 PASSPORT_BELUM_MEMENUHI",
+    "ok": true
+  },
+  {
+    "probe": "issue for champion usaha 5 with only 'dinilai' pengajuan -> 409",
+    "expected": "409",
+    "actual": "409",
+    "ok": true
+  },
+  {
+    "probe": "issue invalid usaha id -> 400",
+    "expected": "400",
+    "actual": "400",
+    "ok": true
+  },
+  {
+    "probe": "provinsi issues passport",
+    "expected": "201",
+    "actual": "201",
+    "ok": true
+  },
+  {
+    "probe": "qrTalentPassportCode === kode",
+    "expected": "TPF0GYFRQ7SE",
+    "actual": "TPF0GYFRQ7SE",
+    "ok": true
+  },
+  {
+    "probe": "SQL: 1 active passport for usaha 6",
+    "expected": "1",
+    "actual": "1",
+    "ok": true
+  },
+  {
+    "probe": "public verify (anonymous) valid",
+    "expected": "200 true aktif",
+    "actual": "200 true aktif",
+    "ok": true
+  },
+  {
+    "probe": "verify returns qrTalentPassportCode = kode",
+    "expected": "TPF0GYFRQ7SE",
+    "actual": "TPF0GYFRQ7SE",
+    "ok": true
+  },
+  {
+    "probe": "verify includes public key kid",
+    "expected": "0bfc05d6cc57726a",
+    "actual": "0bfc05d6cc57726a",
+    "ok": true
+  },
+  {
+    "probe": "verify portfolio contains approved product",
+    "expected": "true",
+    "actual": "true",
+    "ok": true
+  },
+  {
+    "probe": "verify lowercase code normalised",
+    "expected": "true",
+    "actual": "true",
+    "ok": true
+  },
+  {
+    "probe": "PII scan of public verify body (16-digit, e-mail, phone, nik/omzet keys)",
+    "expected": "no hits",
+    "actual": "0 hits",
+    "ok": true
+  },
+  {
+    "probe": "third-party recomputed payload hash == stored payload_hash",
+    "expected": "aec16a9addfa80c35ed7250565cb8698f025ab53aaf21d7805add0c18176b609",
+    "actual": "aec16a9addfa80c35ed7250565cb8698f025ab53aaf21d7805add0c18176b609",
+    "ok": true
+  },
+  {
+    "probe": "third-party Ed25519 verify with published JWK",
+    "expected": "true",
+    "actual": "true",
+    "ok": true
+  },
+  {
+    "probe": "third-party verify fails for altered message",
+    "expected": "false",
+    "actual": "false",
+    "ok": true
+  },
+  {
+    "probe": "verify unknown/malformed 'TPZZZZZZZZZZ' -> 404",
+    "expected": "404",
+    "actual": "404",
+    "ok": true
+  },
+  {
+    "probe": "verify unknown/malformed 'TP123' -> 404",
+    "expected": "404",
+    "actual": "404",
+    "ok": true
+  },
+  {
+    "probe": "verify unknown/malformed '../../etc/passwd' -> 404",
+    "expected": "404",
+    "actual": "404",
+    "ok": true
+  },
+  {
+    "probe": "verify unknown/malformed 'TP0000000000' -> 404",
+    "expected": "404",
+    "actual": "404",
+    "ok": true
+  },
+  {
+    "probe": "TAMPER payload (skor.finansial=99) -> valid:false tidak_valid",
+    "expected": "false tidak_valid",
+    "actual": "false tidak_valid",
+    "ok": true
+  },
+  {
+    "probe": "tampered verify leaks no payload",
+    "expected": "false",
+    "actual": "false",
+    "ok": true
+  },
+  {
+    "probe": "payload restored -> valid again",
+    "expected": "true",
+    "actual": "true",
+    "ok": true
+  },
+  {
+    "probe": "TAMPER payload+hash recomputed (no key) -> signature fails",
+    "expected": "false tidak_valid",
+    "actual": "false tidak_valid",
+    "ok": true
+  },
+  {
+    "probe": "TAMPER signature first char -> tidak_valid",
+    "expected": "false tidak_valid",
+    "actual": "false tidak_valid",
+    "ok": true
+  },
+  {
+    "probe": "TAMPER kid -> tidak_valid",
+    "expected": "false tidak_valid",
+    "actual": "false tidak_valid",
+    "ok": true
+  },
+  {
+    "probe": "all restored -> valid",
+    "expected": "true",
+    "actual": "true",
+    "ok": true
+  },
+  {
+    "probe": "6 parallel issues all 201 (serialised by usaha row lock)",
+    "expected": "201,201,201,201,201,201",
+    "actual": "201,201,201,201,201,201",
+    "ok": true
+  },
+  {
+    "probe": "SQL: exactly 1 active passport after race",
+    "expected": "1",
+    "actual": "1",
+    "ok": true
+  },
+  {
+    "probe": "SQL: 7 rows total (1 original + 6), 6 revoked",
+    "expected": "7|6",
+    "actual": "7|6",
+    "ok": true
+  },
+  {
+    "probe": "old passport (superseded by re-issue) -> dicabut",
+    "expected": "false dicabut",
+    "actual": "false dicabut",
+    "ok": true
+  },
+  {
+    "probe": "signature transplanted from another passport -> tidak_valid (not just dicabut)",
+    "expected": "false tidak_valid",
+    "actual": "false tidak_valid",
+    "ok": true
+  },
+  {
+    "probe": "umkm6 revoke -> 403",
+    "expected": "403",
+    "actual": "403",
+    "ok": true
+  },
+  {
+    "probe": "kabkota revoke -> 403",
+    "expected": "403",
+    "actual": "403",
+    "ok": true
+  },
+  {
+    "probe": "anonymous revoke -> 401",
+    "expected": "401",
+    "actual": "401",
+    "ok": true
+  },
+  {
+    "probe": "revoke unknown id -> 404",
+    "expected": "404",
+    "actual": "404",
+    "ok": true
+  },
+  {
+    "probe": "provinsi revokes active passport",
+    "expected": "200",
+    "actual": "200",
+    "ok": true
+  },
+  {
+    "probe": "second revoke -> 404",
+    "expected": "404",
+    "actual": "404",
+    "ok": true
+  },
+  {
+    "probe": "verify after revoke -> valid:false dicabut + dicabutAt",
+    "expected": "false dicabut true",
+    "actual": "false dicabut true",
+    "ok": true
+  },
+  {
+    "probe": "owner state after revoke: no active passport",
+    "expected": "null",
+    "actual": "null",
+    "ok": true
+  },
+  {
+    "probe": "re-issue after revoke -> 201",
+    "expected": "201",
+    "actual": "201",
+    "ok": true
+  },
+  {
+    "probe": "pdn_terverifikasi=true + re-issue -> badge pdn:true (no pdn_deklarasi)",
+    "expected": "pdn:true",
+    "actual": "pdn:true",
+    "ok": true
+  },
+  {
+    "probe": "pdn flag off + re-issue -> only declaration badge, terverifikasi:false",
+    "expected": "pdn_deklarasi:false",
+    "actual": "pdn_deklarasi:false",
+    "ok": true
+  }
+]

@@ -1,0 +1,141 @@
+Timing is on.
+CREATE INDEX
+Time: 209.763 ms
+ANALYZE
+Time: 250.045 ms
+### C. WITH trigram + idx_usaha_pelaku_usaha (owner arm)
+                                                                                    QUERY PLAN                                                                                    
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Aggregate (actual rows=1 loops=1)
+   Buffers: shared hit=503 read=2
+   InitPlan 1 (returns $1)
+     ->  Nested Loop (actual rows=16 loops=1)
+           Buffers: shared hit=183 read=2
+           ->  Bitmap Heap Scan on pelaku_usaha pu (actual rows=16 loops=1)
+                 Recheck Cond: ((nama_lengkap)::text ~~* '%lestari 1234%'::text)
+                 Heap Blocks: exact=2
+                 Buffers: shared hit=121
+                 ->  Bitmap Index Scan on idx_pelaku_usaha_nama_trgm (actual rows=16 loops=1)
+                       Index Cond: ((nama_lengkap)::text ~~* '%lestari 1234%'::text)
+                       Buffers: shared hit=119
+           ->  Index Scan using idx_usaha_pelaku_usaha on usaha u (actual rows=1 loops=16)
+                 Index Cond: (pelaku_usaha = pu.id)
+                 Buffers: shared hit=62 read=2
+   ->  Bitmap Heap Scan on usaha_tabular t (actual rows=29 loops=1)
+         Recheck Cond: (((nama)::text ~~* '%lestari 1234%'::text) OR (produk_utama ~~* '%lestari 1234%'::text) OR (kegiatan_utama ~~* '%lestari 1234%'::text) OR (id = ANY ($1)))
+         Heap Blocks: exact=4
+         Buffers: shared hit=503 read=2
+         ->  BitmapOr (actual rows=0 loops=1)
+               Buffers: shared hit=499 read=2
+               ->  Bitmap Index Scan on idx_usaha_tabular_nama_trgm (actual rows=8 loops=1)
+                     Index Cond: ((nama)::text ~~* '%lestari 1234%'::text)
+                     Buffers: shared hit=121
+               ->  Bitmap Index Scan on idx_usaha_tabular_produk_trgm (actual rows=10 loops=1)
+                     Index Cond: (produk_utama ~~* '%lestari 1234%'::text)
+                     Buffers: shared hit=123
+               ->  Bitmap Index Scan on idx_usaha_tabular_kegiatan_trgm (actual rows=0 loops=1)
+                     Index Cond: (kegiatan_utama ~~* '%lestari 1234%'::text)
+                     Buffers: shared hit=21
+               ->  Bitmap Index Scan on usaha_tabular_pkey (actual rows=16 loops=1)
+                     Index Cond: (id = ANY ($1))
+                     Buffers: shared hit=234 read=2
+ Planning:
+   Buffers: shared hit=382 read=1
+ Planning Time: 21.474 ms
+ Execution Time: 7.446 ms
+(37 rows)
+
+Time: 37.804 ms
+                                                                                                    QUERY PLAN                                                                                                    
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Aggregate (actual rows=1 loops=1)
+   Buffers: shared hit=6828 read=5650
+   InitPlan 1 (returns $1)
+     ->  Gather (actual rows=1333 loops=1)
+           Workers Planned: 2
+           Workers Launched: 2
+           Buffers: shared hit=2128 read=5650
+           ->  Parallel Hash Join (actual rows=444 loops=3)
+                 Hash Cond: (u.pelaku_usaha = pu.id)
+                 Buffers: shared hit=2128 read=5650
+                 ->  Parallel Seq Scan on usaha u (actual rows=100003 loops=3)
+                       Buffers: shared hit=550 read=5650
+                 ->  Parallel Hash (actual rows=444 loops=3)
+                       Buckets: 4096  Batches: 1  Memory Usage: 96kB
+                       Buffers: shared hit=1512
+                       ->  Parallel Bitmap Heap Scan on pelaku_usaha pu (actual rows=1333 loops=1)
+                             Recheck Cond: ((nama_lengkap)::text ~~* '%keripik sumedang%'::text)
+                             Heap Blocks: exact=1333
+                             Buffers: shared hit=1512
+                             ->  Bitmap Index Scan on idx_pelaku_usaha_nama_trgm (actual rows=1333 loops=1)
+                                   Index Cond: ((nama_lengkap)::text ~~* '%keripik sumedang%'::text)
+                                   Buffers: shared hit=179
+   ->  Bitmap Heap Scan on usaha_tabular t (actual rows=481 loops=1)
+         Recheck Cond: ((kota_id = 1) AND (((nama)::text ~~* '%keripik sumedang%'::text) OR (produk_utama ~~* '%keripik sumedang%'::text) OR (kegiatan_utama ~~* '%keripik sumedang%'::text) OR (id = ANY ($1))))
+         Heap Blocks: exact=475
+         Buffers: shared hit=6828 read=5650
+         ->  BitmapAnd (actual rows=0 loops=1)
+               Buffers: shared hit=6434 read=5650
+               ->  Bitmap Index Scan on idx_usaha_tabular_kota (actual rows=37720 loops=1)
+                     Index Cond: (kota_id = 1)
+                     Buffers: shared hit=31
+               ->  BitmapOr (actual rows=0 loops=1)
+                     Buffers: shared hit=6403 read=5650
+                     ->  Bitmap Index Scan on idx_usaha_tabular_nama_trgm (actual rows=2857 loops=1)
+                           Index Cond: ((nama)::text ~~* '%keripik sumedang%'::text)
+                           Buffers: shared hit=188
+                     ->  Bitmap Index Scan on idx_usaha_tabular_produk_trgm (actual rows=0 loops=1)
+                           Index Cond: (produk_utama ~~* '%keripik sumedang%'::text)
+                           Buffers: shared hit=45
+                     ->  Bitmap Index Scan on idx_usaha_tabular_kegiatan_trgm (actual rows=0 loops=1)
+                           Index Cond: (kegiatan_utama ~~* '%keripik sumedang%'::text)
+                           Buffers: shared hit=43
+                     ->  Bitmap Index Scan on usaha_tabular_pkey (actual rows=1333 loops=1)
+                           Index Cond: (id = ANY ($1))
+                           Buffers: shared hit=6127 read=5650
+ Planning:
+   Buffers: shared hit=28
+ Planning Time: 0.978 ms
+ Execution Time: 48.869 ms
+(49 rows)
+
+Time: 51.088 ms
+                                                                           QUERY PLAN                                                                           
+----------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Aggregate (actual rows=1 loops=1)
+   Buffers: shared hit=28
+   InitPlan 1 (returns $1)
+     ->  Nested Loop (actual rows=0 loops=1)
+           Buffers: shared hit=7
+           ->  Bitmap Heap Scan on pelaku_usaha pu (actual rows=0 loops=1)
+                 Recheck Cond: ((nama_lengkap)::text ~~* '%zzzzqx%'::text)
+                 Buffers: shared hit=7
+                 ->  Bitmap Index Scan on idx_pelaku_usaha_nama_trgm (actual rows=0 loops=1)
+                       Index Cond: ((nama_lengkap)::text ~~* '%zzzzqx%'::text)
+                       Buffers: shared hit=7
+           ->  Index Scan using idx_usaha_pelaku_usaha on usaha u (never executed)
+                 Index Cond: (pelaku_usaha = pu.id)
+   ->  Bitmap Heap Scan on usaha_tabular t (actual rows=0 loops=1)
+         Recheck Cond: (((nama)::text ~~* '%zzzzqx%'::text) OR (produk_utama ~~* '%zzzzqx%'::text) OR (kegiatan_utama ~~* '%zzzzqx%'::text) OR (id = ANY ($1)))
+         Buffers: shared hit=28
+         ->  BitmapOr (actual rows=0 loops=1)
+               Buffers: shared hit=28
+               ->  Bitmap Index Scan on idx_usaha_tabular_nama_trgm (actual rows=0 loops=1)
+                     Index Cond: ((nama)::text ~~* '%zzzzqx%'::text)
+                     Buffers: shared hit=7
+               ->  Bitmap Index Scan on idx_usaha_tabular_produk_trgm (actual rows=0 loops=1)
+                     Index Cond: (produk_utama ~~* '%zzzzqx%'::text)
+                     Buffers: shared hit=7
+               ->  Bitmap Index Scan on idx_usaha_tabular_kegiatan_trgm (actual rows=0 loops=1)
+                     Index Cond: (kegiatan_utama ~~* '%zzzzqx%'::text)
+                     Buffers: shared hit=7
+               ->  Bitmap Index Scan on usaha_tabular_pkey (actual rows=0 loops=1)
+                     Index Cond: (id = ANY ($1))
+                     Buffers: shared hit=7
+ Planning:
+   Buffers: shared hit=20
+ Planning Time: 0.423 ms
+ Execution Time: 0.078 ms
+(34 rows)
+
+Time: 0.717 ms

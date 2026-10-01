@@ -1,0 +1,25 @@
+== after latest
+tables:      klinik_konsultan,konsultasi_outcome,konsultasi_outcome_audit,konsultasi_outcome_item,konsultasi_tiket_csat
+index count: 11
+uniq hidup:  1
+collections: 5
+fields/rels: 11/4
+latest mig:  Klinik Konsultan Csat Outcome
+== migrate:down
+[20:49:49.099] INFO: Undoing Klinik Konsultan Csat Outcome...
+[20:49:49.124] INFO: Downgrade successful
+tables:      -
+index count: 0
+uniq hidup:  0
+collections: 0
+fields/rels: 0/0
+latest mig:  Kegiatan Pengingat Drop Kolom Lama
+== migrate:latest
+[20:49:55.248] INFO: Applying Klinik Konsultan Csat Outcome...
+[20:49:55.307] INFO: Database up to date
+tables:      klinik_konsultan,konsultasi_outcome,konsultasi_outcome_audit,konsultasi_outcome_item,konsultasi_tiket_csat
+index count: 11
+uniq hidup:  1
+collections: 5
+fields/rels: 11/4
+latest mig:  Klinik Konsultan Csat Outcome

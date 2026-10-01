@@ -1,0 +1,14 @@
+start: latest='Klinik Konsultan Csat Outcome' tables=88 indexes=218
+down 1: Undoing Klinik Konsultan Csat Outcome... Downgrade successful  => latest='Kegiatan Pengingat Drop Kolom Lama' tables=83 indexes=207
+down 2: Undoing Kegiatan Pengingat Drop Kolom Lama... Downgrade successful  => latest='Usaha Pelaku Usaha Index' tables=83 indexes=207
+down 3: Undoing Usaha Pelaku Usaha Index... Downgrade successful  => latest='Notifikasi Outbox' tables=83 indexes=206
+down 4: Undoing Notifikasi Outbox... Downgrade successful  => latest='Kegiatan Registrasi Bantuan' tables=83 indexes=205
+down 5: Undoing Kegiatan Registrasi Bantuan... Downgrade successful  => latest='Executive Investor' tables=77 indexes=187
+down 6: Undoing Executive Investor... Downgrade successful  => latest='Batalkan Job Export Lama' tables=73 indexes=177
+down 7: Undoing Batalkan Job Export Lama... Downgrade successful  => latest='Waktu Jakarta' tables=73 indexes=177
+down 8: Undoing Waktu Jakarta... Downgrade successful  => latest='Analitik Job Expired' tables=73 indexes=177
+down 9: Undoing Analitik Job Expired... Downgrade successful  => latest='Tabular Search Trgm' tables=73 indexes=177
+down 10: Undoing Tabular Search Trgm... Downgrade successful  => latest='App Role Tanpa Default' tables=73 indexes=173
+down 11: Undoing App Role Tanpa Default... Downgrade successful  => latest='Klinik Audit Dan FAQ' tables=73 indexes=173
+latest: applied=11 => latest='Klinik Konsultan Csat Outcome' tables=88 indexes=218
+[21:08:39.117] INFO: Database up to date

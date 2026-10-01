@@ -1,0 +1,795 @@
+{
+  "version": 1,
+  "plan": "analytics-architecture-e2e",
+  "phases": {
+    "1": {
+      "title": "Batas keamanan privat dan autentikasi Directus",
+      "files": [
+        {
+          "path": ".gitignore",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/package.json",
+          "action": "modify"
+        },
+        {
+          "path": ".dockerignore",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/pnpm-lock.yaml",
+          "action": "modify"
+        },
+        {
+          "path": ".env.example",
+          "action": "create"
+        },
+        {
+          "path": "docker-compose.yml",
+          "action": "modify"
+        },
+        {
+          "path": "docker/Caddyfile",
+          "action": "modify"
+        },
+        {
+          "path": "docker/Dockerfile.directus",
+          "action": "modify"
+        },
+        {
+          "path": "services/storage/minioclient/entrypoint.sh",
+          "action": "modify"
+        },
+        {
+          "path": "services/caddy/config/caddy/autosave.json",
+          "action": "delete from Git index; leave local runtime copy ignored"
+        },
+        {
+          "path": "services/caddy/data/caddy/acme/acme-v02.api.letsencrypt.org-directory/users/default/default.json",
+          "action": "delete from Git index; leave local runtime copy ignored"
+        },
+        {
+          "path": "services/caddy/data/caddy/acme/acme-v02.api.letsencrypt.org-directory/users/default/default.key",
+          "action": "delete from Git index; leave local runtime copy ignored"
+        },
+        {
+          "path": "services/caddy/data/caddy/certificates/acme-v02.api.letsencrypt.org-directory/diskuk.tangkassiskamling.com/diskuk.tangkassiskamling.com.crt",
+          "action": "delete from Git index; leave local runtime copy ignored"
+        },
+        {
+          "path": "services/caddy/data/caddy/certificates/acme-v02.api.letsencrypt.org-directory/diskuk.tangkassiskamling.com/diskuk.tangkassiskamling.com.json",
+          "action": "delete from Git index; leave local runtime copy ignored"
+        },
+        {
+          "path": "services/caddy/data/caddy/certificates/acme-v02.api.letsencrypt.org-directory/diskuk.tangkassiskamling.com/diskuk.tangkassiskamling.com.key",
+          "action": "delete from Git index; leave local runtime copy ignored"
+        },
+        {
+          "path": "services/caddy/data/caddy/instance.uuid",
+          "action": "delete from Git index; leave local runtime copy ignored"
+        },
+        {
+          "path": "services/caddy/data/caddy/last_clean.json",
+          "action": "delete from Git index; leave local runtime copy ignored"
+        },
+        {
+          "path": "services/directus/migrations/20260819A-private-dashboard-access.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/shared/auth.cjs",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-infografis/package.json",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-infografis/src/index.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-infografis/dist/index.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-infografis/test/index.test.cjs",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-tabular/src/index.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-tabular/test/index.test.cjs",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/docs/package.json",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/docs/src/index.ts",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/docs/dist/index.js",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/package.json",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/pnpm-lock.yaml",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/nuxt.config.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/server/middleware/01-panel-proxy.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/server/utils/directus-proxy.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/server/utils/session-policy.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/middleware/auth.global.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/composables/useAuth.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/plugins/directus.client.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/plugins/query.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/lib/idb.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/lib/index.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/components/auth/SignInForm.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/pages/(auth)/sign-in.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/components/nav/Header.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/components/landing/LandingNav.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/vitest.config.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/playwright.config.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/tests/unit/session-policy.test.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/tests/fixtures/mock-directus.mjs",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/tests/e2e/auth.spec.ts",
+          "action": "create"
+        },
+        {
+          "path": "scripts/provision-application-user.mjs",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/tests/e2e/auth.directus.spec.ts",
+          "action": "create"
+        }
+      ]
+    },
+    "2": {
+      "title": "Kebenaran current-state sumber, archive, dan readiness data",
+      "files": [
+        {
+          "path": "services/directus/migrations/20260819B-source-readiness.js",
+          "action": "create"
+        },
+        {
+          "path": "scripts/ingest-sidt-batch-end.sql",
+          "action": "modify"
+        },
+        {
+          "path": "scripts/ingest-sidt-prepare.sql",
+          "action": "modify"
+        },
+        {
+          "path": "scripts/ingest-sidt.py",
+          "action": "modify"
+        },
+        {
+          "path": "scripts/refresh-dashboard-snapshots.sql",
+          "action": "modify"
+        },
+        {
+          "path": "scripts/validate-analytics-readiness.sql",
+          "action": "create"
+        },
+        {
+          "path": "scripts/test_ingest_sidt.py",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/nuxt.config.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/index.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/types/infografis.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/fixtures/mock-directus.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/e2e/source-readiness.spec.ts",
+          "action": "create"
+        }
+      ]
+    },
+    "3": {
+      "title": "Kontrak persistence Analitik, registry, outbox, health, dan permission",
+      "files": [
+        {
+          "path": "services/directus/package.json",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/analytics-shared/contracts.cjs",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/analytics-shared/privacy.cjs",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/migrations/20260819C-create-analytics-foundation.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/migrations/20260819D-seed-analytics-registry.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/test/analytics-foundation.contract.test.mjs",
+          "action": "create"
+        }
+      ]
+    },
+    "4": {
+      "title": "Worker terpisah, projection, shadow generation, dan rekonsiliasi",
+      "files": [
+        {
+          "path": "docker-compose.yml",
+          "action": "modify"
+        },
+        {
+          "path": "docker/Dockerfile.analytics-worker",
+          "action": "create"
+        },
+        {
+          "path": "scripts/enqueue-analytics-rebuild.sql",
+          "action": "create"
+        },
+        {
+          "path": "services/analytics-worker/package.json",
+          "action": "create"
+        },
+        {
+          "path": "services/analytics-worker/pnpm-lock.yaml",
+          "action": "create"
+        },
+        {
+          "path": "services/analytics-worker/src/config.js",
+          "action": "create"
+        },
+        {
+          "path": "services/analytics-worker/src/db.js",
+          "action": "create"
+        },
+        {
+          "path": "services/analytics-worker/src/logger.js",
+          "action": "create"
+        },
+        {
+          "path": "services/analytics-worker/src/queue.js",
+          "action": "create"
+        },
+        {
+          "path": "services/analytics-worker/src/projector.js",
+          "action": "create"
+        },
+        {
+          "path": "services/analytics-worker/src/rebuild.js",
+          "action": "create"
+        },
+        {
+          "path": "services/analytics-worker/src/registry.js",
+          "action": "create"
+        },
+        {
+          "path": "services/analytics-worker/src/reconcile.js",
+          "action": "create"
+        },
+        {
+          "path": "services/analytics-worker/src/watchdog.js",
+          "action": "create"
+        },
+        {
+          "path": "services/analytics-worker/src/index.js",
+          "action": "create"
+        },
+        {
+          "path": "services/analytics-worker/test/fixtures.js",
+          "action": "create"
+        },
+        {
+          "path": "services/analytics-worker/test/worker.test.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-tabular/src/index.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-tabular/test/index.test.cjs",
+          "action": "modify"
+        },
+        {
+          "path": "scripts/ingest-sidt.py",
+          "action": "modify"
+        },
+        {
+          "path": "docker/Dockerfile.directus",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-analytics-watchdog/package.json",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-analytics-watchdog/src/index.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-analytics-watchdog/test/index.test.cjs",
+          "action": "create"
+        }
+      ]
+    },
+    "5": {
+      "title": "API privat Analitik dan query AST tervalidasi",
+      "files": [
+        {
+          "path": "docker/Dockerfile.directus",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-analitik/package.json",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-analitik/src/index.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-analitik/src/errors.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-analitik/src/meta.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-analitik/src/metadata.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-analitik/src/templates.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-analitik/src/query-compiler.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-analitik/src/query-service.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-analitik/src/records-service.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-analitik/src/status-service.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-analitik/test/index.test.cjs",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-analitik/test/query-compiler.test.cjs",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-analitik/test/integration.test.cjs",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-analitik/src/oas.yaml",
+          "action": "create"
+        }
+      ]
+    },
+    "6": {
+      "title": "Canvas Analitik yang dapat diakses dan stateful",
+      "files": [
+        {
+          "path": "apps/web/app/constants/NAVIGATION.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/types/analytics.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/lib/analytics-query.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/lib/analytics-format.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/composables/useAnalyticsCatalog.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/composables/useAnalysisState.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/composables/useAnalyticsQuery.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/components/analytics/AnalyticsHeader.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/components/analytics/TemplatePicker.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/components/analytics/QueryBuilder.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/components/analytics/FilterChips.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/components/analytics/MetricSummary.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/components/analytics/InsightPanel.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/components/analytics/AnalyticsVisual.client.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/components/analytics/AnalyticsDataTable.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/components/analytics/AnalyticsRecordTable.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/components/analytics/AnalyticsState.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/analitik.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/tests/unit/analytics-query.test.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/tests/unit/analytics-format.test.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/tests/fixtures/mock-directus.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/e2e/analytics-canvas.spec.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/index.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/components/dashboard/map/Infographic.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/components/dashboard/chart/TopCategories.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/components/dashboard/chart/ClusterBar.vue",
+          "action": "modify"
+        }
+      ]
+    },
+    "7": {
+      "title": "Profil UMKM, masking server-side, dan archive/restore",
+      "files": [
+        {
+          "path": "services/directus/extensions/directus-extension-analitik/src/index.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-analitik/src/profile-service.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-analitik/test/index.test.cjs",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/types/analytics.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/composables/useUmkmProfile.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/components/analytics/AnalyticsRecordTable.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/components/umkm/UmkmProfileHero.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/components/umkm/UmkmProfileSection.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/components/umkm/UmkmProfileActions.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/umkm/[id].vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/tests/fixtures/mock-directus.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/e2e/umkm-profile.spec.ts",
+          "action": "create"
+        }
+      ]
+    },
+    "8": {
+      "title": "Saved analysis dan ekspor privat terversi",
+      "files": [
+        {
+          "path": "services/analytics-worker/package.json",
+          "action": "modify"
+        },
+        {
+          "path": "services/analytics-worker/pnpm-lock.yaml",
+          "action": "modify"
+        },
+        {
+          "path": "services/analytics-worker/src/index.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/analytics-worker/src/queue.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/analytics-worker/src/exporter.js",
+          "action": "create"
+        },
+        {
+          "path": "services/analytics-worker/src/export-renderer.js",
+          "action": "create"
+        },
+        {
+          "path": "services/analytics-worker/src/storage.js",
+          "action": "create"
+        },
+        {
+          "path": "services/analytics-worker/test/worker.test.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-analitik/package.json",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-analitik/src/index.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-analitik/src/exports-service.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-analitik/test/index.test.cjs",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/types/analytics.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/composables/useSavedAnalyses.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/composables/useAnalyticsExports.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/components/analytics/SaveAnalysisDialog.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/components/analytics/SavedAnalysisMenu.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/components/analytics/ExportDialog.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/analitik.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/umkm/[id].vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/fixtures/mock-directus.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/e2e/saved-export.spec.ts",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-analitik/pnpm-lock.yaml",
+          "action": "create"
+        }
+      ]
+    },
+    "9": {
+      "title": "Reliability, PITR, benchmark, dan bukti rilis",
+      "files": [
+        {
+          "path": ".env.example",
+          "action": "modify"
+        },
+        {
+          "path": "docker-compose.yml",
+          "action": "modify"
+        },
+        {
+          "path": "docker/Dockerfile.postgis",
+          "action": "modify"
+        },
+        {
+          "path": "docker/wal-g-backup.sh",
+          "action": "create"
+        },
+        {
+          "path": "docker/restore-pitr.sh",
+          "action": "create"
+        },
+        {
+          "path": "docker/object-storage-backup.sh",
+          "action": "create"
+        },
+        {
+          "path": "docker/object-storage-restore.sh",
+          "action": "create"
+        },
+        {
+          "path": "scripts/benchmark-analytics.mjs",
+          "action": "create"
+        },
+        {
+          "path": "scripts/verify-analytics-release.mjs",
+          "action": "create"
+        },
+        {
+          "path": "scripts/scan-analytics-leaks.py",
+          "action": "create"
+        },
+        {
+          "path": "docs/analytics/operations-runbook.md",
+          "action": "modify"
+        },
+        {
+          "path": "docs/analytics/release-runbook.md",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/package.json",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/playwright.config.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/fixtures/mock-directus.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/e2e/reliability.spec.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/tests/e2e/visual-regression.spec.ts",
+          "action": "create"
+        }
+      ]
+    }
+  }
+}

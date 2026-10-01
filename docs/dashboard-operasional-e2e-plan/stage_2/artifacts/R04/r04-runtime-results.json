@@ -1,0 +1,419 @@
+{
+  "dijalankan": "2026-09-28T23:55:18.824Z",
+  "base": "http://127.0.0.1:8156",
+  "latensi": {
+    "statistik": {
+      "p50": 3,
+      "p95": 5,
+      "max": 6
+    },
+    "konsultan": {
+      "p50": 4,
+      "p95": 5,
+      "max": 5
+    },
+    "poli": {
+      "p50": 3,
+      "p95": 4,
+      "max": 4
+    }
+  },
+  "hasil": [
+    {
+      "id": "N7-04.1",
+      "deskripsi": "baseline (data yang sudah ada): total/respons/CSAT cocok dengan hitungan independen dari baris mentah",
+      "ok": true,
+      "detail": "API {\"t\":0,\"r\":{\"rataRataJam\":0,\"sampel\":3,\"targetJam\":24},\"c\":{\"rataRata\":null,\"sampel\":0,\"skalaMaks\":5}} vs hitungan independen {\"totalSelesai\":0,\"responsSampel\":3,\"responsJam\":0,\"csatSampel\":0,\"csatRata\":null}"
+    },
+    {
+      "id": "N7-04.2",
+      "deskripsi": "CSAT tanpa jawaban = null, bukan angka",
+      "ok": true,
+      "detail": "{\"rataRata\":null,\"sampel\":0,\"skalaMaks\":5}"
+    },
+    {
+      "id": "N7-04.3",
+      "deskripsi": "enam tiket dibuat lewat API oleh pemilik UMKM (sumber SIDT), captcha ALTCHA nyata",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "id": "N7-04.4",
+      "deskripsi": "petugas membatalkan tiket dari 'masuk'; tiket S5 dibiarkan 'Tiket Masuk'",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "id": "N7-04.5",
+      "deskripsi": "setelah alur: tiket selesai/berjalan/masuk/batal dihitung sesuai definisi (respons = transisi pertama non-batal; S5 dan S6 tidak dihitung)",
+      "ok": true,
+      "detail": "API {\"t\":3,\"r\":{\"rataRataJam\":6.1,\"sampel\":7,\"targetJam\":24},\"c\":{\"rataRata\":null,\"sampel\":0,\"skalaMaks\":5}} vs hitungan independen {\"totalSelesai\":3,\"responsSampel\":7,\"responsJam\":6.1,\"csatSampel\":0,\"csatRata\":null}"
+    },
+    {
+      "id": "N7-04.6",
+      "deskripsi": "total selesai naik tepat 3 dan sampel respons naik tepat 4 (S1–S4), bukan 5/6",
+      "ok": true,
+      "detail": "0->3; 3->7"
+    },
+    {
+      "id": "N7-04.7",
+      "deskripsi": "lacak tiket selesai menawarkan penilaian; tiket berjalan tidak",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "id": "N7-04.8",
+      "deskripsi": "CSAT pada tiket belum selesai ditolak 409 TIKET_BELUM_SELESAI",
+      "ok": true,
+      "detail": "409 TIKET_BELUM_SELESAI"
+    },
+    {
+      "id": "N7-04.9",
+      "deskripsi": "WA salah dan nomor tidak ada memberi 404 identik (bukan oracle)",
+      "ok": true,
+      "detail": "404/404"
+    },
+    {
+      "id": "N7-04.10",
+      "deskripsi": "CSAT tanpa captcha sah ditolak dan tidak menulis baris",
+      "ok": true,
+      "detail": "400 CAPTCHA_INVALID"
+    },
+    {
+      "id": "N7-04.11",
+      "deskripsi": "jawaban tanpa consent tersimpan tetapi CSAT publik tetap null (sampel 0)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "id": "N7-04.12",
+      "deskripsi": "dua jawaban serentak untuk satu tiket: satu 201 dan satu 409 CSAT_SUDAH_ADA; satu baris",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "id": "N7-04.13",
+      "deskripsi": "jawaban kedua ber-consent diterima",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "id": "N7-04.14",
+      "deskripsi": "jawaban ulang pada tiket yang sama ditolak 409",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "id": "N7-04.15",
+      "deskripsi": "setelah CSAT: rata-rata (5+4)/2 = 4.50 dari 2 jawaban ber-consent; jawaban tanpa consent tidak dihitung",
+      "ok": true,
+      "detail": "API {\"t\":3,\"r\":{\"rataRataJam\":6.1,\"sampel\":7,\"targetJam\":24},\"c\":{\"rataRata\":4.5,\"sampel\":2,\"skalaMaks\":5}} vs hitungan independen {\"totalSelesai\":3,\"responsSampel\":7,\"responsJam\":6.1,\"csatSampel\":2,\"csatRata\":4.5}"
+    },
+    {
+      "id": "N7-04.16",
+      "deskripsi": "CSAT 4.5 dengan sampel 2",
+      "ok": true,
+      "detail": "{\"rataRata\":4.5,\"sampel\":2,\"skalaMaks\":5}"
+    },
+    {
+      "id": "N7-04.17",
+      "deskripsi": "lacak tiket yang sudah dinilai: bisaMenilai=false, sudahMenilai=true",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "id": "N7-04.18",
+      "deskripsi": "direktori (4 aktif, 1 nonaktif tidak tampil) dan ketersediaan per hari/slot cocok dengan hitungan independen dari DB",
+      "ok": true,
+      "detail": "konsultan=R04 Hanya Senin | R04 Konsultan Penuh | R04 Konsultan Selasa-Kamis | R04 Praktisi Pendamping"
+    },
+    {
+      "id": "N7-04.19",
+      "deskripsi": "konsultan yang semua slotnya terpakai tampil dengan ketersediaan kosong (coach tidak tersedia), bukan hilang",
+      "ok": true,
+      "detail": "mondays=2026-10-05,2026-10-12"
+    },
+    {
+      "id": "N7-04.20",
+      "deskripsi": "tidak ada tanggal akhir pekan atau hari ini/lampau di ketersediaan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "id": "N7-04.21",
+      "deskripsi": "slot yang dipegang pendamping tertaut pada tiket lain (poli lain) tidak muncul bebas untuk konsultan itu",
+      "ok": true,
+      "detail": "7 slot pendamping sibuk"
+    },
+    {
+      "id": "N7-04.22",
+      "deskripsi": "memesan slot 13:00 lewat API menghilangkannya dari ketersediaan konsultan poli itu",
+      "ok": true,
+      "detail": "2026-09-30: 09:00,10:30,14:30"
+    },
+    {
+      "id": "N7-04.23",
+      "deskripsi": "membatalkan tiket mengembalikan slot itu",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "id": "N7-04.24",
+      "deskripsi": "setelah pesan+batal, seluruh direktori masih sama dengan hitungan independen",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "id": "N7-04.25",
+      "deskripsi": "?hari=3 membatasi rentang; ?hari=0/31/abc → 400 HORIZON_TIDAK_VALID",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "id": "N7-04.26",
+      "deskripsi": "respons publik direktori/statistik tanpa id akun pendamping, e-mail, telepon, NIK/NIB, atau nomor tiket",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "id": "N7-04.27",
+      "deskripsi": "latensi 20 pembacaan (ms) tercatat; statistik dan direktori tidak lebih dari beberapa kali endpoint poli",
+      "ok": true,
+      "detail": "{\"statistik\":{\"p50\":3,\"p95\":5,\"max\":6},\"konsultan\":{\"p50\":4,\"p95\":5,\"max\":5},\"poli\":{\"p50\":3,\"p95\":4,\"max\":4}}"
+    },
+    {
+      "id": "N7-05.1",
+      "deskripsi": "baseline: profil usaha tanpa hasil konsultasi; indikator NPWP/SOP/e-commerce dari lapangan",
+      "ok": true,
+      "detail": "{\"npwp\":{\"ya\":4,\"tidak\":3,\"belum\":1},\"sop\":{\"ya\":3,\"tidak\":3,\"belum\":2}}"
+    },
+    {
+      "id": "N7-05.2",
+      "deskripsi": "tiket selesai tanpa outcome: tidak ada baris outcome; profil dan indikator tidak berubah",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "id": "N7-05.3",
+      "deskripsi": "server menawarkan 'Catat outcome' (outcomeBisaDicatat) untuk tiket selesai tanpa outcome",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "id": "N7-05.4",
+      "deskripsi": "pendamping menutup tiket + outcome dalam satu PATCH → status selesai, outcome 'diajukan' versi 1, tombol aksi kosong untuk pengaju",
+      "ok": true,
+      "detail": "{\"id\":\"3912bf29-7e27-4913-88b0-bcc558705231\",\"versi\":1,\"status\":\"diajukan\",\"diajukanNama\":\"Rina Pendamping Wilayah\",\"diajukanPada\":\"2026-09-28T23:55:02.016423+00:00\",\"diverifikasiNama\":null,\"diverifikasiPada\":null,\"dicabutNama\":null,\"dicabutPada\":null,\"alasanCabut\":null,\"statusLabel\":\"Menunggu verifikasi\",\"items\":[{\"atribut\":\"npwp_usaha\",\"jenis\":\"kepatuhan\",\"label\":\"NPWP Usaha\"},{\"atribut\":\"sop_te"
+    },
+    {
+      "id": "N7-05.5",
+      "deskripsi": "belum diverifikasi: profil dan indikator tidak berubah",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "id": "N7-05.6",
+      "deskripsi": "SQL: satu outcome + dua item + audit 'ajukan' oleh pendamping (aktor dan nama tercatat)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "id": "N7-05.7",
+      "deskripsi": "antrean verifikasi provinsi memuat outcome T1 dengan aksi [verifikasi, koreksi, cabut]",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "id": "N7-05.8",
+      "deskripsi": "antrean ter-scope wilayah: kab/kota Subang melihat outcome usaha Subang; Sumedang tidak",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "id": "N7-05.9",
+      "deskripsi": "IDOR/peran: pendamping 403, umkm 403, anonim 401, kab/kota lain 404 (verifikasi/koreksi/cabut/catat), pendamping lain 404, antrean umkm/pendamping 403",
+      "ok": true,
+      "detail": "{\"pendamping\":403,\"umkm\":403,\"anonim\":401,\"kotaLain\":404,\"koreksiKotaLain\":404,\"cabutKotaLain\":404,\"catatKotaLain\":404,\"catatPend2\":404,\"catatUmkm\":403,\"antreanUmkm\":403,\"antreanPend\":403}"
+    },
+    {
+      "id": "N7-05.10",
+      "deskripsi": "semua penolakan tidak mengubah apa pun (outcome tetap 'diajukan', satu audit)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "id": "N7-05.11",
+      "deskripsi": "dua verifikator serentak: kedua 200, tepat satu 'duplikat:false'; satu audit 'verifikasi'",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "id": "N7-05.12",
+      "deskripsi": "retry verifikasi (verifikator lain, terlambat) → 200 duplikat:true tanpa audit baru",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "id": "N7-05.13",
+      "deskripsi": "profil usaha kini memuat hasil konsultasi terverifikasi: nomor tiket, poli, verifikator, tanggal, dua item",
+      "ok": true,
+      "detail": "{\"id\":\"3912bf29-7e27-4913-88b0-bcc558705231\",\"versi\":1,\"nomorTiket\":\"KLN-2026-09-0049\",\"poli\":\"Manajemen & Keuangan\",\"diverifikasiOleh\":\"Admin Provinsi Dua\",\"diverifikasiPada\":\"2026-09-28T23:55:03.380Z\",\"items\":[{\"atribut\":\"npwpUsaha\",\"jenis\":\"kepatuhan\"},{\"atribut\":\"sopTertulis\",\"jenis\":\"perbaikan\"}]}"
+    },
+    {
+      "id": "N7-05.14",
+      "deskripsi": "indikator IP-UMKM berubah tepat satu usaha: NPWP ya+1/tidak-1, SOP ya+1/belumAda-1",
+      "ok": true,
+      "detail": "{\"basis\":[{\"ya\":4,\"tidak\":3,\"belum\":1},{\"ya\":3,\"tidak\":3,\"belum\":2}],\"sesudah\":[{\"ya\":5,\"tidak\":2,\"belum\":1},{\"ya\":4,\"tidak\":3,\"belum\":1}]}"
+    },
+    {
+      "id": "N7-05.15",
+      "deskripsi": "kab/kota Sumedang tidak melihat perubahan usaha Subang (indikator wilayahnya sama dengan sebelum verifikasi)",
+      "ok": true,
+      "detail": "{\"ya\":0,\"tidak\":1,\"belum\":0}"
+    },
+    {
+      "id": "N7-05.16",
+      "deskripsi": "pengaju provinsi tidak ditawari verifikasi atas pengajuannya dan ditolak 409 VERIFIKATOR_SAMA; verifikator lain berhasil",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "id": "N7-05.17",
+      "deskripsi": "e-commerce: usaha yang sama tidak dihitung ganda (hanya +1 usaha)",
+      "ok": true,
+      "detail": "{\"basis\":{\"ya\":5,\"tidak\":2,\"belum\":1},\"sesudah\":{\"ya\":6,\"tidak\":1,\"belum\":1}}"
+    },
+    {
+      "id": "N7-05.18",
+      "deskripsi": "dua penutupan serentak dengan versi sama: satu 200, satu 409 TIKET_BERUBAH; tepat satu outcome hidup dan satu audit transisi selesai",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "id": "N7-05.19",
+      "deskripsi": "lima POST outcome identik serentak: satu 201 dan empat 200 duplikat; satu baris",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "id": "N7-05.20",
+      "deskripsi": "isi berbeda pada tiket yang sudah punya outcome hidup → 409 OUTCOME_SUDAH_ADA",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "id": "N7-05.21",
+      "deskripsi": "item tidak valid (kosong/null/atribut asing/jenis asing/duplikat) → 400 OUTCOME_TIDAK_VALID; tidak ada baris",
+      "ok": true,
+      "detail": "OUTCOME_TIDAK_VALID,OUTCOME_TIDAK_VALID,OUTCOME_TIDAK_VALID,OUTCOME_TIDAK_VALID,OUTCOME_TIDAK_VALID"
+    },
+    {
+      "id": "N7-05.22",
+      "deskripsi": "tiket belum selesai: POST outcome 409 TIKET_BELUM_SELESAI; PATCH membawa outcome tanpa status selesai 400 OUTCOME_TIDAK_VALID",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "id": "N7-05.23",
+      "deskripsi": "tiket manual (anonim, tanpa usaha) tidak dapat memiliki outcome: 409 USAHA_TIDAK_TERTAUT dan penutupan ikut batal",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "id": "N7-05.24",
+      "deskripsi": "integrasi gagal di tengah (CHECK palsu pada item outcome): 500, tiket tetap 'tindak_lanjut', tidak ada outcome/audit baru",
+      "ok": true,
+      "detail": "500 tindak_lanjut audit 4->4 outcome=0"
+    },
+    {
+      "id": "N7-05.25",
+      "deskripsi": "klien mengulang setelah perbaikan: berhasil sekali (satu outcome, satu transisi selesai)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "id": "N7-05.26",
+      "deskripsi": "koreksi tanpa alasan 400; koreksi identik 409 OUTCOME_TIDAK_BERUBAH; keduanya tanpa efek",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "id": "N7-05.27",
+      "deskripsi": "koreksi oleh kab/kota pemilik wilayah: versi 2 terverifikasi, versi 1 dicabut dengan alasan; satu outcome hidup per tiket",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "id": "N7-05.28",
+      "deskripsi": "efek berganti: NPWP/SOP kembali ke nilai lapangan; media sosial bisnis +1; profil hanya memuat versi 2 untuk T1",
+      "ok": true,
+      "detail": "{\"npwp\":{\"ya\":4,\"tidak\":3,\"belum\":1},\"sop\":{\"ya\":3,\"tidak\":3,\"belum\":2},\"medsos\":{\"ya\":7,\"tidak\":0,\"belum\":1}}"
+    },
+    {
+      "id": "N7-05.29",
+      "deskripsi": "retry koreksi yang sama (id lama) → 200 duplikat:true, tanpa versi ketiga",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "id": "N7-05.30",
+      "deskripsi": "cabut tanpa alasan 400; cabut berhasil; retry idempoten (duplikat:true, satu audit 'cabut')",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "id": "N7-05.31",
+      "deskripsi": "setelah dicabut: media sosial bisnis kembali ke dasar; profil tidak lagi memuat T1",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "id": "N7-05.32",
+      "deskripsi": "tiket dibuka ulang: selesai → dijadwalkan ditolak 409 TRANSISI_TIDAK_VALID (selesai final; koreksi lewat outcome)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "id": "N7-05.33",
+      "deskripsi": "setelah dicabut, panel menawarkan outcome baru (outcomeBisaDicatat) dan menampilkan alasan cabut",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "id": "N7-05.34",
+      "deskripsi": "tiket batal dibuka ulang (batal → dijadwalkan) berjalan normal tanpa outcome",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "id": "N7-05.35",
+      "deskripsi": "catatan sesi (catatan, diagnosis, rencana aksi, tautan rapat, e-mail, WA, nama kontak) tidak ada di profil, antrean, DTO outcome, tabel outcome, audit, atau respons publik",
+      "ok": true,
+      "detail": "tanpa kebocoran (T1 diberi RAHASIA-* di kolom tiket)"
+    },
+    {
+      "id": "N7-05.36",
+      "deskripsi": "scan pola NIK 16 digit pada seluruh respons yang dipindai: nihil",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "id": "N7-05.37",
+      "deskripsi": "DTO profil hanya berisi id/versi/nomorTiket/poli/diverifikasiOleh/diverifikasiPada/items",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "id": "N7-05.38",
+      "deskripsi": "histori T1 terlacak: v1 dicabut (koreksi) dan v2 dicabut; masing-masing menyimpan tiket sumber, pengaju, verifikator, dan waktu",
+      "ok": true,
+      "detail": "[[\"1\",\"dicabut\",\"KLN-2026-09-0049\",\"Rina Pendamping Wilayah\",\"Admin Provinsi Dua\",\"t\"],[\"2\",\"dicabut\",\"KLN-2026-09-0049\",\"Admin Dinas KUK Subang\",\"Admin Dinas KUK Subang\",\"t\"]]"
+    },
+    {
+      "id": "N7-05.39",
+      "deskripsi": "audit T1 berurutan: ajukan → verifikasi → koreksi(dicabut) → koreksi(baru) → cabut, semuanya dengan nama aktor",
+      "ok": true,
+      "detail": "[[\"1\",\"ajukan\",\"\",\"diajukan\",\"Rina Pendamping Wilayah\"],[\"1\",\"verifikasi\",\"diajukan\",\"terverifikasi\",\"Admin Provinsi Dua\"],[\"1\",\"koreksi\",\"terverifikasi\",\"dicabut\",\"Admin Dinas KUK Subang\"],[\"2\",\"koreksi\",\"\",\"terverifikasi\",\"Admin Dinas KUK Subang\"],[\"2\",\"cabut\",\"terverifikasi\",\"dicabut\",\"Admin Provinsi Dua\"]]"
+    }
+  ]
+}

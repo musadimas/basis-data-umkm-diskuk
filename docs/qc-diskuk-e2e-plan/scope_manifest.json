@@ -1,0 +1,448 @@
+{
+  "version": 1,
+  "plan": "qc-diskuk-e2e",
+  "phases": {
+    "1": {
+      "title": "Infografis: judul level wilayah & penyebut lima aspek (BUG-001, BUG-002)",
+      "files": [
+        {
+          "path": "apps/web/app/types/infografis.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/constants/DASHBOARD.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/components/dashboard/card/Overview.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/index.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/types/operasional.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/components/dashboard/card/PermenAspek.vue",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/src/permen-aspek.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/test/permen-aspek.test.cjs",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/e2e/infografis.spec.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/e2e/sso-demo.spec.ts",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/test/pg/klinik-outcome.test.js",
+          "action": "modify"
+        }
+      ]
+    },
+    "2": {
+      "title": "Analitik: satu field per level wilayah & filter multi-nilai (BUG-003, BUG-004)",
+      "files": [
+        {
+          "path": "apps/web/app/lib/analytics-filters.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/lib/analytics-query.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/components/analytics/QueryBuilder.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/components/analytics/FilterChips.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/analitik.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/unit/analytics-filters.test.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/tests/unit/analytics-query.test.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/fixtures/mock-directus.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/e2e/analytics-canvas.spec.ts",
+          "action": "modify"
+        }
+      ]
+    },
+    "3": {
+      "title": "Peta: kartu info wilayah sebelum drill-down (BUG-005)",
+      "files": [
+        {
+          "path": "apps/web/app/components/dashboard/map/Choropleth.client.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/components/dashboard/map/Infographic.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/spasial.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/index.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/e2e/infografis.spec.ts",
+          "action": "modify"
+        }
+      ]
+    },
+    "4": {
+      "title": "Talent Scouting: alur Ajukan, Tolak ber-alasan, tab Ditolak, data wajib",
+      "files": [
+        {
+          "path": "services/directus/migrations/20261001A-talent-alasan-tolak.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/program/src/endpoints/talent/service.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/src/endpoints/talent/index.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/src/oas.yaml",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/test/talent.test.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/test/pg/talent.test.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/test/pg/talent-support.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "scripts/seed-dummy-program.sql",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/talent/ajukan/[usahaId].vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/talent/kurasi.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/types/program.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/constants/PROGRAM.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/fixtures/mock-program.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/e2e/talent.spec.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/e2e/operasional.directus.spec.ts",
+          "action": "modify"
+        }
+      ]
+    },
+    "5": {
+      "title": "Talent Scouting: PDF Berita Acara on-demand (BUG-011)",
+      "files": [
+        {
+          "path": "services/directus/extensions/program/src/endpoints/talent/berita-acara-pdf.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/program/test/talent-ba-pdf.test.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/program/src/endpoints/talent/index.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/src/oas.yaml",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/test/talent.test.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/test/pg/talent.test.js",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/talent/kurasi.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/fixtures/mock-program.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/e2e/talent.spec.ts",
+          "action": "modify"
+        }
+      ]
+    },
+    "6": {
+      "title": "Panel Pendampingan: paging antrean, peringatan tanpa bukti, rangkaian pitching terbaru (BUG-012..014)",
+      "files": [
+        {
+          "path": "services/directus/extensions/program/src/endpoints/kpi/rules.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/src/endpoints/kpi/service.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/src/oas.yaml",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/test/kpi.test.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/test/pg/kpi-alur.test.js",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/types/program.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/lib/kpi.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/pendampingan/index.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/pendampingan/[pesertaId].vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/fixtures/mock-program.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/fixtures/mock-directus-server.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/e2e/kpi.spec.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/e2e/operasional.directus.spec.ts",
+          "action": "modify"
+        }
+      ]
+    },
+    "7": {
+      "title": "Monitoring Eksekutif: penjelasan kepatuhan & laporan minggu berjalan (BUG-015)",
+      "files": [
+        {
+          "path": "services/directus/extensions/program/src/endpoints/executive/rules.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/test/executive.test.js",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/types/executive.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/akselerasi/index.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/fixtures/mock-directus-server.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/e2e/monitoring.spec.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/tests/e2e/r02.real.spec.ts",
+          "action": "modify"
+        }
+      ]
+    },
+    "8": {
+      "title": "Kurasi Investor: status server, tab, guard (BUG-016..018)",
+      "files": [
+        {
+          "path": "services/directus/migrations/20261001B-investor-kurator-dicabut.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/program/src/endpoints/executive/index.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/test/executive.test.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/test/pg/investor-kurasi.test.js",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/investor-kurasi.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/usaha/investor.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/types/program.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/fixtures/mock-program.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/e2e/investor-kurasi.spec.ts",
+          "action": "create"
+        }
+      ]
+    },
+    "9": {
+      "title": "Kurasi Katalog: aksi per status, LOI, grant login (BUG-019..021)",
+      "files": [
+        {
+          "path": "services/directus/extensions/program/src/endpoints/katalog/rules.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/src/endpoints/katalog/service.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/src/endpoints/katalog/index.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/src/oas.yaml",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/test/katalog-rules.test.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/test/katalog.test.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/test/pg/katalog-transisi.test.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/migrations/20261001C-katalog-baca-pengguna-login.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/test/katalog-grant-login.contract.test.mjs",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/katalog/kurasi.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/lib/katalog.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/constants/PROGRAM.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/types/program.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/fixtures/mock-program.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/e2e/katalog.spec.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/e2e/katalog-publik.directus.spec.ts",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/test/pg/katalog-media.test.js",
+          "action": "modify"
+        }
+      ]
+    },
+    "10": {
+      "title": "Talent Passport: dialog cabut/terbitkan ulang (BUG-022)",
+      "files": [
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/usaha/passport.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/fixtures/mock-program.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/e2e/passport.spec.ts",
+          "action": "modify"
+        }
+      ]
+    }
+  }
+}

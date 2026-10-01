@@ -1,0 +1,139 @@
+{
+  "dijalankan": "2026-09-28T21:29:21.597Z",
+  "base": "http://127.0.0.1:8156",
+  "hasil": [
+    {
+      "id": "R05.A1",
+      "deskripsi": "empat role login dan dikenali server (provinsi, kabkota, pendamping, umkm)",
+      "ok": true,
+      "known": false,
+      "detail": "{\"prov\":\"provinsi\",\"kabSubang\":\"kabkota\",\"kabSumedang\":\"kabkota\",\"pend\":\"pendamping\",\"umkm\":\"umkm\"}"
+    },
+    {
+      "id": "R05.A2",
+      "deskripsi": "IDOR usaha: kab/kota lintas kota 404, kota sendiri 200, provinsi 200, umkm/pendamping 403, anonim 401",
+      "ok": true,
+      "known": false,
+      "detail": "{\"kabSubangKeSumedang\":404,\"kabSubangKeSubang\":200,\"kabSumedangKeSubang\":404,\"provKeSumedang\":200,\"umkm\":403,\"pendamping\":403,\"anonim\":401}"
+    },
+    {
+      "id": "R05.A3",
+      "deskripsi": "pencarian Tabular (trigram): provinsi menemukan, kab/kota lain 0 baris, kab/kota Subang tetap ter-scope walau klien mengirim kota_id=2",
+      "ok": true,
+      "known": false,
+      "detail": "prov=1 sumedang=0 subang(kota_id=2)=1"
+    },
+    {
+      "id": "R05.A4",
+      "deskripsi": "kueri pencarian terlalu pendek → 400 Q_TOO_SHORT (bukan 500)",
+      "ok": true,
+      "known": false,
+      "detail": "400 Q_TOO_SHORT"
+    },
+    {
+      "id": "R05.A5",
+      "deskripsi": "monitoring eksekutif (R02): provinsi/kab-kota 200, pendamping/umkm 403, anonim 401",
+      "ok": true,
+      "known": false,
+      "detail": "{\"prov\":200,\"kabSubang\":200,\"kabSumedang\":200,\"pend\":403,\"umkm\":403,\"anonim\":401}"
+    },
+    {
+      "id": "R05.A6",
+      "deskripsi": "KPI: daftar peserta ter-scope (provinsi semua aktif, kab/kota Subang = SQL kota 1, kab/kota Sumedang kosong, umkm hanya miliknya)",
+      "ok": true,
+      "known": false,
+      "detail": "{\"prov\":1,\"subang\":1,\"sumedang\":0,\"umkm\":1}"
+    },
+    {
+      "id": "R05.B1",
+      "deskripsi": "14 endpoint publik tanpa login: tidak memuat NIK, kontak tiket, e-mail akun (29 nilai), atau NIB/WA bisnis di luar katalog produk (9 nilai)",
+      "ok": true,
+      "known": false,
+      "detail": "tanpa kebocoran"
+    },
+    {
+      "id": "R05.B2",
+      "deskripsi": "tidak ada pola 16 digit (NIK) pada respons publik",
+      "ok": true,
+      "known": false,
+      "detail": ""
+    },
+    {
+      "id": "R05.B3",
+      "deskripsi": "koleksi privat tidak terbaca lewat /items oleh anonim (401/403) maupun umkm (403 atau nol baris)",
+      "ok": true,
+      "known": false,
+      "detail": "{\"anon\":[],\"umkm\":[]}"
+    },
+    {
+      "id": "R05.C1",
+      "deskripsi": "login: NIB terdaftar (salah kata sandi), NIB tidak terdaftar, dan e-mail tidak terdaftar memberi respons identik (tanpa oracle keberadaan NIB)",
+      "ok": false,
+      "known": true,
+      "detail": "NIB ada→401 INVALID_CREDENTIALS; NIB tak ada→400 INVALID_PAYLOAD; e-mail tak ada→401 INVALID_CREDENTIALS"
+    },
+    {
+      "id": "R05.C2",
+      "deskripsi": "prefill pendaftaran kegiatan: parameter NIB/usaha diabaikan (hanya sesi pemilik), anonim 401, provinsi 403",
+      "ok": true,
+      "known": false,
+      "detail": ""
+    },
+    {
+      "id": "R05.C3",
+      "deskripsi": "direktori investor tanpa sesi ditolak 401 (investor tanpa persetujuan/verifikasi tidak terbuka untuk publik)",
+      "ok": true,
+      "known": false,
+      "detail": "401"
+    },
+    {
+      "id": "R05.D1",
+      "deskripsi": "KPI: laporan dikirim pada hari Selasa (bukan Jumat WIB) harus ditolak menurut M5-03 (\"Kamis ditolak, Jumat diterima\")",
+      "ok": false,
+      "known": true,
+      "detail": "201 diterima (201) pada hari Selasa"
+    },
+    {
+      "id": "R05.D2",
+      "deskripsi": "KPI: minggu yang belum mulai ditolak 400 MINGGU_TIDAK_VALID (aturan minggu, bukan aturan hari)",
+      "ok": true,
+      "known": false,
+      "detail": "MINGGU_TIDAK_VALID"
+    },
+    {
+      "id": "R05.E1",
+      "deskripsi": "verifikasi sertifikat publik untuk kode tidak dikenal → 404 (bukan 500, tanpa data)",
+      "ok": true,
+      "known": false,
+      "detail": "404 SERTIFIKAT_NOT_FOUND"
+    },
+    {
+      "id": "R05.E2",
+      "deskripsi": "e-pass staf → 403; pindai QR tanpa rahasia internal ditolak (403/401)",
+      "ok": true,
+      "known": false,
+      "detail": "403/403"
+    },
+    {
+      "id": "R05.E3",
+      "deskripsi": "ekspor XLSX pendaftar oleh umkm ditolak 403",
+      "ok": true,
+      "known": false,
+      "detail": "403"
+    },
+    {
+      "id": "R05.E4",
+      "deskripsi": "kurasi kuota bantuan hanya provinsi: kab/kota 403",
+      "ok": true,
+      "known": false,
+      "detail": "403"
+    },
+    {
+      "id": "R05.E5",
+      "deskripsi": "kontrak klinik R04 tidak membuka koleksi baru lewat /items (klinik_konsultan, csat, outcome ditolak untuk anonim)",
+      "ok": true,
+      "known": false,
+      "detail": ""
+    }
+  ]
+}

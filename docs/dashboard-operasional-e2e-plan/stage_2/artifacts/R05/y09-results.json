@@ -1,0 +1,590 @@
+[
+  {
+    "probe": "umkm1 (Subang, SIDT) books ticket with attachment",
+    "expected": "201",
+    "actual": "201",
+    "ok": true
+  },
+  {
+    "probe": "ticket bound to SIDT (sumberIdentitas)",
+    "expected": "sidt",
+    "actual": "sidt",
+    "ok": true
+  },
+  {
+    "probe": "umkm6 (Subang) books ticket",
+    "expected": "201",
+    "actual": "201",
+    "ok": true
+  },
+  {
+    "probe": "umkm2 (Sumedang) books ticket with attachment",
+    "expected": "201",
+    "actual": "201",
+    "ok": true
+  },
+  {
+    "probe": "umkm2 second ticket",
+    "expected": "201",
+    "actual": "201",
+    "ok": true
+  },
+  {
+    "probe": "anonymous books ticket (manual identity)",
+    "expected": "201",
+    "actual": "201",
+    "ok": true
+  },
+  {
+    "probe": "anonymous ticket sumberIdentitas manual",
+    "expected": "manual",
+    "actual": "manual",
+    "ok": true
+  },
+  {
+    "probe": "captcha first use",
+    "expected": "201",
+    "actual": "201",
+    "ok": true
+  },
+  {
+    "probe": "captcha replay -> 400 CAPTCHA_INVALID",
+    "expected": "400 CAPTCHA_INVALID",
+    "actual": "400 CAPTCHA_INVALID",
+    "ok": true
+  },
+  {
+    "probe": "captcha garbage -> 400",
+    "expected": "400",
+    "actual": "400",
+    "ok": true
+  },
+  {
+    "probe": "same slot race -> 201 + 409 SLOT_PENUH",
+    "expected": "201,409",
+    "actual": "201,409",
+    "ok": true
+  },
+  {
+    "probe": "SQL: one active ticket in that slot",
+    "expected": "1",
+    "actual": "1",
+    "ok": true
+  },
+  {
+    "probe": "past date -> 400 TANGGAL_DI_LUAR_RENTANG",
+    "expected": "400 TANGGAL_DI_LUAR_RENTANG",
+    "actual": "400 TANGGAL_DI_LUAR_RENTANG",
+    "ok": true
+  },
+  {
+    "probe": "weekend -> 400 TANGGAL_AKHIR_PEKAN",
+    "expected": "400 TANGGAL_AKHIR_PEKAN",
+    "actual": "400 TANGGAL_AKHIR_PEKAN",
+    "ok": true
+  },
+  {
+    "probe": "short description -> 400",
+    "expected": "400",
+    "actual": "400",
+    "ok": true
+  },
+  {
+    "probe": "anonymous body.usaha is ignored (stays manual, no SIDT link)",
+    "expected": "manual|",
+    "actual": "manual|",
+    "ok": true
+  },
+  {
+    "probe": "provinsi kanban == all non-batal tickets (SQL)",
+    "expected": "36",
+    "actual": "36",
+    "ok": true
+  },
+  {
+    "probe": "kabkota Subang kanban == SQL (usaha in kota 1)",
+    "expected": "23",
+    "actual": "23",
+    "ok": true
+  },
+  {
+    "probe": "kabkota Subang sees no Sumedang / manual ticket",
+    "expected": "false",
+    "actual": "false",
+    "ok": true
+  },
+  {
+    "probe": "kabkota Subang sees umkm1+umkm6 tickets",
+    "expected": "true",
+    "actual": "true",
+    "ok": true
+  },
+  {
+    "probe": "kabkota Sumedang kanban == SQL (kota 2)",
+    "expected": "2",
+    "actual": "2",
+    "ok": true
+  },
+  {
+    "probe": "kabkota Sumedang sees only its two",
+    "expected": "true",
+    "actual": "true",
+    "ok": true
+  },
+  {
+    "probe": "pendamping kanban == assigned to self + unassigned pool (SQL)",
+    "expected": "36",
+    "actual": "36",
+    "ok": true
+  },
+  {
+    "probe": "umkm kanban -> 403",
+    "expected": "403",
+    "actual": "403",
+    "ok": true
+  },
+  {
+    "probe": "anonymous kanban -> 401",
+    "expected": "401",
+    "actual": "401",
+    "ok": true
+  },
+  {
+    "probe": "bogus status filter -> 400",
+    "expected": "400",
+    "actual": "400",
+    "ok": true
+  },
+  {
+    "probe": "kabkota without kota_scope -> 403 KOTA_NOT_ASSIGNED",
+    "expected": "403 KOTA_NOT_ASSIGNED",
+    "actual": "403 KOTA_NOT_ASSIGNED",
+    "ok": true
+  },
+  {
+    "probe": "kabkota Subang assigns Sumedang ticket -> 403",
+    "expected": "403",
+    "actual": "403",
+    "ok": true
+  },
+  {
+    "probe": "kabkota assigns manual (no city) ticket -> 403",
+    "expected": "403",
+    "actual": "403",
+    "ok": true
+  },
+  {
+    "probe": "kabkota Sumedang assigns Subang ticket -> 403",
+    "expected": "403",
+    "actual": "403",
+    "ok": true
+  },
+  {
+    "probe": "umkm patches own ticket -> 403",
+    "expected": "403",
+    "actual": "403",
+    "ok": true
+  },
+  {
+    "probe": "anonymous patch -> 401",
+    "expected": "401",
+    "actual": "401",
+    "ok": true
+  },
+  {
+    "probe": "patch unknown ticket -> 404",
+    "expected": "404",
+    "actual": "404",
+    "ok": true
+  },
+  {
+    "probe": "patch bad id -> 400",
+    "expected": "400",
+    "actual": "400",
+    "ok": true
+  },
+  {
+    "probe": "patch without versi -> 400 (optimistic lock is mandatory)",
+    "expected": "400",
+    "actual": "400",
+    "ok": true
+  },
+  {
+    "probe": "patch malformed versi -> 400",
+    "expected": "400",
+    "actual": "400",
+    "ok": true
+  },
+  {
+    "probe": "no writes from refused calls: ticket s1 still masuk/unassigned",
+    "expected": "masuk|",
+    "actual": "masuk|",
+    "ok": true
+  },
+  {
+    "probe": "no audit rows from refused calls",
+    "expected": "0",
+    "actual": "0",
+    "ok": true
+  },
+  {
+    "probe": "pendamping non-claim write on unassigned pool ticket -> 403",
+    "expected": "403",
+    "actual": "403",
+    "ok": true
+  },
+  {
+    "probe": "pendamping assigns pool ticket to a colleague -> 403",
+    "expected": "403",
+    "actual": "403",
+    "ok": true
+  },
+  {
+    "probe": "pendamping claims pool ticket",
+    "expected": "200",
+    "actual": "200",
+    "ok": true
+  },
+  {
+    "probe": "claim readback pendamping",
+    "expected": "ed843cc3-cf24-4c2f-816d-a155ce0a174b",
+    "actual": "ed843cc3-cf24-4c2f-816d-a155ce0a174b",
+    "ok": true
+  },
+  {
+    "probe": "pendamping2 edits ticket assigned to pendamping -> 403",
+    "expected": "403",
+    "actual": "403",
+    "ok": true
+  },
+  {
+    "probe": "pendamping2 kanban excludes pendamping's ticket",
+    "expected": "false",
+    "actual": "false",
+    "ok": true
+  },
+  {
+    "probe": "masuk -> berjalan skips stage -> 409 TRANSISI_TIDAK_VALID",
+    "expected": "409 TRANSISI_TIDAK_VALID",
+    "actual": "409 TRANSISI_TIDAK_VALID",
+    "ok": true
+  },
+  {
+    "probe": "masuk -> selesai -> 409",
+    "expected": "409",
+    "actual": "409",
+    "ok": true
+  },
+  {
+    "probe": "http link -> 400",
+    "expected": "400",
+    "actual": "400",
+    "ok": true
+  },
+  {
+    "probe": "masuk -> dijadwalkan (+link)",
+    "expected": "200",
+    "actual": "200",
+    "ok": true
+  },
+  {
+    "probe": "STALE versi -> 409 TIKET_BERUBAH",
+    "expected": "409 TIKET_BERUBAH",
+    "actual": "409 TIKET_BERUBAH",
+    "ok": true
+  },
+  {
+    "probe": "stale write not applied",
+    "expected": "dijadwalkan",
+    "actual": "dijadwalkan",
+    "ok": true
+  },
+  {
+    "probe": "two officers same versi race -> 200 + 409 TIKET_BERUBAH",
+    "expected": "200,409",
+    "actual": "200,409",
+    "ok": true
+  },
+  {
+    "probe": "same-status write is allowed (not a transition)",
+    "expected": "200",
+    "actual": "200",
+    "ok": true
+  },
+  {
+    "probe": "-> tindak_lanjut",
+    "expected": "200",
+    "actual": "200",
+    "ok": true
+  },
+  {
+    "probe": "-> selesai",
+    "expected": "200",
+    "actual": "200",
+    "ok": true
+  },
+  {
+    "probe": "selesai -> dijadwalkan -> 409",
+    "expected": "409",
+    "actual": "409",
+    "ok": true
+  },
+  {
+    "probe": "selesai -> batal -> 409 (closed is terminal)",
+    "expected": "409",
+    "actual": "409",
+    "ok": true
+  },
+  {
+    "probe": "kabkota Subang assigns own-city ticket + prioritas",
+    "expected": "200",
+    "actual": "200",
+    "ok": true
+  },
+  {
+    "probe": "kabkota own-city transition",
+    "expected": "200",
+    "actual": "200",
+    "ok": true
+  },
+  {
+    "probe": "dijadwalkan -> batal",
+    "expected": "200",
+    "actual": "200",
+    "ok": true
+  },
+  {
+    "probe": "batal hidden from default kanban",
+    "expected": "false",
+    "actual": "false",
+    "ok": true
+  },
+  {
+    "probe": "?status=batal shows it",
+    "expected": "true",
+    "actual": "true",
+    "ok": true
+  },
+  {
+    "probe": "batal -> dijadwalkan reopen",
+    "expected": "200",
+    "actual": "200",
+    "ok": true
+  },
+  {
+    "probe": "advokasi + mendesak sets pmseMendesak",
+    "expected": "true",
+    "actual": "true",
+    "ok": true
+  },
+  {
+    "probe": "non-advokasi mendesak: pmseMendesak false",
+    "expected": "false",
+    "actual": "false",
+    "ok": true
+  },
+  {
+    "probe": "audit s1 has claim(penugasan), 4 transitions in order, catatan rows",
+    "expected": "true",
+    "actual": "true",
+    "ok": true
+  },
+  {
+    "probe": "audit s1: exactly 4 transition rows (stale/refused/no-op not recorded)",
+    "expected": "4",
+    "actual": "4",
+    "ok": true
+  },
+  {
+    "probe": "audit rows all carry actor id",
+    "expected": "0",
+    "actual": "0",
+    "ok": true
+  },
+  {
+    "probe": "audit s6 records batal and reopen",
+    "expected": "true",
+    "actual": "true",
+    "ok": true
+  },
+  {
+    "probe": "API riwayat (kanban DTO) == audit rows (<=20)",
+    "expected": "8",
+    "actual": "8",
+    "ok": true
+  },
+  {
+    "probe": "kanban DTO carries no whatsapp-provider secrets (keys)",
+    "expected": "false",
+    "actual": "false",
+    "ok": true
+  },
+  {
+    "probe": "attachment: owner umkm1 reads own",
+    "expected": "200",
+    "actual": "200",
+    "ok": true
+  },
+  {
+    "probe": "attachment: kabkota Subang reads own-city",
+    "expected": "200",
+    "actual": "200",
+    "ok": true
+  },
+  {
+    "probe": "attachment: provinsi reads",
+    "expected": "200",
+    "actual": "200",
+    "ok": true
+  },
+  {
+    "probe": "attachment IDOR: kabkota Sumedang -> 404",
+    "expected": "404",
+    "actual": "404",
+    "ok": true
+  },
+  {
+    "probe": "attachment IDOR: other owner umkm2 -> 404",
+    "expected": "404",
+    "actual": "404",
+    "ok": true
+  },
+  {
+    "probe": "attachment IDOR: umkm6 (same city, other owner) -> 404",
+    "expected": "404",
+    "actual": "404",
+    "ok": true
+  },
+  {
+    "probe": "attachment: anonymous -> 401",
+    "expected": "401",
+    "actual": "401",
+    "ok": true
+  },
+  {
+    "probe": "attachment: Sumedang ticket file readable by its kabkota",
+    "expected": "200",
+    "actual": "200",
+    "ok": true
+  },
+  {
+    "probe": "attachment: Subang kabkota cannot read Sumedang file -> 404",
+    "expected": "404",
+    "actual": "404",
+    "ok": true
+  },
+  {
+    "probe": "attachment via public /assets -> not 200",
+    "expected": "true",
+    "actual": "true",
+    "ok": true
+  },
+  {
+    "probe": "attachment via /assets as other umkm -> not 200",
+    "expected": "true",
+    "actual": "true",
+    "ok": true
+  },
+  {
+    "probe": "track with number+matching WA -> 200",
+    "expected": "200",
+    "actual": "200",
+    "ok": true
+  },
+  {
+    "probe": "tracking response leaks no phone/email/description/contact/assignee/diagnosis",
+    "expected": "",
+    "actual": "",
+    "ok": true
+  },
+  {
+    "probe": "track wrong WA -> 404 (same as unknown)",
+    "expected": "404",
+    "actual": "404",
+    "ok": true
+  },
+  {
+    "probe": "track unknown number -> 404 identical body",
+    "expected": "{\"errors\":[{\"message\":\"The ticket was not found.\",\"extensions\":{\"code\":\"TIKET_TIDAK_DITEMUKAN\"}}]}",
+    "actual": "{\"errors\":[{\"message\":\"The ticket was not found.\",\"extensions\":{\"code\":\"TIKET_TIDAK_DITEMUKAN\"}}]}",
+    "ok": true
+  },
+  {
+    "probe": "track without valid captcha -> 400",
+    "expected": "400",
+    "actual": "400",
+    "ok": true
+  },
+  {
+    "probe": "anonymous ticket trackable by its owner WA",
+    "expected": "200",
+    "actual": "200",
+    "ok": true
+  },
+  {
+    "probe": "WA normalisation (dashes) accepted",
+    "expected": "200",
+    "actual": "200",
+    "ok": true
+  },
+  {
+    "probe": "public /poli 200, 6 desks",
+    "expected": "200 6",
+    "actual": "200 6",
+    "ok": true
+  },
+  {
+    "probe": "public /slot 200",
+    "expected": "200",
+    "actual": "200",
+    "ok": true
+  },
+  {
+    "probe": "public /slot exposes only slot+tersedia",
+    "expected": "slot,tersedia",
+    "actual": "slot,tersedia",
+    "ok": true
+  },
+  {
+    "probe": "direct Directus items /items/konsultasi_tiket: anonymous + umkm cannot read rows",
+    "expected": "no rows",
+    "actual": "anon 403/-, umkm 403/-",
+    "ok": true
+  },
+  {
+    "probe": "direct Directus items /items/konsultasi_tiket_audit: anonymous + umkm cannot read rows",
+    "expected": "no rows",
+    "actual": "anon 403/-, umkm 403/-",
+    "ok": true
+  },
+  {
+    "probe": "direct Directus items /items/konsultasi_tiket_lampiran: anonymous + umkm cannot read rows",
+    "expected": "no rows",
+    "actual": "anon 403/-, umkm 403/-",
+    "ok": true
+  },
+  {
+    "probe": "direct Directus items /items/notifikasi_outbox: anonymous + umkm cannot read rows",
+    "expected": "no rows",
+    "actual": "anon 403/-, umkm 403/-",
+    "ok": true
+  },
+  {
+    "probe": "direct Directus items /items/klinik_notifikasi: anonymous + umkm cannot read rows",
+    "expected": "no rows",
+    "actual": "anon 403/-, umkm 403/-",
+    "ok": true
+  },
+  {
+    "probe": "direct Directus items /items/directus_users: anonymous + umkm cannot read rows",
+    "expected": "no rows",
+    "actual": "anon 403/-, umkm 403/-",
+    "ok": true
+  },
+  {
+    "probe": "no message claimed as terkirim without a provider",
+    "expected": "0",
+    "actual": "0",
+    "ok": true
+  }
+]

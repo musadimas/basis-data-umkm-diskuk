@@ -1,0 +1,1872 @@
+{
+  "version": 2,
+  "plan": "dashboard-operasional-e2e-priority",
+  "phases": {
+    "Y01": {
+      "title": "Y01",
+      "files": [
+        {
+          "path": ".env.example",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/components/auth/Captcha.client.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/components/auth/SignInForm.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/components/dashboard/TabularData.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/components/nav/AppSidebar.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/components/nav/RoleBadge.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/components/nav/Topbar.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/components/nav/User.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/composables/useAuth.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/composables/useTabularFilters.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/constants/NAVIGATION.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/constants/ROLES.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/constants/index.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/layouts/dashboard.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/middleware/auth.global.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/pages/(auth)/forgot-password.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/pages/(auth)/lupa-kata-sandi.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/pages/(auth)/reset-kata-sandi.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/pages/(auth)/sign-in.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/akun/aktivitas.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/akun/index.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/audit-sesi.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/index.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/spasial.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/usaha/index.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/types/operasional.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/nuxt.config.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/playwright.config.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/e2e/auth.directus.spec.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/e2e/auth.spec.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/e2e/kabkota-scope.spec.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/tests/e2e/operasional.directus.spec.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/tests/e2e/roles.spec.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/tests/fixtures/mock-directus-server.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/fixtures/mock-directus.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/unit/roles.test.ts",
+          "action": "create"
+        },
+        {
+          "path": "docker-compose.yml",
+          "action": "modify"
+        },
+        {
+          "path": "docker/Dockerfile.directus",
+          "action": "modify"
+        },
+        {
+          "path": "docs/architecture/decisions/0007-operational-multi-role-dashboard.md",
+          "action": "create"
+        },
+        {
+          "path": "docs/architecture/decisions/README.md",
+          "action": "modify"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/scope_manifest.json",
+          "action": "modify"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_1/phase_Y01_identity.md",
+          "action": "modify"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_1/receipt_Y01_identity.md",
+          "action": "create"
+        },
+        {
+          "path": "docs/operasional/dummy-data-runbook.md",
+          "action": "create"
+        },
+        {
+          "path": "scripts/cleanup-dummy-operasional.sql",
+          "action": "create"
+        },
+        {
+          "path": "scripts/seed-dummy-operasional.mjs",
+          "action": "create"
+        },
+        {
+          "path": "scripts/seed-dummy-operasional.sql",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/analytics/src/lib/utils/auth.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/analytics/src/lib/utils/operator.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/authentication/src/endpoints/activity/index.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/authentication/src/endpoints/activity/service.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/authentication/src/endpoints/captcha/index.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/authentication/src/endpoints/captcha/service.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/authentication/src/hooks/login-guard.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/authentication/src/hooks/password-guard.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/authentication/src/hooks/session-guard.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/authentication/src/lib/utils/auth.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/src/lib/utils/auth.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/authentication/src/lib/utils/captcha.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/authentication/src/lib/utils/identity.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/package.json",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/src/errors.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/src/index.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/src/me-service.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/test/index.test.cjs",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/shared/auth.cjs",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/shared/operator.cjs",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/migrations/20260926A-create-auth-login.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/migrations/20260926D-operational-roles.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/migrations/20260926H-create-program-foundation.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/test/operasional-schema.contract.test.mjs",
+          "action": "create"
+        }
+      ]
+    },
+    "Y02": {
+      "title": "Y02",
+      "files": [
+        {
+          "path": "apps/web/app/components/dashboard/TabularData.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/components/program/ScoreBars.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/talent/ajukan/[usahaId].vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/talent/kurasi.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/types/program.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/e2e/data-lapangan.spec.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/e2e/operasional.directus.spec.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/e2e/talent.spec.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/fixtures/mock-program.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/scope_manifest.json",
+          "action": "modify"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_1/phase_Y02_talent.md",
+          "action": "modify"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_1/receipt_Y02_talent.md",
+          "action": "create"
+        },
+        {
+          "path": "scripts/cleanup-dummy-operasional.sql",
+          "action": "modify"
+        },
+        {
+          "path": "scripts/seed-dummy-operasional.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "scripts/seed-dummy-operasional.sql",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/src/endpoints/talent/index.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/src/endpoints/talent/scoring.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/src/endpoints/talent/service.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/src/lib/access.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/src/lib/usaha.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/test/scoring.test.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/test/talent.test.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/migrations/20260926E-create-usaha-atribut-jabar.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/migrations/20260926I-create-talent-scouting.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/test/operasional-schema.contract.test.mjs",
+          "action": "modify"
+        }
+      ]
+    },
+    "Y03": {
+      "title": "Y03",
+      "files": [
+        {
+          "path": "apps/web/app/components/program/FileUpload.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/components/program/HotlineCard.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/components/program/KpiTrend.client.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/components/program/PhoneFrame.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/components/program/RadarChart.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/components/program/StatusPill.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/composables/useKpiOutbox.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/lib/kpi-outbox.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/pendampingan/[pesertaId].vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/pendampingan/index.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/usaha/index.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/plugins/demo-session.client.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/types/program.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/e2e/kpi.spec.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/e2e/operasional.directus.spec.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/fixtures/mock-program.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_1/phase_Y03_kpi.md",
+          "action": "modify"
+        },
+        {
+          "path": "scripts/cleanup-dummy-operasional.sql",
+          "action": "modify"
+        },
+        {
+          "path": "scripts/seed-dummy-operasional.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "scripts/seed-dummy-operasional.sql",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/src/endpoints/kpi/index.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/src/endpoints/kpi/rules.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/src/endpoints/kpi/service.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/src/lib/access.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/test/kpi.test.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/migrations/20260926J-create-kpi-monitoring.js",
+          "action": "modify"
+        }
+      ]
+    },
+    "Y04": {
+      "title": "Y04 — Produk terkurasi, Talent Passport Ed25519, Showroom",
+      "note": "Direkonsiliasi 2026-09-27 pasca-merge 790559b: path legacy (directus-extension-operasional, verifikasi/[kode].vue, migrasi G/H lama) diganti path kanonik extensions/program + migrasi K/L/O/P. Alasan per entri ada di receipt_Y04_product_passport.md.",
+      "files": [
+        {
+          "path": "services/directus/migrations/20260926K-create-katalog.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/migrations/20260926L-create-talent-passport.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/migrations/20260926O-passport-ed25519.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/migrations/20260926P-katalog-media.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/program/src/endpoints/passport/index.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/src/endpoints/passport/service.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/src/endpoints/passport/signing.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/src/endpoints/katalog/index.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/src/endpoints/katalog/service.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/test/passport.test.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/test/katalog.test.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/test/katalog-media.test.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/program/test/helpers.js",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/lib/qr-pdf.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/lib/katalog.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/constants/PROGRAM.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/types/program.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/components/katalog/ProdukForm.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/katalog/kurasi.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/usaha/passport.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/usaha/produk.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/pages/(public)/passport/[kode].vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/unit/qr-pdf.test.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/tests/e2e/produk-passport.spec.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/tests/fixtures/katalog-data.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/fixtures/mock-program.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "docker-compose.yml",
+          "action": "modify"
+        },
+        {
+          "path": ".env.example",
+          "action": "modify"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/scope_manifest.json",
+          "action": "modify"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_1/receipt_Y04_product_passport.md",
+          "action": "create"
+        }
+      ]
+    },
+    "Y05": {
+      "title": "Y05",
+      "files": [
+        {
+          "path": ".env.example",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/components/analytics/ExportDialog.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/components/dashboard/TabularData.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/components/dashboard/map/Choropleth.client.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/components/operasional/TalentPassportView.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/composables/useAnalyticsExports.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/types/analytics.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/types/operasional.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/tests/e2e/ekspor-dokumen.spec.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/tests/e2e/operasional.directus.spec.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/tests/e2e/tabular-search-peta.spec.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/tests/fixtures/mock-directus.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "docker-compose.yml",
+          "action": "modify"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_1/phase_Y05_exports_map.md",
+          "action": "modify"
+        },
+        {
+          "path": "docs/operasional/dummy-data-runbook.md",
+          "action": "create"
+        },
+        {
+          "path": "scripts/create-operasional-search-indexes.sql",
+          "action": "create"
+        },
+        {
+          "path": "services/analytics-worker/package.json",
+          "action": "modify"
+        },
+        {
+          "path": "services/analytics-worker/pnpm-lock.yaml",
+          "action": "modify"
+        },
+        {
+          "path": "services/analytics-worker/src/export-renderer.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/analytics-worker/src/exporter.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/analytics-worker/test/export-dokumen.test.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-analitik/src/exports-service.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-analitik/src/index.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-analitik/test/index.test.cjs",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/src/ekspor-service.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/src/index.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/src/passport-service.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/src/usaha-service.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/test/ekspor-service.test.cjs",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/test/usaha-service.test.cjs",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-tabular/test/index.test.cjs",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/shared/tabular-filter.cjs",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/migrations/20260926I-enable-pg-trgm.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/test/operasional-schema.contract.test.mjs",
+          "action": "create"
+        }
+      ]
+    },
+    "Y06": {
+      "title": "Y06",
+      "files": [
+        {
+          "path": "services/directus/migrations/20260926R-katalog-detail-publik.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/program/src/endpoints/katalog/service.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/src/endpoints/katalog/index.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/src/oas.yaml",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/test/katalog.test.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/test/helpers.js",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/lib/katalog.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/types/program.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/types/directus.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/components/katalog/ProductCard.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/pages/(public)/katalog/index.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/pages/(public)/katalog/[id].vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/e2e/katalog.spec.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/e2e/katalog-publik.directus.spec.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/tests/unit/katalog.test.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/fixtures/katalog-data.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/fixtures/mock-program.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "scripts/seed-dummy-operasional.sql",
+          "action": "modify"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/scope_manifest.json",
+          "action": "modify"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_1/phase_Y06_public_catalog.md",
+          "action": "modify"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_1/receipt_Y06_public_catalog.md",
+          "action": "create"
+        }
+      ],
+      "note": "Direkonsiliasi 27 Sep 2026 (Y06): entri pra-merge (katalog.vue monolitik, BFF Nuxt server/api/publik/*, extension directus-extension-operasional, migrasi 20260926J) diganti jalur kanonik pasca-merge: halaman (public)/katalog/*, lib/nama types web, endpoint /v1/program/katalog pada extensions/program, migrasi 20260926R, seed/cleanup dummy, dan spec e2e/unit."
+    },
+    "Y07": {
+      "title": "Y07",
+      "files": [
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/scope_manifest.json",
+          "action": "modify"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_1/receipt_Y07_events.md",
+          "action": "create"
+        },
+        {
+          "path": ".env.example",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/lib/kegiatan.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/pages/(public)/kegiatan.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/types/program.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/e2e/kegiatan.spec.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/tests/e2e/portal.spec.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/fixtures/kegiatan-data.mjs",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/tests/fixtures/mock-directus-server.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/fixtures/mock-directus.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/fixtures/mock-program.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/unit/kegiatan.test.ts",
+          "action": "modify"
+        },
+        {
+          "path": "scripts/cleanup-dummy-operasional.sql",
+          "action": "modify"
+        },
+        {
+          "path": "scripts/seed-dummy-operasional.sql",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/package.json",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/src/endpoints/kegiatan/adapter.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/program/src/endpoints/kegiatan/index.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/program/src/endpoints/kegiatan/rules.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/program/src/endpoints/kegiatan/service.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/program/src/hooks/kegiatan-pengingat.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/program/src/lib/wilayah.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/program/src/oas.yaml",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/test/kegiatan.test.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/migrations/20260927A-kegiatan-agenda-publik.js",
+          "action": "create"
+        }
+      ],
+      "note": "Rekonsiliasi Y07 (27 Sep 2026, pasca-790559b): entri lawas pra-merge yang menunjuk BFF apps/web/server/api/publik/kegiatan/*, extensions/directus-extension-operasional/src/kegiatan-service.js+pengingat-service.js, komponen KalenderKegiatan.vue/LiniMasaKegiatan.vue, apps/web/app/types/operasional.ts, dan migrasi 20260926K-create-kegiatan diganti jalur kanonik: endpoint publik services/directus/extensions/program/src/endpoints/kegiatan/* (+ hook pengingat), migrasi 20260927A-kegiatan-agenda-publik, halaman (public)/kegiatan.vue, dan fixture bersama tests/fixtures/kegiatan-data.mjs. Alasan: merge 790559b memindahkan kegiatan ke bundle program dan web membaca Directus langsung; jangan menghidupkan kembali BFF/skrip lama."
+    },
+    "Y08": {
+      "title": "Y08",
+      "files": [
+        {
+          "path": ".env.example",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/constants/PROGRAM.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/klinik.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/pages/(public)/konsultasi.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/types/program.ts",
+          "action": "modify"
+        },
+        {
+          "path": "docker-compose.yml",
+          "action": "modify"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/scope_manifest.json",
+          "action": "modify"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_1/phase_Y08_clinic_backend.md",
+          "action": "modify"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_1/receipt_Y08_clinic_backend.md",
+          "action": "create"
+        },
+        {
+          "path": "scripts/verify-y08-klinik.mjs",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/program/src/endpoints/klinik/index.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/src/endpoints/klinik/notifikasi.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/program/src/endpoints/klinik/rules.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/src/endpoints/klinik/service.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/src/lib/whatsapp.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/program/test/klinik.test.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/test/whatsapp.test.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/migrations/20260926S-klinik-poli-notifikasi.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/program/src/oas.yaml",
+          "action": "modify"
+        }
+      ]
+    },
+    "Y09": {
+      "title": "Y09",
+      "files": [
+        {
+          "path": "apps/web/app/components/klinik/PengantarKlinik.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/components/klinik/LacakTiket.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/components/landing/LandingFaq.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/klinik.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/pages/(public)/faq.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/pages/(public)/konsultasi.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/types/program.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/e2e/klinik-ui.spec.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/tests/e2e/klinik.spec.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/fixtures/klinik-data.mjs",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/tests/fixtures/katalog-data.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/fixtures/mock-directus-server.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/fixtures/mock-program.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_1/phase_Y09_clinic_ui.md",
+          "action": "modify"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_1/receipt_Y09_clinic_ui.md",
+          "action": "create"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/scope_manifest.json",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/src/endpoints/klinik/penugasan.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/program/src/endpoints/klinik/service.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/test/klinik-penugasan.test.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/migrations/20260927B-klinik-audit-dan-faq.js",
+          "action": "create"
+        }
+      ]
+    },
+    "Y10": {
+      "title": "Y10",
+      "files": [
+        {
+          "path": "README.md",
+          "action": "modify"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_1/phase_Y10_acceptance.md",
+          "action": "modify"
+        },
+        {
+          "path": "docs/operasional/dummy-data-runbook.md",
+          "action": "create"
+        }
+      ]
+    },
+    "R01": {
+      "title": "R01",
+      "files": [
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/scope_manifest.json",
+          "action": "modify"
+        },
+        {
+          "path": ".env.example",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/components/auth/AuthShell.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/components/auth/SignInForm.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/components/dashboard/card/PermenAspek.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/components/demo/DemoKoneksiToggle.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/components/demo/DemoRoleSwitcher.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/constants/NAVIGATION.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/composables/useDemoConnection.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/composables/useDemoRoleSwitch.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/composables/useKpiOutbox.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/layouts/dashboard.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/pages/(auth)/sign-in.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/pages/(auth)/sso-complete.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/index.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/usaha/index.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/types/operasional.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/nuxt.config.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/server/api/auth/sso/start.get.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/server/api/demo/switch.post.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/tests/e2e/executive-summary.spec.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/tests/e2e/operasional.directus.spec.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/tests/e2e/sso-demo.spec.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/tests/fixtures/mock-directus.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "docker-compose.yml",
+          "action": "modify"
+        },
+        {
+          "path": "docker/Dockerfile.web",
+          "action": "modify"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_2/phase_R01_demo_regulation.md",
+          "action": "modify"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_2/receipt_R01_demo_regulation.md",
+          "action": "create"
+        },
+        {
+          "path": "scripts/cleanup-dummy-operasional.sql",
+          "action": "create"
+        },
+        {
+          "path": "scripts/seed-dummy-operasional.sql",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/src/index.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/src/permen-aspek.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/src/ringkasan-service.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/test/permen-aspek.test.cjs",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/test/ringkasan-service.test.cjs",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/test/operasional-schema.contract.test.mjs",
+          "action": "create"
+        }
+      ]
+    },
+    "R02": {
+      "title": "R02",
+      "files": [
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/scope_manifest.json",
+          "action": "modify"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_2/receipt_R02_executive_investor.md",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/composables/useAuth.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/constants/NAVIGATION.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/constants/ROLES.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/types/executive.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/investor-kurasi.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/usaha/investor.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/pages/(public)/investor/index.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/pages/(public)/investor/[id].vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/tests/e2e/r02.real.spec.ts",
+          "action": "create"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_2/artifacts/R02/monitoring-desktop.png",
+          "action": "create"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_2/artifacts/R02/monitoring-mobile.png",
+          "action": "create"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_2/artifacts/R02/deal-card-desktop.png",
+          "action": "create"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_2/artifacts/R02/deal-card-mobile.png",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/program/package.json",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/src/endpoints/executive/index.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/program/src/endpoints/executive/rules.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/program/test/executive.test.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/migrations/20260928F-executive-investor.js",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/components/operasional/AtRiskMap.client.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/akselerasi/index.vue",
+          "action": "create"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_2/phase_R02_executive_investor.md",
+          "action": "modify"
+        }
+      ]
+    },
+    "R03": {
+      "title": "R03",
+      "files": [
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/scope_manifest.json",
+          "action": "modify"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_2/phase_R03_events_aid.md",
+          "action": "modify"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_2/receipt_R03_events_aid.md",
+          "action": "create"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_2/prompt_R03_lanjutan.md",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/migrations/20260928G-kegiatan-registrasi-bantuan.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/program/package.json",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/src/endpoints/registrasi/index.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/program/src/endpoints/registrasi/rules.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/program/src/endpoints/registrasi/service.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/program/src/endpoints/registrasi/xlsx.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/program/src/endpoints/registrasi/zip.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/program/src/endpoints/fasilitasi/index.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/program/src/endpoints/fasilitasi/service.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/program/src/oas.yaml",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/test/registrasi.test.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/program/test/fasilitasi.test.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/test/operasional-schema.contract.test.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/test/route-manifest.contract.test.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/pages/(public)/fasilitasi.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/pages/(public)/kegiatan/[id].vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/kegiatan/index.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/server/api/operasional/pindai.post.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/types/program.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/lib/kegiatan.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/pages/(public)/kegiatan.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/components/landing/LandingNav.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/constants/NAVIGATION.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/fixtures/kegiatan-data.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/fixtures/registrasi-data.mjs",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/tests/fixtures/mock-directus.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/fixtures/mock-directus-server.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/e2e/registrasi-kegiatan.spec.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/tests/e2e/fasilitasi.spec.ts",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/program/src/endpoints/kegiatan/service.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/src/permen-aspek.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/test/permen-aspek.test.cjs",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/pages/(public)/kegiatan/index.vue",
+          "action": "create"
+        }
+      ]
+    },
+    "R04": {
+      "title": "R04",
+      "files": [
+        {
+          "path": "CONTEXT.md",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/components/klinik/Direktori.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/components/klinik/LacakTiket.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/components/klinik/OutcomeAntrean.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/components/klinik/OutcomeCatat.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/components/klinik/OutcomeForm.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/components/klinik/OutcomePanel.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/components/klinik/Statistik.vue",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/app/constants/PROGRAM.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/lib/klinik.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/data-lapangan/[id].vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/pages/(private)/dashboard/klinik.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/pages/(public)/konsultasi.vue",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/types/operasional.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/app/types/program.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/e2e/klinik-outcome.spec.ts",
+          "action": "create"
+        },
+        {
+          "path": "apps/web/tests/fixtures/klinik-data.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/fixtures/mock-directus.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/fixtures/mock-program.mjs",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/unit/klinik-error-maps.test.ts",
+          "action": "modify"
+        },
+        {
+          "path": "apps/web/tests/unit/klinik-outcome.test.ts",
+          "action": "create"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/scope_manifest.json",
+          "action": "modify"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_2/artifacts/R04/migration-cycle-C.txt",
+          "action": "create"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_2/artifacts/R04/r04-runtime-results.json",
+          "action": "create"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_2/artifacts/R04/r04-runtime.mjs",
+          "action": "create"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_2/artifacts/R04/r04.real.spec.ts",
+          "action": "create"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_2/artifacts/R04/runtime-evidence.md",
+          "action": "create"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_2/artifacts/R04/screenshots/r04-browser-1-landing-statistik-direktori.png",
+          "action": "create"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_2/artifacts/R04/screenshots/r04-browser-2-csat-form.png",
+          "action": "create"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_2/artifacts/R04/screenshots/r04-browser-3-csat-statistik.png",
+          "action": "create"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_2/artifacts/R04/screenshots/r04-browser-4-pendamping-tutup-outcome.png",
+          "action": "create"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_2/artifacts/R04/screenshots/r04-browser-5-outcome-diajukan.png",
+          "action": "create"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_2/artifacts/R04/screenshots/r04-browser-6-kota-lain.png",
+          "action": "create"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_2/artifacts/R04/screenshots/r04-browser-7-antrean-verifikasi.png",
+          "action": "create"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_2/artifacts/R04/screenshots/r04-browser-8-profil-hasil-konsultasi.png",
+          "action": "create"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_2/artifacts/R04/screenshots/r04-browser-9-profil-setelah-cabut.png",
+          "action": "create"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_2/phase_R04_clinic_extensions.md",
+          "action": "modify"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_2/receipt_R04_clinic_extensions.md",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/src/permen-aspek.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/directus-extension-operasional/src/usaha-service.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/src/endpoints/klinik/direktori.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/program/src/endpoints/klinik/index.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/src/endpoints/klinik/outcome.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/program/src/endpoints/klinik/rules.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/src/endpoints/klinik/service.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/src/oas.yaml",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/test/klinik-rules.test.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/test/klinik.test.js",
+          "action": "modify"
+        },
+        {
+          "path": "services/directus/extensions/program/test/pg/klinik-outcome.test.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/extensions/program/test/pg/klinik-statistik.test.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/migrations/20260929C-klinik-konsultan-csat-outcome.js",
+          "action": "create"
+        },
+        {
+          "path": "services/directus/test/operasional-schema.contract.test.mjs",
+          "action": "modify"
+        }
+      ]
+    },
+    "R05": {
+      "title": "R05",
+      "files": [
+        {
+          "path": "README.md",
+          "action": "modify"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/scope_manifest.json",
+          "action": "modify"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_2/artifacts/R05/dummy-cleanup-readback.txt",
+          "action": "create"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_2/artifacts/R05/lib.mjs",
+          "action": "create"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_2/artifacts/R05/migration-rollback-cycle.txt",
+          "action": "create"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_2/artifacts/R05/r05-smoke-results.json",
+          "action": "create"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_2/artifacts/R05/r05-smoke.mjs",
+          "action": "create"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_2/artifacts/R05/r05.real.spec.ts",
+          "action": "create"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_2/artifacts/R05/screenshots/r05-browser-nib-usaha.png",
+          "action": "create"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_2/artifacts/R05/screenshots/r05-browser-public-faq.png",
+          "action": "create"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_2/artifacts/R05/screenshots/r05-browser-role-dummyadmin.png",
+          "action": "create"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_2/artifacts/R05/screenshots/r05-browser-role-dummyadminsubang.png",
+          "action": "create"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_2/artifacts/R05/screenshots/r05-browser-role-dummycoachpendamping.png",
+          "action": "create"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_2/artifacts/R05/screenshots/r05-browser-role-dummywawanleathercraft.png",
+          "action": "create"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_2/artifacts/R05/screenshots/r05-browser-tabular-kabkota-subang.png",
+          "action": "create"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_2/artifacts/R05/screenshots/r05-browser-tabular-kabkota-sumedang.png",
+          "action": "create"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_2/artifacts/R05/y04-final.json",
+          "action": "create"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_2/artifacts/R05/y04-results.json",
+          "action": "create"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_2/artifacts/R05/y04.mjs",
+          "action": "create"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_2/artifacts/R05/y09-made.json",
+          "action": "create"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_2/artifacts/R05/y09-results.json",
+          "action": "create"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_2/artifacts/R05/y09.mjs",
+          "action": "create"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_2/phase_R05_acceptance.md",
+          "action": "modify"
+        },
+        {
+          "path": "docs/dashboard-operasional-e2e-plan/stage_2/receipt_R05_acceptance.md",
+          "action": "create"
+        },
+        {
+          "path": "docs/operasional/dummy-data-runbook.md",
+          "action": "modify"
+        }
+      ]
+    }
+  }
+}
