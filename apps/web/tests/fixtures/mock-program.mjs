@@ -6,7 +6,7 @@
 import { PASSPORT_PAYLOAD, PDF_CONTOH, PNG_1PX, katalogResponse } from "./katalog-data.mjs";
 import { createKegiatanState, kegiatanApiResponse } from "./kegiatan-data.mjs";
 import { hargaRange, loiDuplikat, validasiKurasi } from "../../../../services/directus/extensions/program/src/endpoints/katalog/rules.js";
-import { PITCHING_STREAK, capaian, hariLapor, longestTargetStreak, waktuLaporan } from "../../../../services/directus/extensions/program/src/endpoints/kpi/rules.js";
+import { PITCHING_STREAK, capaian, hariLapor, latestTargetStreak, waktuLaporan } from "../../../../services/directus/extensions/program/src/endpoints/kpi/rules.js";
 import { UUID } from "../../../../services/directus/extensions/program/src/lib/validate.js";
 import { VERSI_AWAL, klinikMockResponse } from "./klinik-data.mjs";
 
@@ -137,7 +137,7 @@ export async function installMockProgram(page, state = createProgramState()) {
     }
 
     const laporanOf = (pesertaId) => state.laporan.filter((item) => item.peserta === pesertaId).sort((a, b) => a.mingguKe - b.mingguKe);
-    const streak = (pesertaId) => longestTargetStreak(laporanOf(pesertaId));
+    const streak = (pesertaId) => latestTargetStreak(laporanOf(pesertaId));
     // ── Klinik Konsultasi: rules come from the endpoint's pure rules, the mock only keeps state ──
     if (path.startsWith("/klinik/")) {
       let form = null;
@@ -301,8 +301,11 @@ export async function installMockProgram(page, state = createProgramState()) {
       return json(route, 200, peserta);
     }
     if (method === "GET" && path === "/kpi/laporan") {
-      const status = new URL(request.url()).searchParams.get("status") ?? "menunggu";
-      return json(route, 200, state.laporan.filter((item) => item.status === status).map((item) => ({ ...item, pesertaInfo: state.peserta.find((p) => p.id === item.peserta) })));
+      const params = new URL(request.url()).searchParams;
+      const status = params.get("status") ?? "menunggu";
+      const page = Number(params.get("page") ?? "1");
+      const semua = state.laporan.filter((item) => item.status === status).map((item) => ({ ...item, pesertaInfo: state.peserta.find((p) => p.id === item.peserta) }));
+      return json(route, 200, { items: semua.slice((page - 1) * 25, page * 25), meta: { page, limit: 25, total: semua.length } });
     }
     match = path.match(/^\/kpi\/laporan\/([^/]+)\/review$/);
     if (method === "POST" && match) {

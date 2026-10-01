@@ -49,25 +49,26 @@ export function currentWeek(tanggalMulai, jumlahMinggu, now = new Date()) {
   return Math.min(week, Number(jumlahMinggu));
 }
 
-/** Longest run of consecutive weeks whose approved turnover met the week's target. */
-export function longestTargetStreak(reports) {
-  const met = new Set(
-    reports
-      .filter((report) => report.status === "disetujui" && Number(report.realisasiOmzet) >= Number(report.target))
-      .map((report) => Number(report.mingguKe)),
-  );
-  let best = 0;
-  for (const week of met) {
-    if (met.has(week - 1)) continue;
-    let length = 1;
-    while (met.has(week + length)) length += 1;
-    best = Math.max(best, length);
+/**
+ * Rangkaian minggu terbaru yang disetujui dan mencapai target (BUG-014). Laporan `menunggu`
+ * di ujung belum dihitung; L = minggu tertinggi di antara laporan yang sudah ditinjau. Berjalan
+ * mundur dari L: berhenti pada minggu yang hilang, ditolak, di bawah target, atau masih menunggu.
+ */
+export function latestTargetStreak(reports) {
+  const byWeek = new Map(reports.map((report) => [Number(report.mingguKe), report]));
+  const reviewed = reports.filter((report) => report.status !== "menunggu").map((report) => Number(report.mingguKe));
+  if (!reviewed.length) return 0;
+  let streak = 0;
+  for (let week = Math.max(...reviewed); week >= 1; week -= 1) {
+    const report = byWeek.get(week);
+    if (!report || report.status !== "disetujui" || !(Number(report.realisasiOmzet) >= Number(report.target))) break;
+    streak += 1;
   }
-  return best;
+  return streak;
 }
 
 export function pitchingEligible(reports) {
-  return longestTargetStreak(reports) >= PITCHING_STREAK;
+  return latestTargetStreak(reports) >= PITCHING_STREAK;
 }
 
 /** Achievement against target in percent, one decimal. */

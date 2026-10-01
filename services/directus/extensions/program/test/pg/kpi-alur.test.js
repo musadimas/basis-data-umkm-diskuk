@@ -177,3 +177,37 @@ test("pitching menolak 409 sebelum 4 minggu berturut-turut, lalu menyala", { ski
   const mati = await setPitching(false);
   assert.equal(mati.res.body.data.rekomendasiPitching, false);
 });
+
+test("antrean disetujui dipaging 25/halaman, stabil, dan halaman lewat akhir kosong", { skip: pgSkipReason() }, async (t) => {
+  const { db } = await withDatabase(t);
+  const a = await siapkan(db, { nama: "Usaha A" });
+  const b = await siapkan(db, { nama: "Usaha B" });
+  const c = await siapkan(db, { nama: "Usaha C" });
+  const { call } = mountEndpoint(registerKpi, { database: db });
+  const stamp = "2026-09-20T00:00:00Z"; // date_updated identik → urutan ditentukan tie-breaker id
+  for (const { peserta } of [a, b, c]) {
+    for (let minggu = 1; minggu <= 9; minggu += 1) {
+      await db("kpi_laporan").insert({
+        peserta: peserta.id,
+        minggu_ke: minggu,
+        target: 4,
+        realisasi_omzet: 5,
+        jumlah_transaksi: 1,
+        client_uuid: uuid(),
+        status: "disetujui",
+        date_updated: stamp,
+      });
+    }
+  }
+  const ambil = (page) => call("GET", "/laporan", { accountability: akun(a.provinsi.id), query: { status: "disetujui", page: String(page) } });
+  const satu = await ambil(1);
+  const dua = await ambil(2);
+  const lewat = await ambil(3);
+  assert.equal(satu.res.body.data.meta.total, 27);
+  assert.equal(satu.res.body.data.items.length, 25);
+  assert.equal(dua.res.body.data.items.length, 2);
+  assert.equal(lewat.res.body.data.items.length, 0);
+  assert.equal(lewat.res.body.data.meta.total, 27);
+  const ids = [...satu.res.body.data.items, ...dua.res.body.data.items].map((item) => item.id);
+  assert.equal(new Set(ids).size, 27, "tidak ada baris ganda/hilang antar halaman");
+});

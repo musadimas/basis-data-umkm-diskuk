@@ -177,8 +177,13 @@ const server = createServer(async (request, response) => {
     response.end(JSON.stringify(infographicMapResponse()));
     return;
   }
-  if (method === "GET" && ["/v1/program/katalog/usaha", "/v1/program/katalog/produk", "/v1/program/kpi/peserta", "/v1/program/kpi/laporan"].includes(path)) {
+  if (method === "GET" && ["/v1/program/katalog/usaha", "/v1/program/katalog/produk", "/v1/program/kpi/peserta"].includes(path)) {
     response.end(JSON.stringify({ data: [] }));
+    return;
+  }
+  // Antrean KPI berbentuk halaman: `{ items, meta }` di dalam `data` (BUG-012).
+  if (method === "GET" && path === "/v1/program/kpi/laporan") {
+    response.end(JSON.stringify({ data: { items: [], meta: { page: 1, limit: 25, total: 0 } } }));
     return;
   }
 

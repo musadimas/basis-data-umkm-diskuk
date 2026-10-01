@@ -20,7 +20,7 @@ const { data, error, refresh } = await useAsyncData(`kpi:peserta:${id}`, () =>
 const saving = ref(false);
 const pitchingError = ref("");
 async function setPitching(value: boolean | "indeterminate") {
-  if (!data.value || value === "indeterminate") return;
+  if (!data.value || value === "indeterminate" || saving.value) return;
   pitchingError.value = "";
   saving.value = true;
   try {
@@ -31,7 +31,7 @@ async function setPitching(value: boolean | "indeterminate") {
   } catch (cause) {
     pitchingError.value =
       requestErrorCode(cause) === "PITCHING_BELUM_MEMENUHI"
-        ? "Rekomendasi pitching membutuhkan 4 minggu berturut-turut yang disetujui dan mencapai target."
+        ? "Rekomendasi membutuhkan 4 minggu terbaru berturut-turut yang disetujui dan mencapai target."
         : "Rekomendasi tidak dapat disimpan. Coba lagi.";
   } finally {
     saving.value = false;
@@ -72,7 +72,7 @@ const rupiah = (value: number) => formatAnalyticsCurrency(value);
         <UiCardHeader>
           <UiCardTitle>Rekomendasi Pitching</UiCardTitle>
           <UiCardDescription>
-            Rangkaian terpanjang: {{ data.pitching.streak }} minggu berturut-turut mencapai target (dibutuhkan {{ data.pitching.dibutuhkan }}).
+            Rangkaian terbaru: {{ data.pitching.streak }} minggu berturut-turut disetujui dan mencapai target (dibutuhkan {{ data.pitching.dibutuhkan }}).
           </UiCardDescription>
         </UiCardHeader>
         <UiCardContent class="grid gap-2">
@@ -83,10 +83,13 @@ const rupiah = (value: number) => formatAnalyticsCurrency(value);
               name="rekomendasi-pitching"
               @update:model-value="setPitching"
             />
-            Rekomendasikan untuk sesi pitching investor
+            Rekomendasikan ke Talent Investment Day / Champion
           </label>
           <p v-if="!data.pitching.memenuhi && !data.peserta.rekomendasiPitching" class="text-xs text-muted-foreground">
-            Aktif setelah {{ data.pitching.dibutuhkan }} minggu berturut-turut laporan disetujui dan omzet mencapai target.
+            Aktif bila {{ data.pitching.dibutuhkan }} minggu terbaru berturut-turut disetujui dan mencapai target. Laporan terbaru yang ditolak atau minggu yang terlewat memutus rangkaian; laporan yang masih menunggu belum dihitung.
+          </p>
+          <p v-if="!data.pitching.memenuhi && data.peserta.rekomendasiPitching" role="status" class="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900">
+            Syarat rekomendasi tidak lagi terpenuhi (rangkaian terbaru {{ data.pitching.streak }} minggu). Rekomendasi tetap tersimpan sampai dicabut.
           </p>
           <p v-if="pitchingError" role="alert" class="text-sm text-destructive">{{ pitchingError }}</p>
         </UiCardContent>

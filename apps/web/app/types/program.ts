@@ -141,6 +141,12 @@ export interface KpiLaporanQueueItem extends KpiLaporan {
   pesertaInfo: KpiPeserta | null;
 }
 
+/** Satu halaman antrean review (BUG-012). */
+export interface KpiLaporanQueuePage {
+  items: KpiLaporanQueueItem[];
+  meta: { page: number; limit: number; total: number };
+}
+
 export interface KpiPesertaDetail {
   peserta: KpiPeserta;
   laporan: KpiLaporan[];

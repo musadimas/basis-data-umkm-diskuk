@@ -158,10 +158,10 @@ test("Y03 pendamping: filter antrean, tolak validasi catatan, setujui, dan pitch
   // Buka detail peserta untuk cek tren & rekomendasi pitching
   await page.goto("/dashboard/pendampingan/d1000000-0000-4000-8000-000000000001");
   await expect(page.getByRole("heading", { name: /Wawan Leathercraft/ })).toBeVisible();
-  await expect(page.getByText(/Rangkaian terpanjang:/)).toBeVisible();
+  await expect(page.getByText(/Rangkaian terbaru:/)).toBeVisible();
 
   // Pitching checkbox tersedia dan dapat diatur
-  const pitchBox = page.getByRole("checkbox", { name: /Rekomendasikan untuk sesi pitching/ });
+  const pitchBox = page.getByRole("checkbox", { name: /Rekomendasikan ke Talent Investment Day/ });
   await expect(pitchBox).toBeVisible();
 });
 

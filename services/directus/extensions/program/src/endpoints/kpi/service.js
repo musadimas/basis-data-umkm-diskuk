@@ -1,6 +1,6 @@
 import { ProgramError, rows } from "../../lib/utils/http.js";
 import { objectBody, oneOf, optionalText, uuidParam, UUID } from "../../lib/validate.js";
-import { capaian, currentWeek, hariLapor, longestTargetStreak, PITCHING_STREAK, waktuLaporan } from "./rules.js";
+import { capaian, currentWeek, hariLapor, latestTargetStreak, PITCHING_STREAK, waktuLaporan } from "./rules.js";
 import cakupan from "../../../../../analytics-shared/cakupan.cjs";
 
 const { predikat } = cakupan;
@@ -25,6 +25,8 @@ export function forbidden() {
 
 const LAPORAN_STATUS = ["menunggu", "disetujui", "ditolak"];
 const MAX_BUKTI = 5;
+/** Ukuran halaman antrean review (BUG-012); klien hanya mengirim nomor halaman. */
+export const HALAMAN_ANTREAN = 25;
 
 const PESERTA_SELECT = `
   SELECT p.id, p.usaha, p.batch, p.fase, p.pendamping, p.tanggal_mulai::text AS tanggal_mulai, p.jumlah_minggu,
@@ -146,6 +148,15 @@ async function assertBukti(trx, bukti, actorId) {
   }
 }
 
+/** Nomor halaman 1-based dari query; selain bilangan bulat positif → 400. */
+function nomorHalaman(query) {
+  const raw = query.page ?? "1";
+  if (typeof raw !== "string" || !/^[1-9][0-9]{0,5}$/.test(raw)) {
+    throw new ProgramError(400, "INVALID_PAGE", 'The query "page" must be a positive integer.');
+  }
+  return Number(raw);
+}
+
 /**
  * Use case KPI mingguan. Validasi, transaksi, dan urutan aturan dimiliki di sini; adapter HTTP
  * (`index.js`) hanya memetakan request/response. Setiap verb menerima `pemanggil`
@@ -188,7 +199,7 @@ export function createKpi({ db, clock = () => new Date() }) {
     const id = uuidParam(pesertaId);
     const row = await loadPeserta(db, pemanggil, id);
     const laporan = await loadLaporanList(db, id);
-    const streak = longestTargetStreak(laporan);
+    const streak = latestTargetStreak(laporan);
     return {
       peserta: toPeserta(row, clock()),
       laporan,
@@ -277,17 +288,24 @@ export function createKpi({ db, clock = () => new Date() }) {
     }
   }
 
-  /** Antrean review lintas peserta yang boleh dilihat pemanggil; `query.status` opsional. */
+  /** Antrean review per halaman (BUG-012): `{ items, meta: { page, limit, total } }`. */
   async function listLaporan(pemanggil, query = {}) {
     const status = oneOf(query, "status", LAPORAN_STATUS, "menunggu");
+    const page = nomorHalaman(query);
     const scope = predikat(pemanggil, "peserta", "p");
+    const arah = status === "menunggu" ? "ASC" : "DESC";
+    const where = `WHERE l.status = ? AND (${scope.sql})`;
+    const bindings = [status, ...scope.bindings];
+    const total = Number(
+      rows(await db.raw(`SELECT COUNT(*)::integer AS total FROM kpi_laporan l JOIN program_peserta p ON p.id = l.peserta ${where}`, bindings))[0]?.total ?? 0,
+    );
     const result = await db.raw(
       `${LAPORAN_SELECT}
          JOIN program_peserta p ON p.id = l.peserta
-        WHERE l.status = ? AND (${scope.sql})
-        ORDER BY l.date_updated ${status === "menunggu" ? "ASC" : "DESC"}
-        LIMIT 500`,
-      [status, ...scope.bindings],
+        ${where}
+        ORDER BY l.date_updated ${arah}, l.id ${arah}
+        LIMIT ? OFFSET ?`,
+      [...bindings, HALAMAN_ANTREAN, (page - 1) * HALAMAN_ANTREAN],
     );
     const laporan = rows(result).map(toLaporan);
     const pesertaIds = [...new Set(laporan.map((item) => item.peserta))];
@@ -300,7 +318,10 @@ export function createKpi({ db, clock = () => new Date() }) {
       : [];
     const now = clock();
     const byId = new Map(peserta.map((row) => [row.id, toPeserta(row, now)]));
-    return laporan.map((item) => ({ ...item, pesertaInfo: byId.get(item.peserta) ?? null }));
+    return {
+      items: laporan.map((item) => ({ ...item, pesertaInfo: byId.get(item.peserta) ?? null })),
+      meta: { page, limit: HALAMAN_ANTREAN, total },
+    };
   }
 
   /** Setujui, atau tolak dengan catatan yang meminta bukti lebih baik. */
@@ -339,12 +360,12 @@ export function createKpi({ db, clock = () => new Date() }) {
       const peserta = await loadPeserta(trx, pemanggil, id, { lock: true });
       if (!canReview(pemanggil, peserta)) throw forbidden();
       if (data.rekomendasi) {
-        const streak = longestTargetStreak(await loadLaporanList(trx, id));
+        const streak = latestTargetStreak(await loadLaporanList(trx, id));
         if (streak < PITCHING_STREAK) {
           throw new ProgramError(
             409,
             "PITCHING_BELUM_MEMENUHI",
-            `Needs ${PITCHING_STREAK} consecutive approved weeks on target; the longest run is ${streak}.`,
+            `Needs ${PITCHING_STREAK} consecutive approved on-target weeks ending at the latest reviewed week; the latest run is ${streak}.`,
           );
         }
       }

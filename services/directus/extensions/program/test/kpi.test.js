@@ -3,7 +3,7 @@ import test from "node:test";
 import { createRequire } from "node:module";
 import registerKpi from "../src/endpoints/kpi/index.js";
 import { canReview, canSubmit } from "../src/endpoints/kpi/service.js";
-import { capaian, currentWeek, hariLapor, jakartaDate, longestTargetStreak, pitchingEligible, waktuLaporan } from "../src/endpoints/kpi/rules.js";
+import { capaian, currentWeek, hariLapor, jakartaDate, latestTargetStreak, pitchingEligible, waktuLaporan } from "../src/endpoints/kpi/rules.js";
 import { mountEndpoint } from "./helpers.js";
 
 const require = createRequire(import.meta.url);
@@ -44,12 +44,44 @@ test("reports are made on Friday in Jakarta time; a device time must be recent a
   assert.equal(waktuLaporan(42, now), null);
 });
 
-test("the pitching streak counts only approved weeks at or above target, consecutively", () => {
-  assert.equal(longestTargetStreak([report(1, 100), report(2, 150), report(3, 99), report(4, 100)]), 2);
-  assert.equal(longestTargetStreak([report(1, 100), report(2, 100, "menunggu"), report(3, 100), report(4, 100)]), 2);
-  assert.equal(longestTargetStreak([report(5, 100), report(3, 100), report(4, 100), report(6, 100)]), 4);
-  assert.equal(pitchingEligible([report(1, 100), report(2, 100), report(3, 100)]), false);
-  assert.equal(pitchingEligible([report(7, 100), report(8, 100), report(9, 100), report(10, 100)]), true);
+test("pitching memakai rangkaian terbaru yang disetujui dan mencapai target (BUG-014)", () => {
+  const r = report;
+  assert.equal(latestTargetStreak([r(1, 100), r(2, 100), r(3, 100)]), 3, "PDP-020: 3 pekan");
+  assert.equal(pitchingEligible([r(1, 100), r(2, 100), r(3, 100)]), false);
+  assert.equal(pitchingEligible([r(1, 100), r(2, 100), r(3, 100), r(4, 100)]), true, "PDP-021: tepat 4");
+  assert.equal(latestTargetStreak([r(1, 100), r(2, 100), r(3, 99), r(4, 100), r(5, 100)]), 2, "PDP-022: streak terputus");
+  const enamPlusDitolak = [1, 2, 3, 4, 5, 6].map((w) => r(w, 110)).concat(r(7, 120, "ditolak"));
+  assert.equal(latestTargetStreak(enamPlusDitolak), 0, "laporan terbaru ditolak");
+  const enamPlusMenunggu = [1, 2, 3, 4, 5, 6].map((w) => r(w, 110)).concat(r(7, 120, "menunggu"));
+  assert.equal(latestTargetStreak(enamPlusMenunggu), 6, "menunggu di ujung belum dihitung");
+  assert.equal(latestTargetStreak([r(1, 100), r(2, 100, "menunggu"), r(3, 100), r(4, 100)]), 2, "menunggu di tengah memutus");
+  assert.equal(latestTargetStreak([r(1, 100), r(2, 100), r(4, 100), r(5, 100)]), 2, "minggu hilang memutus");
+  assert.equal(latestTargetStreak([r(1, 100), r(2, 100), r(3, 100), r(4, 100), r(5, 50)]), 0, "terbaru di bawah target");
+  assert.equal(latestTargetStreak([r(5, 100), r(3, 100), r(4, 100), r(6, 100)]), 4, "urutan input tidak berpengaruh");
+  assert.equal(latestTargetStreak([r(1, 100, "menunggu")]), 0);
+  assert.equal(latestTargetStreak([]), 0);
+});
+
+test("antrean review dipaging 25 per halaman dengan total (BUG-012)", async () => {
+  const calls = [];
+  const db = {
+    raw: withUsers(async (sql, bindings) => {
+      calls.push({ sql, bindings });
+      return sql.includes("COUNT(*)") ? { rows: [{ total: 26 }] } : { rows: [] };
+    }),
+  };
+  const { call } = mountEndpoint(registerKpi, { database: db });
+  const page2 = await call("GET", "/laporan", { query: { status: "disetujui", page: "2" } });
+  assert.equal(page2.res.statusCode, 200);
+  assert.deepEqual(page2.res.body.data, { items: [], meta: { page: 2, limit: 25, total: 26 } });
+  const list = calls.find((c) => c.sql.includes("LIMIT ? OFFSET ?"));
+  assert.deepEqual(list.bindings.slice(-2), [25, 25]);
+  assert.match(list.sql, /ORDER BY l\.date_updated DESC, l\.id DESC/);
+  for (const bad of ["0", "-1", "abc", "1.5"]) {
+    const res = await call("GET", "/laporan", { query: { status: "disetujui", page: bad } });
+    assert.equal(res.res.statusCode, 400, bad);
+    assert.equal(res.res.body.errors[0].extensions.code, "INVALID_PAGE");
+  }
 });
 
 test("achievement is a percentage with one decimal", () => {
