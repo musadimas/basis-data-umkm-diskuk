@@ -5,6 +5,7 @@ import { buatFile, buatLegalitas, uuid } from "../../../../test-support/fixtures
 import { pgSkipReason, withDatabase } from "../../../../test-support/pg-harness.mjs";
 import { mountEndpoint } from "../helpers.js";
 import { akun, buatPengajuan, siapkanTalent } from "./talent-support.mjs";
+import * as kosongkanCatatanLama from "../../../../migrations/20261002A-talent-kosongkan-catatan-ditolak-lama.js";
 
 const SKOR = { finansial: 80, pasar: 80, legalitas: 80, sdm: 80 };
 const LENGKAP = { kapasitas: 10, satuan: "kg" };
@@ -363,4 +364,23 @@ test("PDF Berita Acara: provinsi 200 berisi nomor dan usaha; kabkota 403; id asi
 
   const rusak = await call("GET", "/berita-acara/x/pdf", { accountability: akun(provinsi.id) });
   assert.equal(rusak.res.statusCode, 400);
+});
+
+test("migration 20261002A: catatan baris ditolak lama (hasil backfill) dikosongkan, penolakan baru utuh", { skip: pgSkipReason() }, async (t) => {
+  const { db, subang, bandung, provinsi } = await siap(t);
+  // Bentuk pra-20261001A setelah backfill: alasan kurator ada di catatan dan alasan_tolak, tanpa pelaku.
+  const lama = await buatPengajuan(db, { usahaId: subang.id, status: "ditolak", catatan: "Data omzet belum valid" });
+  await db("talent_pengajuan").where({ id: lama }).update({ alasan_tolak: "Data omzet belum valid", ditolak_at: new Date() });
+  const baru = await buatPengajuan(db, { usahaId: bandung.id, status: "ditolak", catatan: "Catatan pengaju" });
+  await db("talent_pengajuan").where({ id: baru }).update({ alasan_tolak: "Alasan kurator", ditolak_oleh: provinsi.id, ditolak_at: new Date() });
+
+  await kosongkanCatatanLama.up(db);
+  const baris = async (id) => db("talent_pengajuan").where({ id }).first();
+  assert.equal((await baris(lama)).catatan, null);
+  assert.equal((await baris(lama)).alasan_tolak, "Data omzet belum valid");
+  assert.equal((await baris(baru)).catatan, "Catatan pengaju");
+
+  await kosongkanCatatanLama.down(db);
+  assert.equal((await baris(lama)).catatan, "Data omzet belum valid");
+  assert.equal((await baris(baru)).catatan, "Catatan pengaju");
 });
