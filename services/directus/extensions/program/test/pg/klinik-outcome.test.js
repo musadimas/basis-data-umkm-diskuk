@@ -519,7 +519,7 @@ test("indikator memakai versi definisi baru dan tidak menimpa data lapangan 'ya'
   const call = pasang(db);
   const w = await dunia(db);
   const data = (await getAspekPerkembangan(db, {}, { role: "provinsi", kotaId: null })).data;
-  assert.equal(data.definisiVersi, "indikator-operasional-v2");
+  assert.equal(data.definisiVersi, "indikator-operasional-v3");
   assert.match(data.sumber, /konsultasi_outcome/);
   // U2 sudah ya dari lapangan; outcome yang dicabut/koreksi tidak boleh membuatnya "tidak".
   const t2 = await buatTiket(db, { usahaId: w.u2.id, pendampingId: w.d2.id, status: "tindak_lanjut", jadwalSlot: "09:00" });
