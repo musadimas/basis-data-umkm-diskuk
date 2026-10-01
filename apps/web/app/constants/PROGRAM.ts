@@ -17,7 +17,7 @@ export const TALENT_STATUS = {
 
 export const PENGAJUAN_STATUS = {
   draft: { label: "Draft", className: "bg-slate-100 text-slate-700" },
-  dinilai: { label: "Dinilai", className: "bg-indigo-100 text-indigo-800" },
+  dinilai: { label: "Siap dikurasi", className: "bg-indigo-100 text-indigo-800" },
   disetujui: { label: "Disetujui", className: "bg-emerald-100 text-emerald-800" },
   ditolak: { label: "Ditolak", className: "bg-red-100 text-red-800" },
 } satisfies Record<PengajuanStatus, { label: string; className: string }>;

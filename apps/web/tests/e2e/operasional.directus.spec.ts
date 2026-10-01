@@ -54,6 +54,8 @@ test("Y02 talent scouting: kabkota ajukan usaha, hitung skor deterministik, prov
     await hitungBtn.click();
     await expect(page.getByTestId("skor-total")).toBeVisible({ timeout: 10000 });
     await expect(page.getByTestId("skor-rekomendasi")).toBeVisible();
+    await page.getByRole("button", { name: "Ajukan ke Kurasi" }).click();
+    await expect(page.getByText("Siap dikurasi", { exact: true })).toBeVisible();
   }
 
   // 2. Kabkota buka kurasi: tombol Terbitkan Berita Acara tidak boleh ada (403 guard UI)

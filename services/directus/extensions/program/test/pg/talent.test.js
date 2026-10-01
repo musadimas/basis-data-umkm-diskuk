@@ -7,6 +7,7 @@ import { mountEndpoint } from "../helpers.js";
 import { akun, buatPengajuan, siapkanTalent } from "./talent-support.mjs";
 
 const SKOR = { finansial: 80, pasar: 80, legalitas: 80, sdm: 80 };
+const LENGKAP = { kapasitas: 10, satuan: "kg" };
 const kode = (hasil) => hasil.res.body?.errors?.[0]?.extensions?.code;
 
 async function siap(t) {
@@ -111,13 +112,19 @@ test("payload tidak valid ditolak 400 tanpa menulis apa pun", { skip: pgSkipReas
 });
 
 test("ubah pengajuan menghapus skor lama; pengajuan tertutup 409; petugas kota lain 404", { skip: pgSkipReason() }, async (t) => {
-  const { db, call, subang, kabkotaSubang, provinsi } = await siap(t);
-  const id = await buatPengajuan(db, { usahaId: subang.id, status: "dinilai", skor: SKOR });
+  const { db, call, subang, bandung, kabkotaSubang, provinsi } = await siap(t);
+  const id = await buatPengajuan(db, { usahaId: subang.id, status: "draft", skor: SKOR });
 
   const ubah = await call("PATCH", `/pengajuan/${id}`, { accountability: akun(kabkotaSubang.id), body: { kapasitasProduksi: 5 } });
   assert.equal(ubah.res.statusCode, 200, JSON.stringify(ubah.res.body));
   assert.equal(ubah.res.body.data.status, "draft");
   assert.equal(ubah.res.body.data.skor, null);
+
+  // Hanya draft yang dapat diubah; baris dinilai ditolak 409.
+  const dinilai = await buatPengajuan(db, { usahaId: bandung.id, status: "dinilai", skor: SKOR });
+  const tertutupDinilai = await call("PATCH", `/pengajuan/${dinilai}`, { accountability: akun(provinsi.id), body: {} });
+  assert.equal(tertutupDinilai.res.statusCode, 409);
+  assert.equal(kode(tertutupDinilai), "PENGAJUAN_CLOSED");
 
   const tutup = await buatPengajuan(db, { usahaId: subang.id, status: "ditolak" });
   const tertutup = await call("PATCH", `/pengajuan/${tutup}`, { accountability: akun(provinsi.id), body: {} });
@@ -128,7 +135,7 @@ test("ubah pengajuan menghapus skor lama; pengajuan tertutup 409; petugas kota l
   assert.equal(kode(hilang), "PENGAJUAN_NOT_FOUND");
 });
 
-test("hitung-skor: skor tersimpan di server, status dinilai, usaha menjadi scouting", { skip: pgSkipReason() }, async (t) => {
+test("hitung-skor: skor tersimpan, status tetap draft, usaha tetap nominated; data tak lengkap 422", { skip: pgSkipReason() }, async (t) => {
   const { db, call, subang, kabkotaSubang } = await siap(t);
   await buatLegalitas(db, { usahaId: subang.id, jenis: "halal", status: "terbit" });
   const surat = await buatFile(db);
@@ -138,27 +145,134 @@ test("hitung-skor: skor tersimpan di server, status dinilai, usaha menjadi scout
   });
   const id = dibuat.res.body.data.id;
 
+  // Tanpa satuan: 422 dan skor tetap kosong.
+  const kurang = await call("POST", `/pengajuan/${id}/hitung-skor`, { accountability: akun(kabkotaSubang.id) });
+  assert.equal(kurang.res.statusCode, 422);
+  assert.equal(kode(kurang), "DATA_BELUM_LENGKAP");
+  assert.equal((await db("talent_pengajuan").where({ id }).first()).skor_total, null);
+
+  await call("PATCH", `/pengajuan/${id}`, {
+    accountability: akun(kabkotaSubang.id),
+    body: { kapasitasProduksi: 10, satuan: "kg", literasiQris: true, literasiPembukuanDigital: true, suratKomitmen: surat.id },
+  });
   const hasil = await call("POST", `/pengajuan/${id}/hitung-skor`, { accountability: akun(kabkotaSubang.id) });
   assert.equal(hasil.res.statusCode, 200, JSON.stringify(hasil.res.body));
-  assert.equal(hasil.res.body.data.status, "dinilai");
+  assert.equal(hasil.res.body.data.status, "draft");
   assert.equal(hasil.res.body.data.skor.rubrikVersi, "placeholder-v0");
   assert.equal(hasil.res.body.data.skor.pasar, 100);
-  assert.equal((await db("usaha").where({ id: subang.id }).first()).talent_status, "scouting");
+  assert.equal((await db("usaha").where({ id: subang.id }).first()).talent_status, "nominated");
+
+  // Kapasitas 0 juga 422.
+  await call("PATCH", `/pengajuan/${id}`, { accountability: akun(kabkotaSubang.id), body: { kapasitasProduksi: 0, satuan: "kg" } });
+  const nol = await call("POST", `/pengajuan/${id}/hitung-skor`, { accountability: akun(kabkotaSubang.id) });
+  assert.equal(nol.res.statusCode, 422);
+  assert.equal(kode(nol), "DATA_BELUM_LENGKAP");
 });
 
-test("tolak: pengajuan ditolak dan usaha kembali none; menolak dua kali 409", { skip: pgSkipReason() }, async (t) => {
-  const { db, call, subang, kabkotaSubang } = await siap(t);
-  const dibuat = await call("POST", "/pengajuan", { accountability: akun(kabkotaSubang.id), body: { usaha: subang.id } });
-  const id = dibuat.res.body.data.id;
+test("ajukan: draft berskor menjadi dinilai dan usaha scouting; tanpa skor 409; dinilai 409; tak lengkap 422", { skip: pgSkipReason() }, async (t) => {
+  const { db, call, subang, bandung, provinsi, kabkotaSubang } = await siap(t);
 
-  const tolak = await call("POST", `/pengajuan/${id}/tolak`, { accountability: akun(kabkotaSubang.id), body: { catatan: "belum siap" } });
+  // Tanpa skor: 409 SKOR_BELUM_DIHITUNG.
+  const tanpaSkor = await buatPengajuan(db, { usahaId: subang.id, status: "draft", ...LENGKAP });
+  const gagalSkor = await call("POST", `/pengajuan/${tanpaSkor}/ajukan`, { accountability: akun(kabkotaSubang.id) });
+  assert.equal(gagalSkor.res.statusCode, 409);
+  assert.equal(kode(gagalSkor), "SKOR_BELUM_DIHITUNG");
+
+  // Berskor tapi tanpa satuan: 422 DATA_BELUM_LENGKAP.
+  await db("talent_pengajuan")
+    .where({ id: tanpaSkor })
+    .update({ skor_finansial: 80, skor_pasar: 80, skor_legalitas: 80, skor_sdm: 80, skor_total: 80, rubrik_versi: "placeholder-v0", satuan: null });
+  const takLengkap = await call("POST", `/pengajuan/${tanpaSkor}/ajukan`, { accountability: akun(kabkotaSubang.id) });
+  assert.equal(takLengkap.res.statusCode, 422);
+  assert.equal(kode(takLengkap), "DATA_BELUM_LENGKAP");
+
+  // Draft berskor lengkap: 200 dinilai + usaha scouting.
+  const id = await buatPengajuan(db, { usahaId: bandung.id, status: "draft", skor: SKOR, ...LENGKAP });
+  const hasil = await call("POST", `/pengajuan/${id}/ajukan`, { accountability: akun(provinsi.id) });
+  assert.equal(hasil.res.statusCode, 200, JSON.stringify(hasil.res.body));
+  assert.equal(hasil.res.body.data.status, "dinilai");
+  assert.equal((await db("usaha").where({ id: bandung.id }).first()).talent_status, "scouting");
+
+  const ulang = await call("POST", `/pengajuan/${id}/ajukan`, { accountability: akun(provinsi.id) });
+  assert.equal(ulang.res.statusCode, 409);
+  assert.equal(kode(ulang), "PENGAJUAN_CLOSED");
+});
+
+test("ajukan paralel: tepat satu 200", { skip: pgSkipReason() }, async (t) => {
+  const { db, call, subang, provinsi } = await siap(t);
+  const id = await buatPengajuan(db, { usahaId: subang.id, status: "draft", skor: SKOR, ...LENGKAP });
+  const klik = () => call("POST", `/pengajuan/${id}/ajukan`, { accountability: akun(provinsi.id) });
+
+  const hasil = await Promise.all([klik(), klik(), klik()]);
+  const status = hasil.map((item) => item.res.statusCode).sort();
+  assert.deepEqual(status, [200, 409, 409], JSON.stringify(hasil.map((item) => item.res.body)));
+  assert.equal((await db("talent_pengajuan").where({ id }).first()).status, "dinilai");
+});
+
+test("ajukan paralel dengan PATCH: tepat satu berhasil dan status konsisten", { skip: pgSkipReason() }, async (t) => {
+  const { db, call, subang, provinsi } = await siap(t);
+  const id = await buatPengajuan(db, { usahaId: subang.id, status: "draft", skor: SKOR, ...LENGKAP });
+
+  const [ajukan, patch] = await Promise.all([
+    call("POST", `/pengajuan/${id}/ajukan`, { accountability: akun(provinsi.id) }),
+    call("PATCH", `/pengajuan/${id}`, { accountability: akun(provinsi.id), body: { kapasitasProduksi: 20, satuan: "kg" } }),
+  ]);
+  const codes = [ajukan.res.statusCode, patch.res.statusCode].sort();
+  assert.deepEqual(codes, [200, 409], JSON.stringify([ajukan.res.body, patch.res.body]));
+  const baris = await db("talent_pengajuan").where({ id }).first();
+  assert.ok(
+    (baris.status === "dinilai" && baris.skor_total !== null) || (baris.status === "draft" && baris.skor_total === null),
+    JSON.stringify(baris),
+  );
+});
+
+test("tolak: hanya provinsi, alasan wajib, hanya dinilai; catatan pengaju utuh", { skip: pgSkipReason() }, async (t) => {
+  const { db, call, subang, bandung, provinsi, kabkotaSubang } = await siap(t);
+  const id = await buatPengajuan(db, { usahaId: subang.id, status: "dinilai", skor: SKOR, catatan: "catatan pengaju" });
+
+  const kabkota = await call("POST", `/pengajuan/${id}/tolak`, { accountability: akun(kabkotaSubang.id), body: { alasan: "x" } });
+  assert.equal(kabkota.nextError?.statusCode ?? kabkota.res.statusCode, 403);
+
+  const kosong = await call("POST", `/pengajuan/${id}/tolak`, { accountability: akun(provinsi.id), body: {} });
+  assert.equal(kosong.res.statusCode, 400);
+  assert.equal(kode(kosong), "ALASAN_WAJIB");
+
+  const spasi = await call("POST", `/pengajuan/${id}/tolak`, { accountability: akun(provinsi.id), body: { alasan: "   " } });
+  assert.equal(spasi.res.statusCode, 400);
+  assert.equal(kode(spasi), "ALASAN_WAJIB");
+
+  // Draft (belum diajukan) tidak dapat ditolak.
+  const draft = await buatPengajuan(db, { usahaId: bandung.id, status: "draft" });
+  const belum = await call("POST", `/pengajuan/${draft}/tolak`, { accountability: akun(provinsi.id), body: { alasan: "x" } });
+  assert.equal(belum.res.statusCode, 409);
+  assert.equal(kode(belum), "PENGAJUAN_TIDAK_SIAP_DIKURASI");
+
+  const tolak = await call("POST", `/pengajuan/${id}/tolak`, { accountability: akun(provinsi.id), body: { alasan: "belum siap" } });
   assert.equal(tolak.res.statusCode, 200, JSON.stringify(tolak.res.body));
   assert.equal(tolak.res.body.data.status, "ditolak");
-  assert.equal(tolak.res.body.data.catatan, "belum siap");
+  assert.equal(tolak.res.body.data.alasanTolak, "belum siap");
+  assert.ok(tolak.res.body.data.ditolakAt, "ditolakAt terisi");
+  assert.equal(tolak.res.body.data.catatan, "catatan pengaju");
+  const baris = await db("talent_pengajuan").where({ id }).first();
+  assert.equal(baris.ditolak_oleh, provinsi.id);
+  assert.ok(baris.ditolak_at instanceof Date, "ditolak_at tersimpan sebagai TIMESTAMPTZ");
   assert.equal((await db("usaha").where({ id: subang.id }).first()).talent_status, "none");
 
-  const lagi = await call("POST", `/pengajuan/${id}/tolak`, { accountability: akun(kabkotaSubang.id), body: {} });
-  assert.equal(kode(lagi), "PENGAJUAN_CLOSED");
+  const ulang = await call("POST", `/pengajuan/${id}/tolak`, { accountability: akun(provinsi.id), body: { alasan: "x" } });
+  assert.equal(ulang.res.statusCode, 409);
+  assert.equal(kode(ulang), "PENGAJUAN_TIDAK_SIAP_DIKURASI");
+});
+
+test("daftar ditolak hanya penolakan terbaru per usaha", { skip: pgSkipReason() }, async (t) => {
+  const { db, call, subang, bandung, provinsi } = await siap(t);
+  const lama = await buatPengajuan(db, { usahaId: subang.id, status: "ditolak", dateCreated: "2026-09-01T00:00:00Z" });
+  await buatPengajuan(db, { usahaId: subang.id, status: "disetujui", skor: SKOR, dateCreated: "2026-09-10T00:00:00Z" });
+  const ditolakBandung = await buatPengajuan(db, { usahaId: bandung.id, status: "ditolak", dateCreated: "2026-09-05T00:00:00Z" });
+
+  const hasil = await call("GET", "/pengajuan", { accountability: akun(provinsi.id), query: { status: "ditolak" } });
+  assert.equal(hasil.res.statusCode, 200);
+  assert.deepEqual(hasil.res.body.data.map((p) => p.id), [ditolakBandung]);
+  assert.ok(!hasil.res.body.data.some((p) => p.id === lama));
 });
 
 test("Berita Acara: hanya provinsi, id duplikat dilipat, satu BA memuat semua pengajuan dan memindahkan usaha ke talent_pool", { skip: pgSkipReason() }, async (t) => {

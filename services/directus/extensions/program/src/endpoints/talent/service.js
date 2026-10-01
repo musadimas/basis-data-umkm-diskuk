@@ -15,7 +15,6 @@ import { JENIS_LEGALITAS, hitungSkor, mergeLegalitas, rekomendasiOf } from "./sc
 
 const KESIAPAN_STATUS = ["belum", "dalam_proses", "terbit"];
 const LIST_STATUS = ["draft", "dinilai", "disetujui", "ditolak"];
-const OPEN_STATUS = ["draft", "dinilai"];
 const MAX_BERITA_ACARA_ITEMS = 200;
 // Knex expands array bindings into value lists, so id arrays are bound as one JSON text value.
 const { pastikanUsaha } = cakupan;
@@ -24,6 +23,7 @@ const ID_LIST = "SELECT jsonb_array_elements_text(?::jsonb)::uuid";
 const PENGAJUAN_COLUMNS = `p.id, p.usaha, p.status, p.kapasitas_produksi, p.satuan, p.kesiapan_legalitas,
   p.literasi_qris, p.literasi_pembukuan_digital, p.surat_komitmen, p.skor_finansial, p.skor_pasar,
   p.skor_legalitas, p.skor_sdm, p.skor_total, p.rubrik_versi, p.dinilai_at, p.catatan,
+  p.alasan_tolak, p.ditolak_at,
   p.berita_acara, p.date_created, p.date_updated`;
 
 const num = (value) => (value === null || value === undefined ? null : Number(value));
@@ -53,6 +53,8 @@ export function toPengajuan(row) {
           },
     dinilaiAt: row.dinilai_at,
     catatan: row.catatan,
+    alasanTolak: row.alasan_tolak ?? null,
+    ditolakAt: row.ditolak_at ?? null,
     beritaAcara: row.berita_acara,
     dateCreated: row.date_created,
     dateUpdated: row.date_updated,
@@ -93,9 +95,17 @@ async function findPengajuan(database, id, { lock = false } = {}) {
   return row;
 }
 
-function requireOpen(row) {
-  if (!OPEN_STATUS.includes(row.status)) {
-    throw new ProgramError(409, "PENGAJUAN_CLOSED", "The submission has already been decided.");
+function requireStatus(row, status, code) {
+  if (row.status !== status) {
+    throw new ProgramError(409, code, "The submission is not in the required status.");
+  }
+}
+
+/** TS-15/TS-17: skor dan pengajuan butuh kapasitas produksi > 0 dan satuan. */
+function requireLengkap(row) {
+  const kapasitas = num(row.kapasitas_produksi);
+  if (!(kapasitas > 0) || !String(row.satuan ?? "").trim()) {
+    throw new ProgramError(422, "DATA_BELUM_LENGKAP", "Kapasitas produksi dan satuan wajib diisi.");
   }
 }
 
@@ -141,6 +151,9 @@ export const listPengajuan =
            LEFT JOIN usaha_tabular t ON t.id = p.usaha
           WHERE (?::text IS NULL OR p.status = ?)
             AND (?::integer IS NULL OR t.kota_id = ?)
+            AND (p.status <> 'ditolak' OR NOT EXISTS (
+                  SELECT 1 FROM talent_pengajuan baru
+                   WHERE baru.usaha = p.usaha AND baru.date_created > p.date_created))
           ORDER BY p.skor_total DESC NULLS LAST, p.date_created DESC
           LIMIT 500`,
         [status, status, kotaScope, kotaScope],
@@ -208,7 +221,7 @@ export const updatePengajuan =
       const fields = parseFields(objectBody(req));
       const updated = await database.transaction(async (trx) => {
         const existing = await findPengajuan(trx, id, { lock: true });
-        requireOpen(existing);
+        requireStatus(existing, "draft", "PENGAJUAN_CLOSED");
         await pastikanUsaha(trx, pemanggil, existing.usaha);
         await trx.raw(
           `UPDATE talent_pengajuan
@@ -234,7 +247,7 @@ export const updatePengajuan =
       res.json({ data: toPengajuan(updated) });
     });
 
-/** POST /pengajuan/:id/hitung-skor — score on the server and move the business to "scouting". */
+/** POST /pengajuan/:id/hitung-skor — score a draft on the server; the status stays draft. */
 export const scorePengajuan =
   ({ database, logger }) =>
   (req, res, pemanggil) =>
@@ -242,7 +255,8 @@ export const scorePengajuan =
       const id = uuidParam(req.params?.id);
       const scored = await database.transaction(async (trx) => {
         const row = await findPengajuan(trx, id, { lock: true });
-        requireOpen(row);
+        requireStatus(row, "draft", "PENGAJUAN_CLOSED");
+        requireLengkap(row);
         await pastikanUsaha(trx, pemanggil, row.usaha);
         const usaha = await loadUsahaSummary(trx, row.usaha);
         const certificates = await loadLegalitas(trx, row.usaha);
@@ -259,13 +273,9 @@ export const scorePengajuan =
         await trx.raw(
           `UPDATE talent_pengajuan
               SET skor_finansial = ?, skor_pasar = ?, skor_legalitas = ?, skor_sdm = ?, skor_total = ?,
-                  rubrik_versi = ?, dinilai_at = NOW(), status = 'dinilai', date_updated = NOW()
+                  rubrik_versi = ?, dinilai_at = NOW(), date_updated = NOW()
             WHERE id = ?`,
           [skor.finansial, skor.pasar, skor.legalitas, skor.sdm, skor.total, skor.rubrikVersi, id],
-        );
-        await trx.raw(
-          `UPDATE usaha SET talent_status = 'scouting' WHERE id = ? AND talent_status IN ('none', 'nominated')`,
-          [row.usaha],
         );
         return findPengajuan(trx, id);
       });
@@ -273,20 +283,48 @@ export const scorePengajuan =
       res.json({ data: toPengajuan(scored) });
     });
 
-/** POST /pengajuan/:id/tolak — reject an open submission; the business returns to "none". */
+/** POST /pengajuan/:id/ajukan — submit a complete, scored draft to curation (BUG-006). */
+export const submitPengajuan =
+  ({ database, logger }) =>
+  (req, res, pemanggil) =>
+    handle(logger, res, async () => {
+      const id = uuidParam(req.params?.id);
+      const submitted = await database.transaction(async (trx) => {
+        const row = await findPengajuan(trx, id, { lock: true });
+        requireStatus(row, "draft", "PENGAJUAN_CLOSED");
+        await pastikanUsaha(trx, pemanggil, row.usaha);
+        requireLengkap(row);
+        if (row.skor_total === null || row.skor_total === undefined) {
+          throw new ProgramError(409, "SKOR_BELUM_DIHITUNG", "Score the submission before submitting it.");
+        }
+        await trx.raw(`UPDATE talent_pengajuan SET status = 'dinilai', date_updated = NOW() WHERE id = ?`, [id]);
+        await trx.raw(
+          `UPDATE usaha SET talent_status = 'scouting' WHERE id = ? AND talent_status IN ('none', 'nominated')`,
+          [row.usaha],
+        );
+        return findPengajuan(trx, id);
+      });
+      noStore(res);
+      res.json({ data: toPengajuan(submitted) });
+    });
+
+/** POST /pengajuan/:id/tolak — reject a submitted application with a reason; the business returns to "none". */
 export const rejectPengajuan =
   ({ database, logger }) =>
   (req, res, pemanggil) =>
     handle(logger, res, async () => {
       const id = uuidParam(req.params?.id);
-      const catatan = optionalText(objectBody(req), "catatan", 2000);
+      const alasan = optionalText(objectBody(req), "alasan", 2000);
+      if (!alasan) throw new ProgramError(400, "ALASAN_WAJIB", "A rejection reason is required.");
       const rejected = await database.transaction(async (trx) => {
         const row = await findPengajuan(trx, id, { lock: true });
-        requireOpen(row);
+        requireStatus(row, "dinilai", "PENGAJUAN_TIDAK_SIAP_DIKURASI");
         await pastikanUsaha(trx, pemanggil, row.usaha);
         await trx.raw(
-          `UPDATE talent_pengajuan SET status = 'ditolak', catatan = COALESCE(?, catatan), date_updated = NOW() WHERE id = ?`,
-          [catatan, id],
+          `UPDATE talent_pengajuan
+              SET status = 'ditolak', alasan_tolak = ?, ditolak_oleh = ?, ditolak_at = NOW(), date_updated = NOW()
+            WHERE id = ?`,
+          [alasan, pemanggil.id, id],
         );
         await trx.raw(
           `UPDATE usaha SET talent_status = 'none' WHERE id = ? AND talent_status IN ('nominated', 'scouting')`,

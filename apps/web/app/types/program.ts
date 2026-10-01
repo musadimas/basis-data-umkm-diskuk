@@ -58,6 +58,8 @@ export interface TalentPengajuan {
   skor: TalentSkor | null;
   dinilaiAt: string | null;
   catatan: string | null;
+  alasanTolak: string | null;
+  ditolakAt: string | null;
   beritaAcara: string | null;
   dateCreated: string;
   dateUpdated: string;

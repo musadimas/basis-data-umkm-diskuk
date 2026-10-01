@@ -77,6 +77,8 @@ export function createProgramState() {
     aktor: null,
     /** Agenda fixtures + reminder opt-ins of this install (Y07). */
     kegiatan: createKegiatanState(),
+    /** Paths whose next call must answer 500 once (`state.failNext["/talent/pengajuan/<id>/tolak"] = true`). */
+    failNext: {},
     requests: [],
   };
 }
@@ -317,7 +319,7 @@ export async function installMockProgram(page, state = createProgramState()) {
       if (path !== `/talent/usaha/${USAHA_ID}`) {
         return json(route, 403, "FORBIDDEN");
       }
-      const latest = state.pengajuan.filter((item) => item.usaha === USAHA_ID).at(-1) ?? null;
+      const latest = state.pengajuan.filter((item) => item.usaha === USAHA_ID).sort((a, b) => a.dateCreated.localeCompare(b.dateCreated)).at(-1) ?? null;
       return json(route, 200, { usaha: state.usaha, legalitas: state.legalitas, pengajuan: latest });
     }
     if (method === "POST" && path === "/talent/pengajuan") {
@@ -333,6 +335,8 @@ export async function installMockProgram(page, state = createProgramState()) {
         status: "draft",
         skor: null,
         dinilaiAt: null,
+        alasanTolak: null,
+        ditolakAt: null,
         beritaAcara: null,
         dateCreated: new Date().toISOString(),
         dateUpdated: new Date().toISOString(),
@@ -344,13 +348,15 @@ export async function installMockProgram(page, state = createProgramState()) {
     match = path.match(/^\/talent\/pengajuan\/([^/]+)$/);
     if (method === "PATCH" && match) {
       const item = find(match[1]);
+      if (item.status !== "draft") return json(route, 409, "PENGAJUAN_CLOSED");
       Object.assign(item, body, { status: "draft", skor: null });
       return json(route, 200, item);
     }
     match = path.match(/^\/talent\/pengajuan\/([^/]+)\/hitung-skor$/);
     if (method === "POST" && match) {
       const item = find(match[1]);
-      item.status = "dinilai";
+      if (item.status !== "draft") return json(route, 409, "PENGAJUAN_CLOSED");
+      if (!(Number(item.kapasitasProduksi) > 0) || !String(item.satuan ?? "").trim()) return json(route, 422, "DATA_BELUM_LENGKAP");
       item.skor = {
         finansial: 35,
         pasar: 100,
@@ -360,19 +366,36 @@ export async function installMockProgram(page, state = createProgramState()) {
         rubrikVersi: "placeholder-v0",
         rekomendasi: "Dipertimbangkan",
       };
+      item.dinilaiAt = new Date().toISOString();
+      return json(route, 200, item);
+    }
+    match = path.match(/^\/talent\/pengajuan\/([^/]+)\/ajukan$/);
+    if (method === "POST" && match) {
+      const item = find(match[1]);
+      if (item.status !== "draft") return json(route, 409, "PENGAJUAN_CLOSED");
+      if (!item.skor) return json(route, 409, "SKOR_BELUM_DIHITUNG");
+      item.status = "dinilai";
       state.usaha.talentStatus = "scouting";
       return json(route, 200, item);
     }
     match = path.match(/^\/talent\/pengajuan\/([^/]+)\/tolak$/);
     if (method === "POST" && match) {
+      if (state.failNext?.[path]) {
+        delete state.failNext[path];
+        return json(route, 500, "INTERNAL_SERVER_ERROR");
+      }
+      if (!String(body?.alasan ?? "").trim()) return json(route, 400, "ALASAN_WAJIB");
       const item = find(match[1]);
-      item.status = "ditolak";
+      if (item.status !== "dinilai") return json(route, 409, "PENGAJUAN_TIDAK_SIAP_DIKURASI");
+      Object.assign(item, { status: "ditolak", alasanTolak: body.alasan.trim(), ditolakAt: new Date().toISOString() });
+      state.usaha.talentStatus = "none";
       return json(route, 200, item);
     }
     if (method === "GET" && path === "/talent/pengajuan") {
       const status = new URL(request.url()).searchParams.get("status");
       const rows = state.pengajuan
         .filter((item) => !status || item.status === status)
+        .filter((item) => item.status !== "ditolak" || !state.pengajuan.some((lain) => lain.usaha === item.usaha && lain.dateCreated > item.dateCreated))
         .map((item) => ({ ...item, usahaInfo: { nama: state.usaha.nama, nib: state.usaha.nib, skala: "micro", kota: state.usaha.kota } }));
       return json(route, 200, rows);
     }

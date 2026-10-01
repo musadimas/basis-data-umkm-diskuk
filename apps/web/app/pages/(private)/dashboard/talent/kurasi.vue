@@ -84,31 +84,45 @@ const rejecting = ref<string | null>(null);
 const tolakTarget = ref<TalentPengajuanListItem | null>(null);
 const alasanTolak = ref("");
 const tolakError = ref("");
+const tolakGalatServer = ref("");
 function mintaTolak(row: TalentPengajuanListItem) {
   tolakTarget.value = row;
   alasanTolak.value = "";
   tolakError.value = "";
+  tolakGalatServer.value = "";
 }
+watch(alasanTolak, () => {
+  tolakError.value = "";
+  tolakGalatServer.value = "";
+});
 async function tolak() {
   const row = tolakTarget.value;
   if (!row || rejecting.value) return;
-  if (!alasanTolak.value.trim()) {
+  const alasan = alasanTolak.value.trim();
+  if (!alasan) {
     tolakError.value = "Alasan penolakan wajib diisi.";
     return;
   }
   rejecting.value = row.id;
-  message.value = null;
+  tolakGalatServer.value = "";
   try {
     await directus.request(
-      endpoint<TalentPengajuan, { catatan: string | null }>(`/v1/program/talent/pengajuan/${row.id}/tolak`, {
+      endpoint<TalentPengajuan, { alasan: string }>(`/v1/program/talent/pengajuan/${row.id}/tolak`, {
         method: "POST",
-        body: { catatan: alasanTolak.value.trim() },
+        body: { alasan },
       }),
     );
     tolakTarget.value = null;
+    message.value = { tone: "success", text: `Pengajuan ${row.usahaInfo.nama} ditolak.` };
     await refresh();
-  } catch {
-    message.value = { tone: "error", text: "Pengajuan tidak dapat ditolak. Coba lagi." };
+  } catch (cause) {
+    const code = requestErrorCode(cause);
+    tolakGalatServer.value =
+      code === "PENGAJUAN_TIDAK_SIAP_DIKURASI"
+        ? "Pengajuan ini sudah diputuskan atau belum diajukan. Tutup dialog lalu muat ulang daftar."
+        : code === "ALASAN_WAJIB"
+          ? "Alasan penolakan wajib diisi."
+          : "Pengajuan tidak dapat ditolak. Coba lagi.";
   } finally {
     rejecting.value = null;
   }
@@ -185,12 +199,15 @@ const date = (value: string) => new Intl.DateTimeFormat("id-ID", { dateStyle: "m
               <td class="px-4 py-3">{{ row.usahaInfo.kota || "—" }}</td>
               <td v-for="dim in SKOR_DIMENSI" :key="dim.key" class="px-3 py-3 text-right tabular-nums">{{ score(row.skor?.[dim.key]) }}</td>
               <td class="px-4 py-3 text-right font-semibold tabular-nums">{{ score(row.skor?.total) }}</td>
-              <td class="px-4 py-3"><ProgramStatusPill :meta="PENGAJUAN_STATUS[row.status]" /></td>
+              <td class="px-4 py-3">
+                <ProgramStatusPill :meta="PENGAJUAN_STATUS[row.status]" />
+                <p v-if="row.status === 'ditolak' && row.alasanTolak" class="mt-1 max-w-[16rem] text-xs text-muted-foreground line-clamp-2" :title="row.alasanTolak">Alasan: {{ row.alasanTolak }}</p>
+              </td>
               <td class="px-4 py-3">
                 <div class="flex justify-end gap-3 whitespace-nowrap">
                   <NuxtLink :to="`/dashboard/talent/ajukan/${row.usaha}`" class="font-semibold underline">Detail</NuxtLink>
                   <button
-                    v-if="isProvinsi && (row.status === 'dinilai' || row.status === 'draft')"
+                    v-if="isProvinsi && row.status === 'dinilai'"
                     type="button"
                     class="font-semibold text-destructive underline disabled:opacity-50"
                     :disabled="rejecting === row.id"
@@ -238,20 +255,30 @@ const date = (value: string) => new Intl.DateTimeFormat("id-ID", { dateStyle: "m
       </UiDialogContent>
     </UiDialog>
 
-    <UiDialog :open="Boolean(tolakTarget)" @update:open="(value) => !value && (tolakTarget = null)">
-      <UiDialogContent v-if="tolakTarget" class="max-w-md">
+    <UiDialog :open="Boolean(tolakTarget)" @update:open="(value) => !value && rejecting === null && (tolakTarget = null)">
+      <UiDialogContent v-if="tolakTarget" class="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-md">
         <UiDialogHeader>
-          <UiDialogTitle>Tolak pengajuan {{ tolakTarget.usahaInfo.nama }}?</UiDialogTitle>
-          <UiDialogDescription>Pengajuan yang ditolak tidak dapat diajukan ulang tanpa mengulang proses penilaian.</UiDialogDescription>
+          <UiDialogTitle class="pr-8 leading-snug break-words">Tolak pengajuan {{ tolakTarget.usahaInfo.nama }}?</UiDialogTitle>
+          <UiDialogDescription>Pengajuan berpindah ke tab Ditolak dan usaha kembali berstatus Belum diajukan. Petugas pengaju dapat melihat alasan ini dan mengajukan ulang.</UiDialogDescription>
         </UiDialogHeader>
         <UiField class="gap-2">
           <UiFieldLabel for="alasan-tolak">Alasan penolakan (wajib)</UiFieldLabel>
-          <UiTextarea id="alasan-tolak" v-model="alasanTolak" maxlength="2000" rows="3" placeholder="Jelaskan alasan penolakan untuk pelaku usaha" />
-          <p v-if="tolakError" role="alert" class="text-sm text-destructive">{{ tolakError }}</p>
+          <UiTextarea
+            id="alasan-tolak"
+            v-model="alasanTolak"
+            maxlength="2000"
+            rows="3"
+            class="max-h-40"
+            placeholder="Jelaskan alasan penolakan untuk petugas pengaju"
+            :aria-invalid="Boolean(tolakError)"
+            aria-describedby="alasan-tolak-galat"
+          />
+          <p v-if="tolakError" id="alasan-tolak-galat" role="alert" class="text-sm text-destructive">{{ tolakError }}</p>
         </UiField>
-        <UiDialogFooter class="gap-2">
+        <p v-if="tolakGalatServer" role="alert" class="rounded-md border border-destructive/30 p-3 text-sm text-destructive">{{ tolakGalatServer }}</p>
+        <UiDialogFooter>
           <UiButton variant="outline" :disabled="rejecting !== null" @click="tolakTarget = null">Batal</UiButton>
-          <UiButton variant="destructive" :disabled="rejecting !== null" @click="tolak">{{ rejecting ? "Memproses…" : "Tolak pengajuan" }}</UiButton>
+          <UiButton variant="destructive" :disabled="rejecting !== null || !alasanTolak.trim()" @click="tolak">{{ rejecting ? "Memproses…" : "Tolak pengajuan" }}</UiButton>
         </UiDialogFooter>
       </UiDialogContent>
     </UiDialog>

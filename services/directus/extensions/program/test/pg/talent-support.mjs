@@ -31,9 +31,10 @@ export async function siapkanTalent(db) {
 }
 
 /** Pengajuan langsung di tabel; `skor` mengisi kolom skor dan status `dinilai`/`disetujui`. */
-export async function buatPengajuan(db, { usahaId, status = "draft", skor = null } = {}) {
+export async function buatPengajuan(db, { usahaId, status = "draft", skor = null, kapasitas = null, satuan = null, dateCreated = null, catatan = null } = {}) {
   const id = uuid();
-  const row = { id, usaha: usahaId, status };
+  const row = { id, usaha: usahaId, status, kapasitas_produksi: kapasitas, satuan, catatan };
+  if (dateCreated) row.date_created = dateCreated;
   if (skor) {
     Object.assign(row, {
       skor_finansial: skor.finansial,

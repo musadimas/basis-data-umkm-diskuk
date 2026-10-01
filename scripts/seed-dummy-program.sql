@@ -148,7 +148,8 @@ SELECT gen_random_uuid(), v.nomor, (SELECT hari_ini FROM dm_hari) - v.umur, (SEL
 -- 1–6 disetujui (BA 0001: 1–3, BA 0002: 4–6), 7–12 dinilai, 13–15 draft, 16–18 ditolak.
 INSERT INTO talent_pengajuan (usaha, diajukan_oleh, kapasitas_produksi, satuan, kesiapan_legalitas, literasi_qris,
                               literasi_pembukuan_digital, skor_finansial, skor_pasar, skor_legalitas, skor_sdm, skor_total,
-                              rubrik_versi, dinilai_at, status, catatan, berita_acara, date_created, date_updated)
+                              rubrik_versi, dinilai_at, status, catatan, berita_acara, date_created, date_updated,
+                              alasan_tolak, ditolak_at)
 SELECT d.usaha, (SELECT admin FROM dm_akun), 200 + d.n * 35, (ARRAY['pcs', 'kg', 'lusin'])[d.n % 3 + 1],
        jsonb_build_object('halal', (ARRAY['terbit', 'dalam_proses', 'belum'])[d.n % 3 + 1], 'pirt', (ARRAY['belum', 'terbit'])[d.n % 2 + 1]),
        d.n % 3 <> 0, d.n % 2 = 0,
@@ -156,10 +157,12 @@ SELECT d.usaha, (SELECT admin FROM dm_akun), 200 + d.n * 35, (ARRAY['pcs', 'kg',
        CASE WHEN d.n BETWEEN 13 AND 15 THEN NULL ELSE 'placeholder-v0' END,
        CASE WHEN d.n BETWEEN 13 AND 15 THEN NULL ELSE now() - make_interval(days => 45 - d.n) END,
        CASE WHEN d.n <= 6 THEN 'disetujui' WHEN d.n <= 12 THEN 'dinilai' WHEN d.n <= 15 THEN 'draft' ELSE 'ditolak' END,
-       CASE WHEN d.n > 15 THEN 'dummy_Kapasitas produksi belum stabil; ajukan kembali batch berikutnya' END,
+       NULL,
        CASE WHEN d.n <= 3 THEN (SELECT id FROM talent_berita_acara WHERE nomor = 'dummy_BA-TS/2026/0001')
             WHEN d.n <= 6 THEN (SELECT id FROM talent_berita_acara WHERE nomor = 'dummy_BA-TS/2026/0002') END,
-       now() - make_interval(days => 60 - d.n), now() - make_interval(days => 30 - d.n)
+       now() - make_interval(days => 60 - d.n), now() - make_interval(days => 30 - d.n),
+       CASE WHEN d.n > 15 THEN 'dummy_Kapasitas produksi belum stabil; ajukan kembali batch berikutnya' END,
+       CASE WHEN d.n > 15 THEN now() - make_interval(days => 30 - d.n) END
   FROM dm_usaha d
   CROSS JOIN LATERAL (
     SELECT CASE WHEN d.n BETWEEN 13 AND 15 THEN NULL ELSE LEAST(100, 55 + (d.n * 13) % 30 + CASE WHEN d.n <= 6 THEN 15 WHEN d.n > 15 THEN -20 ELSE 0 END) END::numeric AS f,

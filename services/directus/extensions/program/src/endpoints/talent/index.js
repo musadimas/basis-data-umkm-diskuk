@@ -6,6 +6,7 @@ import {
   readUsaha,
   rejectPengajuan,
   scorePengajuan,
+  submitPengajuan,
   updatePengajuan,
 } from "./service.js";
 import cakupan from "../../../../../analytics-shared/cakupan.cjs";
@@ -17,14 +18,15 @@ const { terjaga } = cakupan;
 //   GET   /v1/program/talent/pengajuan?status=         submissions for the curation panel
 //   POST  /v1/program/talent/pengajuan                 open a submission
 //   PATCH /v1/program/talent/pengajuan/:id             edit an open submission (clears its score)
-//   POST  /v1/program/talent/pengajuan/:id/hitung-skor score on the server
-//   POST  /v1/program/talent/pengajuan/:id/tolak       reject
+//   POST  /v1/program/talent/pengajuan/:id/hitung-skor score a draft on the server (status stays draft)
+//   POST  /v1/program/talent/pengajuan/:id/ajukan       submit a scored draft to curation
+//   POST  /v1/program/talent/pengajuan/:id/tolak       reject a submitted application (provinsi, reason required)
 //   GET   /v1/program/talent/berita-acara              issued Berita Acara
 //   POST  /v1/program/talent/berita-acara              approve scored submissions into the talent pool
-// Kandidat 01: gate peran di adapter (kelola = provinsi/kabkota, BA = provinsi
+// Kandidat 01: gate peran di adapter (kelola = provinsi/kabkota, BA & tolak = provinsi
 // saja); scope usaha di service via pastikanUsaha (404 seragam, K1).
 const KELOLA = { peran: ["provinsi", "kabkota"] };
-const TERBIT_BA = { peran: ["provinsi"] };
+const KEPUTUSAN = { peran: ["provinsi"] };
 
 export default (router, context) => {
   router.get("/usaha/:usahaId", terjaga(KELOLA, readUsaha)(context));
@@ -32,7 +34,8 @@ export default (router, context) => {
   router.post("/pengajuan", terjaga(KELOLA, createPengajuan)(context));
   router.patch("/pengajuan/:id", terjaga(KELOLA, updatePengajuan)(context));
   router.post("/pengajuan/:id/hitung-skor", terjaga(KELOLA, scorePengajuan)(context));
-  router.post("/pengajuan/:id/tolak", terjaga(KELOLA, rejectPengajuan)(context));
+  router.post("/pengajuan/:id/ajukan", terjaga(KELOLA, submitPengajuan)(context));
+  router.post("/pengajuan/:id/tolak", terjaga(KEPUTUSAN, rejectPengajuan)(context));
   router.get("/berita-acara", terjaga(KELOLA, listBeritaAcara)(context));
-  router.post("/berita-acara", terjaga(TERBIT_BA, createBeritaAcara)(context));
+  router.post("/berita-acara", terjaga(KEPUTUSAN, createBeritaAcara)(context));
 };
