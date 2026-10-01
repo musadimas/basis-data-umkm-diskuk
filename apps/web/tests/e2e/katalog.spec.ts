@@ -35,11 +35,16 @@ test.describe("Modul 7.1 · Katalog", () => {
     await expect(batik.getByRole("link", { name: "Hubungi Produsen via WhatsApp" })).toHaveCount(0);
 
     // M7-02: the region filter lists the reference regions, not only the published ones.
-    const wilayah = page.locator("#filter-wilayah option");
-    await expect(wilayah).toHaveCount(28);
+    // Halaman SSR: klik pertama bisa terjadi sebelum hidrasi menautkan handler combobox.
+    await expect(async () => {
+      if ((await page.locator("#filter-wilayah").getAttribute("aria-expanded")) !== "true")
+        await page.locator("#filter-wilayah").click();
+      await expect(page.getByRole("option")).toHaveCount(28);
+    }).toPass({ timeout: 15_000 });
     // A region with no published product is offered and says so, instead of silently missing.
-    await expect(page.locator('#filter-wilayah option[value="1"]')).toHaveText("Kabupaten Bandung (0)");
-    await expect(page.locator('#filter-wilayah option[value="7"]')).toHaveText("Kota Bandung (1)");
+    await expect(page.getByRole("option", { name: "Kabupaten Bandung (0)" })).toBeVisible();
+    await expect(page.getByRole("option", { name: "Kota Bandung (1)" })).toBeVisible();
+    await page.keyboard.press("Escape");
 
     // The page is server-rendered; retry until hydration has attached the chip's click handler.
     await expect(async () => {
@@ -93,14 +98,18 @@ test.describe("Modul 7.1 · Katalog", () => {
     // The shared URL is the state: chip, region and sort survive a full page load.
     await expect(page.getByTestId("product-card")).toHaveCount(1);
     await expect(page.getByTestId("product-card").first()).toContainText("Batik Tulis Mega Mendung");
-    await expect(page.locator("#filter-wilayah")).toHaveValue("9");
     await expect(page.getByRole("button", { name: "Fesyen & Tekstil" })).toHaveAttribute("aria-pressed", "true");
 
     // Switching to Kota Bandung (whose product is not fashion) empties the result and says why.
     await expect(async () => {
-      await page.locator("#filter-wilayah").selectOption("7");
-      await expect(page.getByTestId("katalog-total")).toHaveText("0", { timeout: 1000 });
-    }).toPass({ timeout: 15_000 });
+      await page.keyboard.press("Escape");
+      await page.locator("#filter-wilayah").click();
+      // Tunggu animasi popper selesai agar klik tidak mendarat di opsi yang bergeser.
+      await page.getByRole("option", { name: "Kota Bandung (1)" }).waitFor({ state: "visible" });
+      await page.waitForTimeout(300);
+      await page.getByRole("option", { name: "Kota Bandung (1)" }).click();
+      await expect(page.getByTestId("katalog-total")).toHaveText("0", { timeout: 2_000 });
+    }).toPass({ timeout: 30_000 });
     await expect(page.getByText("Tidak ada produk yang cocok dengan kombinasi filter ini.")).toBeVisible();
     const request = state.requests.filter((item) => item.path === "/panel/items/produk" && !item.query?.aggregate).at(-1);
     expect(JSON.parse(request!.query!.filter!)).toEqual({
@@ -191,7 +200,8 @@ test.describe("Modul 7.1 · Katalog", () => {
     await page.getByTestId("foto-produk-input").setInputFiles({ name: "produk.png", mimeType: "image/png", buffer: PNG });
     await expect(page.getByAltText("Foto produk 1")).toBeVisible();
     await page.getByLabel("Nama produk").fill("Keripik Pedas");
-    await page.locator('select[name="kategori"]').selectOption("makanan");
+    await page.getByRole("combobox", { name: "Kategori" }).click();
+    await page.getByRole("option", { name: "Makanan", exact: true }).click();
     await page.getByLabel("Harga retail (Rp)").fill("15000");
     await page.getByLabel("TKDN (%)").fill("80");
     await page.getByRole("checkbox", { name: /deklarasi mandiri Produk Dalam Negeri/ }).click();

@@ -67,19 +67,18 @@ function submit() {
 
         <label class="mt-3 block text-sm font-medium" for="export-format">
           Format
-          <select
-            id="export-format"
-            v-model="type"
-            class="mt-1 h-10 w-full rounded-md border px-3"
-          >
-            <option
-              v-for="item in EXPORT_TYPES"
-              :key="item.value"
-              :value="item.value"
-            >
-              {{ item.label }}
-            </option>
-          </select>
+          <UiSelect v-model="type">
+            <UiSelectTrigger id="export-format" class="mt-1 h-10 w-full"><UiSelectValue /></UiSelectTrigger>
+            <UiSelectContent>
+              <UiSelectItem
+                v-for="item in EXPORT_TYPES"
+                :key="item.value"
+                :value="item.value"
+              >
+                {{ item.label }}
+              </UiSelectItem>
+            </UiSelectContent>
+          </UiSelect>
         </label>
 
         <dl
@@ -139,20 +138,19 @@ function submit() {
         </p>
 
         <div class="mt-4 flex justify-end gap-2">
-          <button
+          <UiButton
             type="button"
-            class="rounded-md border px-3 py-2"
+            variant="outline"
             @click="emit('update:modelValue', false)"
           >
             Tutup
-          </button>
-          <button
+          </UiButton>
+          <UiButton
             type="submit"
-            class="rounded-md bg-emerald-600 px-3 py-2 font-semibold text-white"
             :disabled="busy"
           >
             {{ busy ? "Menyiapkan…" : "Mulai ekspor" }}
-          </button>
+          </UiButton>
         </div>
       </form>
     </UiDialogContent>

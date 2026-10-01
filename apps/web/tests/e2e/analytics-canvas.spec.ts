@@ -18,9 +18,8 @@ test.describe("canvas analitik", () => {
       page.getByRole("listitem").filter({ hasText: "Kabupaten Bogor" }),
     ).toBeVisible();
     const initial = queryRequests.length;
-    await page
-      .getByLabel("Kelompokkan menurut")
-      .selectOption("skala_dilaporkan");
+    await page.getByLabel("Kelompokkan menurut").click();
+    await page.getByRole("option", { name: "Skala" }).click();
     expect(queryRequests.length).toBe(initial);
     await page.getByRole("button", { name: "Terapkan" }).click();
     await expect.poll(() => queryRequests.length).toBeGreaterThan(initial);
@@ -49,9 +48,8 @@ test.describe("canvas analitik", () => {
   }) => {
     await installMockDirectus(page, { authenticated: true });
     await loginMock(page, "/dashboard/analitik");
-    await page
-      .getByLabel("Metrik", { exact: true })
-      .selectOption("omzet_tahunan");
+    await page.getByLabel("Metrik", { exact: true }).click();
+    await page.getByRole("option", { name: "Total omzet tahunan dilaporkan" }).click();
     await page.getByRole("button", { name: "Terapkan" }).click();
     await expect(page.getByLabel("Ringkasan metrik")).toContainText("Rp");
     await expect(page.getByLabel("Ringkasan metrik")).toContainText(
@@ -107,14 +105,15 @@ test.describe("canvas analitik", () => {
     await installMockDirectus(page, { authenticated: true });
     await loginMock(page, "/dashboard/analitik");
     const group = page.getByLabel("Kelompokkan menurut");
-    await group.selectOption("skala_dilaporkan");
+    await group.click();
+    await page.getByRole("option", { name: "Skala" }).click();
     await page.getByRole("button", { name: "Terapkan" }).click();
     await expect
       .poll(() => new URL(page.url()).search)
       .toContain("skala_dilaporkan");
     await page.goBack();
-    await expect(group).toHaveValue("kota_nama");
+    await expect(group).toContainText("Kabupaten/kota");
     await page.goForward();
-    await expect(group).toHaveValue("skala_dilaporkan");
+    await expect(group).toContainText("Skala");
   });
 });

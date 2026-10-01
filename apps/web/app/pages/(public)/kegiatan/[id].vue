@@ -226,15 +226,15 @@ const STATUS_PENDAFTARAN_LABEL = new Map(Object.entries({
               </dl>
 
               <label class="flex items-start gap-2 text-sm">
-                <input v-model="butuhDisabilitas" type="checkbox" class="mt-1" data-testid="input-disabilitas">
+                <UiCheckbox v-model="butuhDisabilitas" class="mt-1" data-testid="input-disabilitas" />
                 <span>Saya penyandang disabilitas / butuh dukungan aksesibilitas</span>
               </label>
               <div v-if="butuhDisabilitas" class="space-y-1">
                 <label class="text-sm font-medium" for="kebutuhan-aksesibilitas">Kebutuhan aksesibilitas <span class="text-destructive">*</span></label>
-                <textarea
+                <UiTextarea
                   id="kebutuhan-aksesibilitas"
                   v-model="kebutuhanAksesibilitas"
-                  class="min-h-20 w-full rounded-md border bg-transparent px-3 py-2 text-sm"
+                  class="min-h-20"
                   maxlength="500"
                   placeholder="Contoh: jalur kursi roda, penerjemah bahasa isyarat, materi braile…"
                   data-testid="input-aksesibilitas"
@@ -242,12 +242,12 @@ const STATUS_PENDAFTARAN_LABEL = new Map(Object.entries({
               </div>
 
               <label v-if="kegiatan.butuhPaktaIntegritas" class="flex items-start gap-2 text-sm">
-                <input v-model="paktaIntegritas" type="checkbox" class="mt-1" data-testid="input-pakta">
+                <UiCheckbox v-model="paktaIntegritas" class="mt-1" data-testid="input-pakta" />
                 <span>Pakta integritas: saya bukan ASN/TNI/Polri dan data yang saya ajukan benar. <span class="text-destructive">*</span></span>
               </label>
 
               <label class="flex items-start gap-2 text-sm">
-                <input v-model="consent" type="checkbox" class="mt-1" data-testid="input-consent">
+                <UiCheckbox v-model="consent" class="mt-1" data-testid="input-consent" />
                 <span>Saya menyetujui data pendaftaran diproses untuk seleksi peserta kegiatan. <span class="text-destructive">*</span></span>
               </label>
 

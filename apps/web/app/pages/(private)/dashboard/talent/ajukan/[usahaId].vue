@@ -238,13 +238,15 @@ const rupiah = (value: number | null) => (value === null ? "Belum tersedia" : fo
                   <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                     <label v-for="jenis in JENIS_LEGALITAS" :key="jenis.value" class="grid gap-1 text-sm">
                       <span>{{ jenis.label }}</span>
-                      <select
+                      <UiSelect
                         v-model="form.kesiapanLegalitas[jenis.value]"
-                        class="h-9 rounded-md border border-input bg-transparent px-2 text-sm"
                         :name="`kesiapan-${jenis.value}`"
                       >
-                        <option v-for="option in KESIAPAN_LEGALITAS" :key="option.value" :value="option.value">{{ option.label }}</option>
-                      </select>
+                        <UiSelectTrigger class="text-sm"><UiSelectValue /></UiSelectTrigger>
+                        <UiSelectContent>
+                          <UiSelectItem v-for="option in KESIAPAN_LEGALITAS" :key="option.value" :value="option.value">{{ option.label }}</UiSelectItem>
+                        </UiSelectContent>
+                      </UiSelect>
                     </label>
                   </div>
                 </fieldset>

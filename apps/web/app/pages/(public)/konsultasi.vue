@@ -242,8 +242,8 @@ const tanggalPanjang = (value: string) => new Intl.DateTimeFormat("id-ID", { dat
 
       <template v-else>
         <div v-if="step === 0" class="mb-6 flex justify-center gap-2" role="group" aria-label="Tampilan klinik">
-          <button type="button" class="rounded-md border px-3 py-1.5 text-sm" :class="tampilan === 'ajukan' ? 'bg-muted font-semibold' : 'hover:bg-muted'" :aria-pressed="tampilan === 'ajukan'" @click="tampilan = 'ajukan'">Ajukan konsultasi</button>
-          <button type="button" class="rounded-md border px-3 py-1.5 text-sm" :class="tampilan === 'lacak' ? 'bg-muted font-semibold' : 'hover:bg-muted'" :aria-pressed="tampilan === 'lacak'" @click="tampilan = 'lacak'">Lacak tiket</button>
+          <UiToggleChip :pressed="tampilan === 'ajukan'" variant="muted" class="rounded-md px-3 py-1.5 text-sm" @toggle="tampilan = 'ajukan'">Ajukan konsultasi</UiToggleChip>
+          <UiToggleChip :pressed="tampilan === 'lacak'" variant="muted" class="rounded-md px-3 py-1.5 text-sm" @toggle="tampilan = 'lacak'">Lacak tiket</UiToggleChip>
         </div>
 
         <KlinikLacakTiket v-if="tampilan === 'lacak'" />

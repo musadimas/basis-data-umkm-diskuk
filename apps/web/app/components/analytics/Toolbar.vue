@@ -34,15 +34,16 @@ const statusLabel = computed(() =>
   <header class="flex shrink-0 flex-col gap-1.5 border-b border-border pb-1.5">
     <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5">
       <div class="flex min-w-0 items-center gap-2">
-        <button
+        <UiButton
           type="button"
-          class="hidden size-7 shrink-0 items-center justify-center rounded-md border text-xs font-bold lg:inline-flex"
+          variant="outline"
+          class="hidden size-7 shrink-0 items-center justify-center p-0 text-xs font-bold lg:inline-flex"
           :aria-expanded="railOpen"
           :aria-label="railOpen ? 'Sembunyikan panel kontrol' : 'Tampilkan panel kontrol'"
           @click="emit('toggleRail')"
         >
           {{ railOpen ? "‹" : "›" }}
-        </button>
+        </UiButton>
         <h1 class="truncate text-base font-bold tracking-tight">Kanvas analitik</h1>
         <span class="shrink-0 rounded-full border px-2 py-0.5 text-[11px] text-muted-foreground">{{ statusLabel }}</span>
         <span class="truncate text-[11px] text-muted-foreground">Data per {{ formatAnalyticsWib(meta?.dataAsOf) }}</span>
@@ -55,11 +56,11 @@ const statusLabel = computed(() =>
 
       <div class="ml-auto flex items-center gap-2">
         <AnalyticsTemplatePicker :templates="templates" :model-value="config" @select="emit('template', $event)" />
-        <button type="button" class="h-8 rounded-md border px-2.5 text-xs font-semibold" @click="emit('saved')">
+        <UiButton type="button" variant="outline" size="sm" class="text-xs" @click="emit('saved')">
           Analisis tersimpan<span v-if="savedCount" class="ml-1 rounded-full bg-muted px-1.5">{{ savedCount }}</span>
-        </button>
-        <button type="button" class="h-8 rounded-md border px-2.5 text-xs font-semibold" @click="emit('save')">Simpan analisis</button>
-        <button type="button" class="h-8 rounded-md border px-2.5 text-xs font-semibold" @click="emit('export')">Ekspor</button>
+        </UiButton>
+        <UiButton type="button" variant="outline" size="sm" class="text-xs" @click="emit('save')">Simpan analisis</UiButton>
+        <UiButton type="button" variant="outline" size="sm" class="text-xs" @click="emit('export')">Ekspor</UiButton>
       </div>
     </div>
 

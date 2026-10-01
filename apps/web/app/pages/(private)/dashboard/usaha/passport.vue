@@ -230,7 +230,7 @@ const tanggal = (value: string) => new Intl.DateTimeFormat("id-ID", { dateStyle:
               <img v-if="qr" :src="qr" :alt="`QR verifikasi ${passport.kode}`" class="size-36 rounded-lg bg-white p-2">
               <div v-if="qr" class="flex gap-3 text-xs font-semibold underline">
                 <a :href="qr" :download="`talent-passport-${passport.kode}.png`" class="inline-flex items-center gap-1"><Download class="size-3" /> Unduh QR (PNG)</a>
-                <button type="button" data-testid="unduh-qr-pdf" class="inline-flex items-center gap-1" @click="unduhPdf"><FileDown class="size-3" /> Unduh QR (PDF)</button>
+                <UiButton type="button" variant="link" class="h-auto gap-1 p-0 text-xs font-semibold text-white" data-testid="unduh-qr-pdf" @click="unduhPdf"><FileDown class="size-3" /> Unduh QR (PDF)</UiButton>
               </div>
             </div>
           </div>

@@ -145,7 +145,9 @@ test.describe("Y09 · Klinik publik dan panel petugas", () => {
     await page.getByRole("button", { name: "Warung Bu Siti" }).click();
     // Only the stage it may move to is offered, never a jump over the flow.
     const status = page.getByTestId("pilih-status");
-    await expect(status.locator("option")).toHaveText(["Tiket Masuk", "Jadwal Ditetapkan", "Dibatalkan"]);
+    await status.click();
+    await expect(page.getByRole("option")).toHaveText(["Tiket Masuk", "Jadwal Ditetapkan", "Dibatalkan"]);
+    await page.keyboard.press("Escape");
     await page.getByRole("button", { name: "Ambil tiket ini" }).click();
     await expect(page.getByText("Pendamping: Analis Provinsi")).toBeVisible();
 

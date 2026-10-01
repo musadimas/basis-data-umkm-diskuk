@@ -192,9 +192,7 @@ const cascadeHint = computed(() => {
     : "Tips: pilih nilai induknya dulu agar daftar lebih pendek.";
 });
 
-function patch(event: Event, key: keyof AnalysisConfig) {
-  // SAFETY: patch() hanya dipasang pada handler @change elemen <select>, sehingga event.target pasti HTMLSelectElement.
-  const value = (event.target as HTMLSelectElement).value;
+function patch(value: string, key: keyof AnalysisConfig) {
   // SAFETY: key berasal dari keyof AnalysisConfig dan nilai select selalu string, sehingga objek ini cocok dengan Partial<AnalysisConfig>.
   emit("update", { [key]: value } as Partial<AnalysisConfig>);
 }
@@ -247,132 +245,131 @@ function addFilter() {
         class="flex flex-col gap-0.5 text-[11px] font-semibold text-muted-foreground"
       >
         Metrik
-        <select
-          aria-label="Metrik"
-          class="h-8 w-full rounded-md border bg-background px-2 text-sm font-normal text-foreground"
-          :value="modelValue.metric"
-          @change="patch($event, 'metric')"
+        <UiSelect
+          :model-value="modelValue.metric"
+          @update:model-value="patch($event as string, 'metric')"
         >
-          <option value="jumlah_umkm">Jumlah UMKM</option>
-          <option
-            v-for="field in metrics.filter(
-              (item) => item.key !== 'jumlah_umkm',
-            )"
-            :key="field.key"
-            :value="field.key"
-          >
-            {{ field.label }}
-          </option>
-        </select>
+          <UiSelectTrigger aria-label="Metrik" class="h-8 w-full text-sm font-normal text-foreground"><UiSelectValue /></UiSelectTrigger>
+          <UiSelectContent>
+            <UiSelectItem value="jumlah_umkm">Jumlah UMKM</UiSelectItem>
+            <UiSelectItem
+              v-for="field in metrics.filter(
+                (item) => item.key !== 'jumlah_umkm',
+              )"
+              :key="field.key"
+              :value="field.key"
+            >
+              {{ field.label }}
+            </UiSelectItem>
+          </UiSelectContent>
+        </UiSelect>
       </label>
 
       <label
         class="flex flex-col gap-0.5 text-[11px] font-semibold text-muted-foreground"
       >
         Kelompokkan menurut
-        <select
-          aria-label="Kelompokkan menurut"
-          class="h-8 w-full rounded-md border bg-background px-2 text-sm font-normal text-foreground"
-          :value="modelValue.groupBy"
-          @change="patch($event, 'groupBy')"
+        <UiSelect
+          :model-value="modelValue.groupBy"
+          @update:model-value="patch($event as string, 'groupBy')"
         >
-          <optgroup
-            v-for="group in dimensionGroups"
-            :key="group.key"
-            :label="group.label"
-          >
-            <option
-              v-for="field in group.fields"
-              :key="field.key"
-              :value="field.key"
+          <UiSelectTrigger aria-label="Kelompokkan menurut" class="h-8 w-full text-sm font-normal text-foreground"><UiSelectValue /></UiSelectTrigger>
+          <UiSelectContent>
+            <UiSelectGroup
+              v-for="group in dimensionGroups"
+              :key="group.key"
             >
-              {{ field.label }}
-            </option>
-          </optgroup>
-        </select>
+              <UiSelectLabel>{{ group.label }}</UiSelectLabel>
+              <UiSelectItem
+                v-for="field in group.fields"
+                :key="field.key"
+                :value="field.key"
+              >
+                {{ field.label }}
+              </UiSelectItem>
+            </UiSelectGroup>
+          </UiSelectContent>
+        </UiSelect>
       </label>
 
       <label
         class="flex flex-col gap-0.5 text-[11px] font-semibold text-muted-foreground"
       >
         Breakdown opsional
-        <select
-          aria-label="Breakdown opsional"
-          class="h-8 w-full rounded-md border bg-background px-2 text-sm font-normal text-foreground"
-          :value="modelValue.breakdown || ''"
-          @change="patch($event, 'breakdown')"
+        <UiSelect
+          :model-value="modelValue.breakdown || ''"
+          @update:model-value="patch($event as string, 'breakdown')"
         >
-          <option value="">Tidak ada</option>
-          <optgroup
-            v-for="group in dimensionGroups"
-            :key="group.key"
-            :label="group.label"
-          >
-            <option
-              v-for="field in group.fields"
-              :key="field.key"
-              :value="field.key"
-              :disabled="field.key === modelValue.groupBy"
+          <UiSelectTrigger aria-label="Breakdown opsional" class="h-8 w-full text-sm font-normal text-foreground"><UiSelectValue placeholder="Tidak ada" /></UiSelectTrigger>
+          <UiSelectContent>
+            <UiSelectItem value="">Tidak ada</UiSelectItem>
+            <UiSelectGroup
+              v-for="group in dimensionGroups"
+              :key="group.key"
             >
-              {{ field.label }}
-            </option>
-          </optgroup>
-        </select>
+              <UiSelectLabel>{{ group.label }}</UiSelectLabel>
+              <UiSelectItem
+                v-for="field in group.fields"
+                :key="field.key"
+                :value="field.key"
+                :disabled="field.key === modelValue.groupBy"
+              >
+                {{ field.label }}
+              </UiSelectItem>
+            </UiSelectGroup>
+          </UiSelectContent>
+        </UiSelect>
       </label>
 
       <label
         class="flex flex-col gap-0.5 text-[11px] font-semibold text-muted-foreground"
       >
         Urutan baris
-        <select
-          aria-label="Urutan baris"
-          class="h-8 w-full rounded-md border bg-background px-2 text-sm font-normal text-foreground"
-          :value="modelValue.sort || 'nama'"
-          @change="patch($event, 'sort')"
+        <UiSelect
+          :model-value="modelValue.sort || 'nama'"
+          @update:model-value="patch($event as string, 'sort')"
         >
-          <option value="nama">Nama usaha</option>
-          <option value="id">Identitas baris</option>
-        </select>
+          <UiSelectTrigger aria-label="Urutan baris" class="h-8 w-full text-sm font-normal text-foreground"><UiSelectValue /></UiSelectTrigger>
+          <UiSelectContent>
+            <UiSelectItem value="nama">Nama usaha</UiSelectItem>
+            <UiSelectItem value="id">Identitas baris</UiSelectItem>
+          </UiSelectContent>
+        </UiSelect>
       </label>
 
       <label
         class="flex items-center gap-2 text-[11px] font-semibold text-muted-foreground"
       >
-        <input
-          type="checkbox"
-          class="size-3.5 rounded border"
-          :checked="modelValue.includeOthers !== false"
-          @change="
+        <UiCheckbox
+          :model-value="modelValue.includeOthers !== false"
+          @update:model-value="
             emit('update', {
-              includeOthers: ($event.target as HTMLInputElement).checked,
+              includeOthers: $event === true,
             })
           "
-        >
+        />
         Gabungkan sisanya sebagai “Lainnya”
       </label>
 
       <fieldset class="rounded-md border p-2">
         <legend class="px-1 text-[11px] font-semibold">Tambah filter</legend>
         <div class="flex flex-col gap-1.5">
-          <select
-            id="analytics-filter-field"
-            v-model="filterField"
-            class="h-8 min-w-0 rounded-md border bg-background px-2 text-sm"
-            aria-label="Field filter"
-          >
-            <option value="">Pilih field</option>
-            <option
-              v-for="field in fields.filter(
-                (item) =>
-                  item.status === 'active' &&
-                  (item.role === 'filter' || item.role === 'dimension'),
-              )"
-              :key="field.key"
-              :value="field.key"
-            >
-              {{ field.label }}
-            </option>
-          </select>
+          <UiSelect v-model="filterField">
+            <UiSelectTrigger id="analytics-filter-field" aria-label="Field filter" class="min-w-0 text-sm"><UiSelectValue placeholder="Pilih field" /></UiSelectTrigger>
+            <UiSelectContent>
+              <UiSelectItem
+                v-for="field in fields.filter(
+                  (item) =>
+                    item.status === 'active' &&
+                    (item.role === 'filter' || item.role === 'dimension'),
+                )"
+                :key="field.key"
+                :value="field.key"
+              >
+                {{ field.label }}
+              </UiSelectItem>
+            </UiSelectContent>
+          </UiSelect>
 
           <template v-if="selectedField">
             <div
@@ -383,63 +380,58 @@ function addFilter() {
                   : 'grid-cols-1'
               "
             >
-              <select
+              <UiSelect
                 v-if="operatorChoices.length > 1"
                 v-model="filterOperator"
-                class="h-8 rounded-md border bg-background px-1 text-xs"
-                aria-label="Operator filter"
               >
-                <option
-                  v-for="choice in operatorChoices"
-                  :key="choice"
-                  :value="choice"
-                >
-                  {{ operatorLabels[choice] ?? choice }}
-                </option>
-              </select>
+                <UiSelectTrigger aria-label="Operator filter" class="h-8 text-xs"><UiSelectValue /></UiSelectTrigger>
+                <UiSelectContent>
+                  <UiSelectItem
+                    v-for="choice in operatorChoices"
+                    :key="choice"
+                    :value="choice"
+                  >
+                    {{ operatorLabels[choice] ?? choice }}
+                  </UiSelectItem>
+                </UiSelectContent>
+              </UiSelect>
 
               <template v-if="optionList.length || optionPending">
                 <div class="relative min-w-0">
-                  <input
+                  <UiInput
                     v-model="searchDebounce"
                     type="search"
-                    class="h-8 w-full min-w-0 rounded-md border bg-background px-2 pr-12 text-sm"
+                    class="h-8 w-full min-w-0 pr-12 text-sm"
                     :placeholder="`Cari ${selectedField.label.toLowerCase()}…`"
                     aria-label="Cari nilai filter"
-                  >
+                  />
                   <span
                     v-if="optionPending"
                     class="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground"
                     >memuat…</span
                   >
                 </div>
-                <select
-                  v-model="filterValue"
-                  class="h-8 min-w-0 rounded-md border bg-background px-2 text-sm"
-                  aria-label="Nilai filter"
-                >
-                  <option value="">
-                    Pilih nilai{{
-                      optionList.length ? ` (${optionList.length})` : ""
-                    }}
-                  </option>
-                  <option
-                    v-for="option in optionList"
-                    :key="option.id"
-                    :value="option.id"
-                  >
-                    {{ option.label }}
-                  </option>
-                </select>
+                <UiSelect v-model="filterValue">
+                  <UiSelectTrigger aria-label="Nilai filter" class="min-w-0 text-sm"><UiSelectValue placeholder="Pilih nilai" /></UiSelectTrigger>
+                  <UiSelectContent>
+                    <UiSelectItem
+                      v-for="option in optionList"
+                      :key="option.id"
+                      :value="option.id"
+                    >
+                      {{ option.label }}
+                    </UiSelectItem>
+                  </UiSelectContent>
+                </UiSelect>
               </template>
-              <input
+              <UiInput
                 v-else
                 v-model="filterValue"
-                class="h-8 min-w-0 rounded-md border bg-background px-2 text-sm"
+                class="h-8 min-w-0 text-sm"
                 :placeholder="selectedField.label"
                 aria-label="Nilai filter"
                 @keyup.enter="addFilter"
-              >
+              />
             </div>
             <p
               v-if="cascadeHint"
@@ -447,27 +439,29 @@ function addFilter() {
             >
               {{ cascadeHint }}
             </p>
-            <button
+            <UiButton
               type="button"
-              class="h-8 rounded-md border px-3 text-xs font-semibold disabled:opacity-50"
+              variant="outline"
+              class="h-8 px-3 text-xs font-semibold"
               :disabled="!filterValue.trim()"
               @click="addFilter"
             >
               Tambah
-            </button>
+            </UiButton>
           </template>
         </div>
       </fieldset>
     </div>
 
     <div class="flex shrink-0 items-center gap-2 border-t px-2.5 py-2">
-      <button
+      <UiButton
         type="button"
-        class="h-8 flex-1 rounded-md border text-xs font-semibold"
+        variant="outline"
+        class="h-8 flex-1 text-xs font-semibold"
         @click="emit('reset')"
       >
         Reset
-      </button>
+      </UiButton>
       <UiButton
         type="button"
         size="sm"

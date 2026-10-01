@@ -108,14 +108,14 @@ async function submit() {
 
       <AuthCaptcha ref="captcha" />
 
-      <button
+      <UiButton
         type="submit"
         :disabled="auth.pending.value"
         :aria-busy="auth.pending.value"
-        class="mt-1 h-11 w-full rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-xs transition-colors hover:bg-primary/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:pointer-events-none disabled:opacity-50"
+        class="mt-1 h-11 w-full rounded-xl"
       >
         {{ auth.pending.value ? "Memeriksa…" : "Masuk ke Dashboard" }}
-      </button>
+      </UiButton>
     </form>
 
     <div class="mt-5 flex items-start gap-2.5 rounded-xl border border-border/70 bg-muted/30 p-3 text-xs leading-relaxed text-muted-foreground">

@@ -168,10 +168,12 @@ function submit() {
         <UiField class="gap-1 sm:col-span-2"><UiFieldLabel for="produk-nama">Nama produk</UiFieldLabel><UiInput id="produk-nama" v-model="form.nama" maxlength="160" required /></UiField>
         <label class="grid gap-1 text-sm">
           <span class="font-medium">Kategori</span>
-          <select v-model="form.kategori" name="kategori" class="h-9 rounded-md border border-input bg-transparent px-2">
-            <option value="">Pilih kategori</option>
-            <option v-for="item in KATEGORI_PRODUK" :key="item.value" :value="item.value">{{ item.label }}</option>
-          </select>
+          <UiSelect v-model="form.kategori" name="kategori">
+            <UiSelectTrigger><UiSelectValue placeholder="Pilih kategori" /></UiSelectTrigger>
+            <UiSelectContent>
+              <UiSelectItem v-for="item in KATEGORI_PRODUK" :key="item.value" :value="item.value">{{ item.label }}</UiSelectItem>
+            </UiSelectContent>
+          </UiSelect>
         </label>
         <UiField class="gap-1"><UiFieldLabel for="produk-kbli">KBLI (5 digit)</UiFieldLabel><UiInput id="produk-kbli" v-model="form.kbli" inputmode="numeric" maxlength="5" /></UiField>
         <UiField class="gap-1 sm:col-span-2"><UiFieldLabel for="produk-deskripsi">Deskripsi</UiFieldLabel><UiTextarea id="produk-deskripsi" v-model="form.deskripsi" rows="4" maxlength="5000" /></UiField>

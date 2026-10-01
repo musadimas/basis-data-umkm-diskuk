@@ -185,22 +185,21 @@ const tanggal = (value: string) => new Intl.DateTimeFormat("id-ID", { weekday: "
         <p class="mt-1 text-sm text-muted-foreground">Tiket dari formulir publik, diurutkan menurut prioritas dan jadwal.</p>
       </div>
       <div class="flex flex-wrap items-center gap-2">
-        <button
+        <UiToggleChip
           v-if="petugas && jumlahPmse"
-          type="button"
-          class="rounded-md border px-3 py-1.5 text-sm"
-          :class="hanyaPmse ? 'border-red-300 bg-red-100 font-semibold text-red-900' : 'hover:bg-muted'"
-          :aria-pressed="hanyaPmse"
+          :pressed="hanyaPmse"
+          variant="danger"
+          class="px-3 py-1.5 text-sm"
           data-testid="filter-pmse"
-          @click="hanyaPmse = !hanyaPmse"
-        >Aduan PMSE mendesak ({{ jumlahPmse }})</button>
+          @toggle="hanyaPmse = !hanyaPmse"
+        >Aduan PMSE mendesak ({{ jumlahPmse }})</UiToggleChip>
         <label v-if="petugas" class="inline-flex cursor-pointer items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm hover:bg-muted">
-          <input v-model="tampilBatal" type="checkbox" data-testid="toggle-batal" class="size-4 accent-current" >
+          <UiCheckbox v-model="tampilBatal" data-testid="toggle-batal" />
           Tampilkan dibatalkan
         </label>
         <div v-if="petugas" class="flex rounded-md border p-0.5" role="group" aria-label="Tampilan">
-          <button type="button" class="inline-flex items-center gap-1 rounded px-2 py-1 text-sm" :class="view === 'kanban' && 'bg-muted font-semibold'" :aria-pressed="view === 'kanban'" @click="view = 'kanban'"><LayoutGrid class="size-4" /> Kanban</button>
-          <button type="button" class="inline-flex items-center gap-1 rounded px-2 py-1 text-sm" :class="view === 'list' && 'bg-muted font-semibold'" :aria-pressed="view === 'list'" @click="view = 'list'"><List class="size-4" /> Daftar</button>
+          <UiToggleChip :pressed="view === 'kanban'" variant="muted" class="rounded px-2 py-1 text-sm" @toggle="view = 'kanban'"><LayoutGrid class="size-4" /> Kanban</UiToggleChip>
+          <UiToggleChip :pressed="view === 'list'" variant="muted" class="rounded px-2 py-1 text-sm" @toggle="view = 'list'"><List class="size-4" /> Daftar</UiToggleChip>
         </div>
       </div>
     </div>
@@ -287,15 +286,21 @@ const tanggal = (value: string) => new Intl.DateTimeFormat("id-ID", { weekday: "
 
           <div class="grid gap-3 sm:grid-cols-2">
             <label class="grid gap-1"><span class="font-medium">Status</span>
-              <select v-model="draft.status" name="status" class="h-9 rounded-md border border-input bg-transparent px-2" data-testid="pilih-status">
-                <option v-for="status in pilihanStatus" :key="status" :value="status">{{ statusLabel(status) }}</option>
-              </select>
+              <UiSelect v-model="draft.status">
+                <UiSelectTrigger data-testid="pilih-status"><UiSelectValue /></UiSelectTrigger>
+                <UiSelectContent>
+                  <UiSelectItem v-for="status in pilihanStatus" :key="status" :value="status">{{ statusLabel(status) }}</UiSelectItem>
+                </UiSelectContent>
+              </UiSelect>
               <span class="text-xs text-muted-foreground">Tiket hanya bisa maju satu tahap; tahap berikutnya: {{ pilihanStatus.filter((status) => status !== draft.status).map(statusLabel).join(", ") || "tidak ada" }}.</span>
             </label>
             <label class="grid gap-1"><span class="font-medium">Prioritas</span>
-              <select v-model="draft.prioritas" name="prioritas" class="h-9 rounded-md border border-input bg-transparent px-2">
-                <option v-for="(meta, key) in KLINIK_PRIORITAS" :key="key" :value="key">{{ meta.label }}</option>
-              </select>
+              <UiSelect v-model="draft.prioritas">
+                <UiSelectTrigger><UiSelectValue /></UiSelectTrigger>
+                <UiSelectContent>
+                  <UiSelectItem v-for="(meta, key) in KLINIK_PRIORITAS" :key="key" :value="key">{{ meta.label }}</UiSelectItem>
+                </UiSelectContent>
+              </UiSelect>
             </label>
           </div>
 
@@ -319,15 +324,13 @@ const tanggal = (value: string) => new Intl.DateTimeFormat("id-ID", { weekday: "
           <div class="grid gap-2">
             <span class="font-bold">Rujukan</span>
             <div class="flex flex-wrap gap-2">
-              <button
+              <UiToggleChip
                 v-for="item in KLINIK_RUJUKAN"
                 :key="item.value"
-                type="button"
-                :aria-pressed="draft.rujukan.includes(item.value)"
-                class="rounded-full border px-3 py-1.5 text-xs font-medium"
-                :class="draft.rujukan.includes(item.value) ? 'border-primary bg-primary text-primary-foreground' : 'hover:bg-muted'"
-                @click="toggleRujukan(item.value)"
-              >{{ item.label }}</button>
+                :pressed="draft.rujukan.includes(item.value)"
+                class="px-3 py-1.5 text-xs"
+                @toggle="toggleRujukan(item.value)"
+              >{{ item.label }}</UiToggleChip>
             </div>
           </div>
           <UiField class="gap-1"><UiFieldLabel for="catatan-klinik">Catatan internal</UiFieldLabel><UiTextarea id="catatan-klinik" v-model="draft.catatan" rows="2" maxlength="5000" /></UiField>

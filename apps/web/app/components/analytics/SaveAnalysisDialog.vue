@@ -34,33 +34,32 @@ function submit() {
       <form @submit.prevent="submit">
         <label class="block text-sm font-medium" for="save-analysis-name">
           Nama analisis
-          <input
+          <UiInput
             id="save-analysis-name"
             v-model="name"
             required
             maxlength="120"
-            class="mt-1 h-10 w-full rounded-md border px-3"
-          >
+            class="mt-1 h-10 w-full"
+          />
         </label>
         <p class="mt-2 text-xs text-muted-foreground">
           Hasil tidak dibekukan; saat dibuka, analisis dijalankan terhadap data
           saat ini.
         </p>
         <div class="mt-4 flex justify-end gap-2">
-          <button
+          <UiButton
             type="button"
-            class="rounded-md border px-3 py-2"
+            variant="outline"
             @click="emit('update:modelValue', false)"
           >
             Batal
-          </button>
-          <button
+          </UiButton>
+          <UiButton
             type="submit"
-            class="rounded-md bg-emerald-600 px-3 py-2 font-semibold text-white"
             :disabled="busy"
           >
             Simpan
-          </button>
+          </UiButton>
         </div>
       </form>
     </UiDialogContent>

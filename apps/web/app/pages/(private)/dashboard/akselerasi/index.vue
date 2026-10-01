@@ -58,7 +58,7 @@ const colors = ["#64748b", "#16a34a"];
       <UiCard><UiCardHeader><UiCardTitle>Peta risiko penurunan omzet</UiCardTitle></UiCardHeader>
         <UiCardContent><p class="mb-3 text-sm">Dua pekan terakhir masing-masing ≤70% dari baseline mingguan SIDT. Pekan hilang memutus rangkaian.</p>
           <ClientOnly><OperasionalAtRiskMap :items="data.atRisk" /></ClientOnly>
-          <button type="button" class="mt-4 rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground" :disabled="updating" @click="recompute">Buat tugas pendamping</button>
+          <UiButton type="button" class="mt-4" :disabled="updating" @click="recompute">Buat tugas pendamping</UiButton>
           <p v-if="updateMessage" role="status" class="mt-2 text-sm">{{ updateMessage }}</p>
         </UiCardContent></UiCard>
     </template>

@@ -187,9 +187,12 @@ async function pindai() {
         <div class="flex flex-wrap items-end gap-3">
           <label class="text-sm">
             <span class="mb-1 block font-medium">Kegiatan pendaftaran internal</span>
-            <select v-model="kegiatanTerpilih" class="h-9 min-w-64 rounded-md border bg-transparent px-2 text-sm" data-testid="pilih-kegiatan">
-              <option v-for="item in opsiKegiatan" :key="item.id" :value="item.id">{{ item.judul }}</option>
-            </select>
+            <UiSelect v-model="kegiatanTerpilih">
+              <UiSelectTrigger class="min-w-64" data-testid="pilih-kegiatan"><UiSelectValue placeholder="Pilih kegiatan" /></UiSelectTrigger>
+              <UiSelectContent>
+                <UiSelectItem v-for="item in opsiKegiatan" :key="item.id" :value="item.id">{{ item.judul }}</UiSelectItem>
+              </UiSelectContent>
+            </UiSelect>
           </label>
           <UiButton type="button" variant="outline" :disabled="!kegiatanTerpilih" data-testid="tombol-xlsx" @click="unduhXlsx">
             <Download class="size-4" /> Ekspor XLSX
@@ -203,11 +206,11 @@ async function pindai() {
         <form class="mt-3 flex flex-wrap items-end gap-3" @submit.prevent="pindai">
           <label class="min-w-72 flex-1 text-sm">
             <span class="mb-1 block font-medium">QR e-pass (DISKUK-EPASS:…)</span>
-            <input v-model="qrInput" type="text" class="h-9 w-full rounded-md border bg-transparent px-3 text-sm" placeholder="Tempel hasil scan QR" data-testid="input-qr" required>
+            <UiInput v-model="qrInput" type="text" placeholder="Tempel hasil scan QR" data-testid="input-qr" required />
           </label>
           <label class="text-sm">
             <span class="mb-1 block font-medium">Sesi ke-</span>
-            <input v-model.number="sesiKe" type="number" min="1" max="60" class="h-9 w-20 rounded-md border bg-transparent px-3 text-sm" data-testid="input-sesi">
+            <UiInput v-model.number="sesiKe" type="number" min="1" max="60" class="w-20" data-testid="input-sesi" />
           </label>
           <UiButton type="submit" data-testid="tombol-pindai" :disabled="memindai">{{ memindai ? "Memproses…" : "Catat hadir" }}</UiButton>
         </form>

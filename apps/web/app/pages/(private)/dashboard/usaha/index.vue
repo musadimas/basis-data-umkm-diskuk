@@ -262,11 +262,14 @@ const history = computed<KpiLaporan[]>(() => [...(detail.value?.laporan ?? [])].
           <template v-else>
             <label class="grid gap-1 text-sm">
               <span class="font-medium">Minggu laporan</span>
-              <select v-model.number="form.mingguKe" name="minggu" class="h-10 rounded-md border border-input bg-transparent px-2">
-                <option v-for="week in openWeeks" :key="week" :value="week">
-                  Minggu ke-{{ week }}{{ laporanByWeek.get(week)?.status === "ditolak" ? " (perbaikan)" : "" }}
-                </option>
-              </select>
+              <UiSelect v-model.number="form.mingguKe" name="minggu">
+                <UiSelectTrigger class="h-10"><UiSelectValue /></UiSelectTrigger>
+                <UiSelectContent>
+                  <UiSelectItem v-for="week in openWeeks" :key="week" :value="week">
+                    Minggu ke-{{ week }}{{ laporanByWeek.get(week)?.status === "ditolak" ? " (perbaikan)" : "" }}
+                  </UiSelectItem>
+                </UiSelectContent>
+              </UiSelect>
             </label>
             <p v-if="laporanByWeek.get(form.mingguKe)?.catatanPendamping" class="rounded-md bg-red-50 p-2 text-xs text-red-900">
               Catatan pendamping: {{ laporanByWeek.get(form.mingguKe)?.catatanPendamping }}

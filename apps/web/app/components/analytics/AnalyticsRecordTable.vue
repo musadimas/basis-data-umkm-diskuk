@@ -48,22 +48,24 @@ const to = computed(
         </span>
       </h2>
       <div class="flex items-center gap-1.5">
-        <button
+        <UiButton
           type="button"
-          class="h-7 rounded-md border px-2 text-xs font-semibold disabled:opacity-40"
+          variant="outline"
+          class="h-7 px-2 text-xs font-semibold"
           :disabled="!hasPrev || pending"
           @click="emit('prev')"
         >
           Sebelumnya
-        </button>
-        <button
+        </UiButton>
+        <UiButton
           type="button"
-          class="h-7 rounded-md border px-2 text-xs font-semibold disabled:opacity-40"
+          variant="outline"
+          class="h-7 px-2 text-xs font-semibold"
           :disabled="!hasNext || pending"
           @click="emit('next')"
         >
           Berikutnya
-        </button>
+        </UiButton>
       </div>
     </div>
 

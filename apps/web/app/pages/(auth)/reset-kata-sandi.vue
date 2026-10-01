@@ -97,14 +97,14 @@ async function submit() {
           required
         />
       </UiField>
-      <button
+      <UiButton
         type="submit"
         :disabled="pending"
         :aria-busy="pending"
-        class="mt-1 h-11 w-full rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-xs transition-colors hover:bg-primary/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:pointer-events-none disabled:opacity-50"
+        class="mt-1 h-11 w-full rounded-xl"
       >
         {{ pending ? "Menyimpan…" : "Simpan Kata Sandi" }}
-      </button>
+      </UiButton>
     </form>
 
     <div class="mt-6 border-t border-border/70 pt-6 text-center text-xs leading-relaxed text-muted-foreground">

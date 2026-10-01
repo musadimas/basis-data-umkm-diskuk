@@ -51,18 +51,21 @@ watch([search, sort, () => props.groups], () => { visibleCount.value = RENDER_CH
         <span class="font-normal normal-case text-muted-foreground">({{ rows.length }} dari {{ groups.length }})</span>
       </h2>
       <div class="flex items-center gap-1.5">
-        <input
+        <UiInput
           v-model="search"
           type="search"
-          class="h-7 w-24 rounded-md border bg-background px-2 text-xs"
+          class="h-7 w-24 text-xs"
           placeholder="Cari…"
           aria-label="Cari kelompok"
-        >
-        <select v-model="sort" class="h-7 rounded-md border bg-background px-1 text-xs" aria-label="Urutkan kelompok">
-          <option value="value_desc">Terbanyak</option>
-          <option value="value_asc">Tersedikit</option>
-          <option value="label_asc">A–Z</option>
-        </select>
+        />
+        <UiSelect v-model="sort">
+          <UiSelectTrigger aria-label="Urutkan kelompok" class="h-7 text-xs"><UiSelectValue /></UiSelectTrigger>
+          <UiSelectContent>
+            <UiSelectItem value="value_desc">Terbanyak</UiSelectItem>
+            <UiSelectItem value="value_asc">Tersedikit</UiSelectItem>
+            <UiSelectItem value="label_asc">A–Z</UiSelectItem>
+          </UiSelectContent>
+        </UiSelect>
       </div>
     </div>
 
@@ -117,14 +120,15 @@ watch([search, sort, () => props.groups], () => { visibleCount.value = RENDER_CH
           </div>
         </div>
       </div>
-      <button
+      <UiButton
         v-if="rows.length > visibleCount"
         type="button"
-        class="mt-1 w-full shrink-0 rounded-md border py-1 text-xs font-semibold text-muted-foreground hover:bg-muted"
+        variant="outline"
+        class="mt-1 w-full shrink-0 py-1 text-xs font-semibold text-muted-foreground"
         @click="visibleCount = rows.length"
       >
         Tampilkan semua ({{ rows.length - visibleCount }} kelompok lagi)
-      </button>
+      </UiButton>
       <p v-if="!rows.length" class="py-8 text-center text-xs text-muted-foreground">
         {{ groups.length ? "Tidak ada kelompok yang cocok dengan pencarian." : "Belum ada data untuk filter ini." }}
       </p>

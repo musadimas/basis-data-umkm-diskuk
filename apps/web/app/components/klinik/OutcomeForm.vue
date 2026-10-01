@@ -23,17 +23,15 @@ function pilih(atribut: string, jenis: KlinikJenisOutcome) {
       <li v-for="atribut in KLINIK_ATRIBUT_OUTCOME" :key="atribut.value" class="flex flex-wrap items-center justify-between gap-2 rounded-md border px-3 py-1.5">
         <span class="text-sm">{{ atribut.label }}</span>
         <span class="flex gap-1.5">
-          <button
+          <UiToggleChip
             v-for="jenis in KLINIK_JENIS_OUTCOME"
             :key="jenis.value"
-            type="button"
+            :pressed="jenisDari(atribut.value) === jenis.value"
             :disabled="disabled"
-            :aria-pressed="jenisDari(atribut.value) === jenis.value"
             :aria-label="`${atribut.label}: ${jenis.label}`"
-            class="rounded-full border px-3 py-1 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-50"
-            :class="jenisDari(atribut.value) === jenis.value ? 'border-primary bg-primary text-primary-foreground' : 'hover:bg-muted'"
-            @click="pilih(atribut.value, jenis.value)"
-          >{{ jenis.label }}</button>
+            class="px-3 py-1 text-xs"
+            @toggle="pilih(atribut.value, jenis.value)"
+          >{{ jenis.label }}</UiToggleChip>
         </span>
       </li>
     </ul>

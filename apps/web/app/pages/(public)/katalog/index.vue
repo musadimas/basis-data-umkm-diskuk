@@ -176,22 +176,18 @@ function resetFilters() {
           />
         </div>
         <div class="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1" role="group" aria-label="Kategori populer">
-          <button
-            type="button"
-            :aria-pressed="filters.kategori === null"
-            class="shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors"
-            :class="filters.kategori === null ? 'border-primary bg-primary text-primary-foreground' : 'hover:bg-accent'"
-            @click="filters.kategori = null"
-          >Semua</button>
-          <button
+          <UiToggleChip
+            :pressed="filters.kategori === null"
+            class="shrink-0 px-3 py-1 text-xs"
+            @toggle="filters.kategori = null"
+          >Semua</UiToggleChip>
+          <UiToggleChip
             v-for="chip in KATALOG_CHIPS"
             :key="chip.key"
-            type="button"
-            :aria-pressed="filters.kategori === chip.key"
-            class="shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors"
-            :class="filters.kategori === chip.key ? 'border-primary bg-primary text-primary-foreground' : 'hover:bg-accent'"
-            @click="filters.kategori = filters.kategori === chip.key ? null : chip.key"
-          >{{ chip.label }}</button>
+            :pressed="filters.kategori === chip.key"
+            class="shrink-0 px-3 py-1 text-xs"
+            @toggle="filters.kategori = filters.kategori === chip.key ? null : chip.key"
+          >{{ chip.label }}</UiToggleChip>
         </div>
       </div>
 
@@ -209,10 +205,13 @@ function resetFilters() {
 
             <div class="flex flex-col gap-1.5">
               <label for="filter-wilayah" class="text-xs font-semibold text-muted-foreground">Wilayah (27 kabupaten/kota)</label>
-              <select id="filter-wilayah" v-model="kotaModel" class="h-9 rounded-md border border-input bg-transparent px-2 text-sm">
-                <option value="semua">Semua Kab/Kota</option>
-                <option v-for="kota in kotaOptions" :key="kota.value" :value="kota.value">{{ kota.label }} ({{ kota.jumlah }})</option>
-              </select>
+              <UiSelect v-model="kotaModel">
+                <UiSelectTrigger id="filter-wilayah" class="text-sm"><UiSelectValue /></UiSelectTrigger>
+                <UiSelectContent>
+                  <UiSelectItem value="semua">Semua Kab/Kota</UiSelectItem>
+                  <UiSelectItem v-for="kota in kotaOptions" :key="kota.value" :value="kota.value">{{ kota.label }} ({{ kota.jumlah }})</UiSelectItem>
+                </UiSelectContent>
+              </UiSelect>
             </div>
 
             <fieldset class="flex flex-col gap-1.5">
@@ -250,9 +249,12 @@ function resetFilters() {
               Menampilkan <span class="font-semibold text-foreground">{{ items.length }}</span>
               dari <span class="font-semibold text-foreground" data-testid="katalog-total">{{ total }}</span> produk
             </p>
-            <select v-model="filters.sort" class="h-9 rounded-md border border-input bg-transparent px-2 text-sm" aria-label="Urutkan produk">
-              <option v-for="option in KATALOG_SORT" :key="option.value" :value="option.value">{{ option.label }}</option>
-            </select>
+            <UiSelect v-model="filters.sort">
+              <UiSelectTrigger class="text-sm" aria-label="Urutkan produk"><UiSelectValue /></UiSelectTrigger>
+              <UiSelectContent>
+                <UiSelectItem v-for="option in KATALOG_SORT" :key="option.value" :value="option.value">{{ option.label }}</UiSelectItem>
+              </UiSelectContent>
+            </UiSelect>
           </div>
 
           <div v-if="error" role="alert" class="rounded-xl border border-destructive/30 p-6 text-sm text-destructive">

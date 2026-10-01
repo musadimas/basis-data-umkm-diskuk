@@ -1,14 +1,13 @@
 <script setup lang="ts">
 import type { AnalyticsTemplate, AnalysisConfig } from "~/types/analytics";
+import type { AcceptableValue } from "reka-ui";
 const props = defineProps<{
   templates: AnalyticsTemplate[];
   modelValue: AnalysisConfig;
 }>();
 const emit = defineEmits<{ select: [config: Partial<AnalysisConfig>] }>();
-function select(event: Event) {
-  // SAFETY: handler ini terpasang pada elemen <select>, sehingga event.target pasti HTMLSelectElement.
-  const value = (event.target as HTMLSelectElement).value;
-  const template = props.templates.find((item) => item.id === value);
+function pilih(value: AcceptableValue) {
+  const template = props.templates.find((item) => item.id === String(value));
   if (template) emit("select", template.config);
 }
 const current = computed(
@@ -19,19 +18,20 @@ const current = computed(
 );
 </script>
 <template>
-  <select
-    class="h-8 max-w-[11rem] rounded-md border bg-background px-2 text-xs"
+  <UiSelect
+    :model-value="current"
     aria-label="Templat analisis"
-    :value="current"
-    @change="select"
+    @update:model-value="pilih"
   >
-    <option value="">Templat analisis</option>
-    <option
-      v-for="template in templates"
-      :key="template.id"
-      :value="template.id"
-    >
-      {{ template.label }}
-    </option>
-  </select>
+    <UiSelectTrigger class="h-8 max-w-[11rem] text-xs"><UiSelectValue placeholder="Templat analisis" /></UiSelectTrigger>
+    <UiSelectContent>
+      <UiSelectItem
+        v-for="template in templates"
+        :key="template.id"
+        :value="template.id"
+      >
+        {{ template.label }}
+      </UiSelectItem>
+    </UiSelectContent>
+  </UiSelect>
 </template>
