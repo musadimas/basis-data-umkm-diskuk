@@ -68,6 +68,54 @@ export function createProgramState() {
     passport: null,
     tiket: [],
     tiketForms: [],
+    /**
+     * Profil kurasi investor dengan field DB mentah, satu per status (BUG-016..018).
+     * Presedensi `statusInvestor` di handler sama dengan `STATUS_PROFIL_SQL` endpoint.
+     */
+    investorProfil: [
+      {
+        id: "44444444-4444-4444-8444-000000000001",
+        nama: "Keripik Menunggu",
+        jenama: "Keripik Menunggu",
+        disetujui_berbagi_pada: "2026-09-20T02:00:00Z",
+        dicabut_pada: null,
+        disetujui_kurator_pada: null,
+        kurator_dicabut_pada: null,
+        date_updated: "2026-09-20T02:00:00Z",
+      },
+      {
+        id: "44444444-4444-4444-8444-000000000002",
+        nama: "Batik Disetujui",
+        jenama: "Batik Disetujui",
+        disetujui_berbagi_pada: "2026-09-21T02:00:00Z",
+        dicabut_pada: null,
+        disetujui_kurator_pada: "2026-09-22T02:00:00Z",
+        kurator_dicabut_pada: null,
+        date_updated: "2026-09-22T02:00:00Z",
+      },
+      {
+        id: "44444444-4444-4444-8444-000000000003",
+        nama: "Kopi Belum Setuju",
+        jenama: "Kopi Belum Setuju",
+        disetujui_berbagi_pada: null,
+        dicabut_pada: null,
+        disetujui_kurator_pada: null,
+        kurator_dicabut_pada: null,
+        date_updated: "2026-09-23T02:00:00Z",
+      },
+      {
+        id: "44444444-4444-4444-8444-000000000004",
+        nama: "Tas Dicabut",
+        jenama: "Tas Dicabut",
+        disetujui_berbagi_pada: "2026-09-24T02:00:00Z",
+        dicabut_pada: null,
+        disetujui_kurator_pada: null,
+        kurator_dicabut_pada: "2026-09-25T02:00:00Z",
+        date_updated: "2026-09-25T02:00:00Z",
+      },
+    ],
+    /** Simulasi kegagalan penyimpanan keputusan kurasi investor (R4). */
+    gagalKurasiInvestor: false,
     /** Jawaban CSAT `{ tiket, nilai, consent }` dan outcome konsultasi (semua versi) dari klinik (R04). */
     csat: [],
     outcomes: [],
@@ -149,6 +197,45 @@ export async function installMockProgram(page, state = createProgramState()) {
       }
       const hasil = klinikMockResponse({ method, path, query: Object.fromEntries(new URL(request.url()).searchParams), body, form, state });
       if (hasil) return hasil.code ? json(route, hasil.status, hasil.code) : json(route, hasil.status, hasil.data);
+    }
+
+    // ── Kurasi investor (BUG-016..018): status dihitung seperti `STATUS_PROFIL_SQL` endpoint ──
+    const statusInvestor = (p) => {
+      if (!p.disetujui_berbagi_pada || p.dicabut_pada) return "belum_disetujui";
+      if (p.kurator_dicabut_pada) return "dicabut";
+      if (p.disetujui_kurator_pada) return "disetujui";
+      return "menunggu";
+    };
+    if (method === "GET" && path === "/executive/investor/kurasi") {
+      const status = new URL(request.url()).searchParams.get("status");
+      const semua = state.investorProfil.map((item) => ({ ...item, status: statusInvestor(item) }));
+      const counts = { menunggu: 0, disetujui: 0, belum_disetujui: 0, dicabut: 0 };
+      for (const item of semua) counts[item.status] += 1;
+      const items = semua
+        .filter((item) => !status || item.status === status)
+        .sort((a, b) => String(b.date_updated).localeCompare(String(a.date_updated)))
+        .slice(0, 200)
+        .map((item) => ({ id: item.id, nama: item.nama, jenama: item.jenama, status: item.status,
+          disetujuiKuratorPada: item.disetujui_kurator_pada, kuratorDicabutPada: item.kurator_dicabut_pada,
+          dateUpdated: item.date_updated }));
+      return json(route, 200, { items, meta: { counts } });
+    }
+    match = path.match(/^\/executive\/investor\/profil\/([^/]+)\/kurasi$/);
+    if (method === "POST" && match) {
+      const profil = state.investorProfil.find((item) => item.id === match[1]);
+      if (!profil || !profil.disetujui_berbagi_pada || profil.dicabut_pada) return json(route, 404, "NOT_FOUND");
+      if (state.gagalKurasiInvestor) return json(route, 500, "INTERNAL");
+      if (Boolean(body?.setuju) === Boolean(profil.disetujui_kurator_pada)) return json(route, 409, "STATUS_BERUBAH");
+      const now = new Date().toISOString();
+      if (body.setuju) {
+        profil.disetujui_kurator_pada = now;
+        profil.kurator_dicabut_pada = null;
+      } else {
+        profil.disetujui_kurator_pada = null;
+        profil.kurator_dicabut_pada = now;
+      }
+      profil.date_updated = now;
+      return json(route, 200, { disetujui: body.setuju });
     }
 
     if (method === "GET" && path === "/passport") {

@@ -114,6 +114,14 @@ async function detail(ctx, user, usahaId, action) {
   };
 }
 
+const KURASI_INVESTOR_STATUS = ["menunggu", "disetujui", "belum_disetujui", "dicabut"];
+// Presedensi mengikat (BUG-017): persetujuan usaha > cabut kurator > setuju kurator > menunggu.
+const STATUS_PROFIL_SQL = `CASE
+    WHEN ip.disetujui_berbagi_pada IS NULL OR ip.dicabut_pada IS NOT NULL THEN 'belum_disetujui'
+    WHEN ip.kurator_dicabut_pada IS NOT NULL THEN 'dicabut'
+    WHEN ip.disetujui_kurator_pada IS NOT NULL THEN 'disetujui'
+    ELSE 'menunggu' END`;
+
 export default (router, ctx) => {
   router.get("/monitoring", terjaga({ peran: ["provinsi", "kabkota"] }, (inner) => (req, res, actor) =>
     handle(inner, res, async () => { noStore(res); res.json({ data: await monitoring(inner, actor) }); }))(ctx));
@@ -158,17 +166,35 @@ export default (router, ctx) => {
     }))(ctx));
   router.get("/investor/kurasi", terjaga({ peran: ["provinsi"] }, (inner) => (req, res) =>
     handle(inner, res, async () => {
-      const items = rows(await inner.database.raw(`SELECT ip.usaha AS id, u.nama, ip.jenama,
-        ip.disetujui_berbagi_pada, ip.disetujui_kurator_pada, ip.dicabut_pada
-        FROM investor_profil ip JOIN usaha u ON u.id = ip.usaha
-        ORDER BY ip.date_updated DESC LIMIT 200`));
-      noStore(res); res.json({ data: items });
+      const status = req.query?.status ?? null;
+      if (status !== null && !KURASI_INVESTOR_STATUS.includes(status)) {
+        throw new ProgramError(400, "INVALID_STATUS", "Status kurasi tidak valid.");
+      }
+      const items = rows(await inner.database.raw(`SELECT * FROM (
+        SELECT ip.usaha AS id, u.nama, ip.jenama, ip.disetujui_kurator_pada, ip.kurator_dicabut_pada,
+               ip.date_updated, ${STATUS_PROFIL_SQL} AS status
+          FROM investor_profil ip JOIN usaha u ON u.id = ip.usaha
+      ) s WHERE (?::text IS NULL OR s.status = ?) ORDER BY s.date_updated DESC LIMIT 200`, [status, status]));
+      const counts = rows(await inner.database.raw(`SELECT COUNT(*) FILTER (WHERE s.status = 'menunggu')::int AS menunggu,
+        COUNT(*) FILTER (WHERE s.status = 'disetujui')::int AS disetujui,
+        COUNT(*) FILTER (WHERE s.status = 'belum_disetujui')::int AS belum_disetujui,
+        COUNT(*) FILTER (WHERE s.status = 'dicabut')::int AS dicabut
+        FROM (SELECT ${STATUS_PROFIL_SQL} AS status FROM investor_profil ip) s`))[0] ?? {};
+      noStore(res); res.json({ data: {
+        items: items.map((r) => ({ id: r.id, nama: r.nama, jenama: r.jenama, status: r.status,
+          disetujuiKuratorPada: r.disetujui_kurator_pada, kuratorDicabutPada: r.kurator_dicabut_pada,
+          dateUpdated: r.date_updated })),
+        meta: { counts: {
+          menunggu: Number(counts.menunggu ?? 0), disetujui: Number(counts.disetujui ?? 0),
+          belum_disetujui: Number(counts.belum_disetujui ?? 0), dicabut: Number(counts.dicabut ?? 0),
+        } },
+      } });
     }))(ctx));
   router.get("/investor/profil-saya", terjaga({ peran: ["umkm"] }, (inner) => (req, res, actor) =>
     handle(inner, res, async () => {
       const item = actor.usahaId ? rows(await inner.database.raw(`SELECT jenama, kebutuhan_modal,
         skema, kapasitas_pasok, margin_persen, pitch_deck, disetujui_berbagi_pada,
-        disetujui_kurator_pada, dicabut_pada FROM investor_profil WHERE usaha = ?`, [actor.usahaId]))[0] : null;
+        disetujui_kurator_pada, kurator_dicabut_pada, dicabut_pada FROM investor_profil WHERE usaha = ?`, [actor.usahaId]))[0] : null;
       noStore(res); res.json({ data: item ?? null });
     }))(ctx));
   router.post("/investor/profil", terjaga({ peran: ["umkm"] }, (inner) => (req, res, actor) =>
@@ -200,7 +226,8 @@ export default (router, ctx) => {
           skema = EXCLUDED.skema, kapasitas_pasok = EXCLUDED.kapasitas_pasok, margin_persen = EXCLUDED.margin_persen,
           pitch_deck = EXCLUDED.pitch_deck, margin_sumber = 'deklarasi', disetujui_berbagi_oleh = EXCLUDED.disetujui_berbagi_oleh,
           disetujui_berbagi_pada = EXCLUDED.disetujui_berbagi_pada, dicabut_pada = EXCLUDED.dicabut_pada,
-          disetujui_kurator_oleh = NULL, disetujui_kurator_pada = NULL, date_updated = NOW()`,
+          disetujui_kurator_oleh = NULL, disetujui_kurator_pada = NULL,
+          kurator_dicabut_oleh = NULL, kurator_dicabut_pada = NULL, date_updated = NOW()`,
         [actor.usahaId, b.jenama.trim(), b.kebutuhanModal, [...new Set(b.skema)], b.kapasitasPasok ?? null,
           b.marginPersen ?? null, pitchDeck, b.setuju, actor.id, b.setuju, b.setuju]);
       noStore(res); res.json({ data: { disetujuiBerbagi: b.setuju, menungguKurasi: b.setuju } });
@@ -210,12 +237,24 @@ export default (router, ctx) => {
       const id = uuidParam(req.params.id);
       const approve = req.body?.setuju;
       if (approve !== true && approve !== false) throw new ProgramError(400, "INVALID_PAYLOAD", "Keputusan wajib diisi.");
-      const result = rows(await inner.database.raw(`UPDATE investor_profil SET
-        disetujui_kurator_oleh = CASE WHEN ? THEN ?::uuid ELSE NULL END,
-        disetujui_kurator_pada = CASE WHEN ? THEN NOW() ELSE NULL END, date_updated = NOW()
-        WHERE usaha = ? AND disetujui_berbagi_pada IS NOT NULL AND dicabut_pada IS NULL RETURNING usaha`,
-        [approve, actor.id, approve, id]));
-      if (!result.length) throw fail();
+      // R2: satu penulis dengan syarat di dalam WHERE; 0 baris berarti status sudah berubah.
+      const result = rows(await inner.database.raw(approve
+        ? `UPDATE investor_profil SET disetujui_kurator_oleh = ?, disetujui_kurator_pada = NOW(),
+             kurator_dicabut_oleh = NULL, kurator_dicabut_pada = NULL, date_updated = NOW()
+           WHERE usaha = ? AND disetujui_berbagi_pada IS NOT NULL AND dicabut_pada IS NULL
+             AND disetujui_kurator_pada IS NULL RETURNING usaha`
+        : `UPDATE investor_profil SET disetujui_kurator_oleh = NULL, disetujui_kurator_pada = NULL,
+             kurator_dicabut_oleh = ?, kurator_dicabut_pada = NOW(), date_updated = NOW()
+           WHERE usaha = ? AND disetujui_berbagi_pada IS NOT NULL AND dicabut_pada IS NULL
+             AND disetujui_kurator_pada IS NOT NULL RETURNING usaha`,
+      [actor.id, id]));
+      if (!result.length) {
+        // Klasifikasi saja: profil dengan persetujuan valid ada → status sudah berubah (409), selain itu 404.
+        const ada = rows(await inner.database.raw(`SELECT 1 FROM investor_profil
+          WHERE usaha = ? AND disetujui_berbagi_pada IS NOT NULL AND dicabut_pada IS NULL`, [id]))[0];
+        if (ada) throw new ProgramError(409, "STATUS_BERUBAH", "Status profil sudah berubah. Muat ulang daftar.");
+        throw fail();
+      }
       noStore(res); res.json({ data: { disetujui: approve } });
     }))(ctx));
   router.get("/investor", publik((inner) => (req, res) => handle(inner, res, async () => {

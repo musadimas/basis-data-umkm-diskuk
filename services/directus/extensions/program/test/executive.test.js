@@ -180,3 +180,75 @@ test("a verified investor sees sourced deal fields, receives a PDF and persists 
   assert.equal(second.res.body.data.duplikat, true);
   assert.deepEqual(audits, ["detail", "pdf", "loi", "loi"]);
 });
+
+const KURATOR = "9a8f0f1b-2c3d-4e5f-8a9b-0c1d2e3f4a5b";
+const USAHA = "22222222-2222-4222-8222-222222222222";
+const kurasiActor = { id: KURATOR, app_role: "provinsi", kota_scope: null, usaha: null };
+
+test("kurasi investor: status dihitung server dengan presedensi tetap dan satu query counts", async () => {
+  const statements = [];
+  const db = { raw: async (sql, bindings = []) => {
+    statements.push({ sql, bindings });
+    if (sql.includes("FROM directus_users WHERE id")) return { rows: [kurasiActor] };
+    if (sql.includes("COUNT(*) FILTER")) return { rows: [{ menunggu: 1, disetujui: 1, belum_disetujui: 1, dicabut: 1 }] };
+    if (sql.includes("FROM investor_profil ip JOIN usaha u")) return { rows: [{
+      id: USAHA, nama: "Usaha Uji", jenama: "Jenama Uji", status: "dicabut",
+      disetujui_kurator_pada: null, kurator_dicabut_pada: "2026-10-01T00:00:00Z",
+      date_updated: "2026-10-01T00:00:00Z",
+    }] };
+    return { rows: [] };
+  } };
+  const app = mountEndpoint(register, { database: db });
+  const response = await app.call("GET", "/investor/kurasi", { query: { status: "dicabut" } });
+  assert.equal(response.res.statusCode, 200);
+  const items = statements.find((item) => item.sql.includes("FROM investor_profil ip JOIN usaha u"));
+  const presedensi = items.sql.indexOf("THEN 'belum_disetujui'");
+  const cabut = items.sql.indexOf("kurator_dicabut_pada IS NOT NULL THEN 'dicabut'");
+  assert.ok(presedensi >= 0 && cabut > presedensi, items.sql);
+  assert.deepEqual(items.bindings, ["dicabut", "dicabut"]);
+  assert.equal(statements.filter((item) => item.sql.includes("COUNT(*) FILTER")).length, 1);
+  assert.deepEqual(statements.filter((item) => item.sql.includes("COUNT(*) FILTER"))[0].bindings, []);
+  assert.deepEqual(response.res.body.data.meta.counts, { menunggu: 1, disetujui: 1, belum_disetujui: 1, dicabut: 1 });
+  assert.deepEqual(response.res.body.data.items[0], {
+    id: USAHA, nama: "Usaha Uji", jenama: "Jenama Uji", status: "dicabut",
+    disetujuiKuratorPada: null, kuratorDicabutPada: "2026-10-01T00:00:00Z",
+    dateUpdated: "2026-10-01T00:00:00Z",
+  });
+  const invalid = await app.call("GET", "/investor/kurasi", { query: { status: "x" } });
+  assert.equal(invalid.res.statusCode, 400);
+  assert.equal(invalid.res.body.errors[0].extensions.code, "INVALID_STATUS");
+});
+
+test("kurasi investor: setujui hanya dari menunggu/dicabut, cabut hanya dari disetujui", async () => {
+  const statements = [];
+  const db = { raw: async (sql, bindings = []) => {
+    statements.push({ sql, bindings });
+    if (sql.includes("FROM directus_users WHERE id")) return { rows: [kurasiActor] };
+    if (sql.includes("UPDATE investor_profil")) return { rows: [] };
+    if (sql.includes("SELECT 1 FROM investor_profil")) return { rows: [{ "?column?": 1 }] };
+    return { rows: [] };
+  } };
+  const app = mountEndpoint(register, { database: db });
+  for (const setuju of [true, false]) {
+    const response = await app.call("POST", `/investor/profil/${USAHA}/kurasi`, { body: { setuju } });
+    assert.equal(response.res.statusCode, 409);
+    assert.equal(response.res.body.errors[0].extensions.code, "STATUS_BERUBAH");
+  }
+  const setujui = statements.find((item) => item.sql.includes("disetujui_kurator_oleh = ?, disetujui_kurator_pada = NOW()"));
+  assert.match(setujui.sql, /AND disetujui_kurator_pada IS NULL RETURNING usaha/);
+  assert.deepEqual(setujui.bindings, [KURATOR, USAHA]);
+  const cabut = statements.find((item) => item.sql.includes("kurator_dicabut_oleh = ?"));
+  assert.match(cabut.sql, /AND disetujui_kurator_pada IS NOT NULL RETURNING usaha/);
+  assert.deepEqual(cabut.bindings, [KURATOR, USAHA]);
+});
+
+test("kurasi investor: profil tanpa persetujuan usaha → 404", async () => {
+  const db = { raw: async (sql) => {
+    if (sql.includes("FROM directus_users WHERE id")) return { rows: [kurasiActor] };
+    return { rows: [] };
+  } };
+  const app = mountEndpoint(register, { database: db });
+  const response = await app.call("POST", `/investor/profil/${USAHA}/kurasi`, { body: { setuju: true } });
+  assert.equal(response.res.statusCode, 404);
+  assert.equal(response.res.body.errors[0].extensions.code, "NOT_FOUND");
+});

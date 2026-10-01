@@ -760,3 +760,20 @@ export interface BantuanListResponse {
   items: BantuanKartu[];
   meta: { serverNow: string; jumlah: number };
 }
+
+export type KurasiInvestorStatus = "menunggu" | "disetujui" | "belum_disetujui" | "dicabut";
+
+export interface KurasiInvestorItem {
+  id: string;
+  nama: string;
+  jenama: string;
+  status: KurasiInvestorStatus;
+  disetujuiKuratorPada: string | null;
+  kuratorDicabutPada: string | null;
+  dateUpdated: string;
+}
+
+export interface KurasiInvestorDaftar {
+  items: KurasiInvestorItem[];
+  meta: { counts: Record<KurasiInvestorStatus, number> };
+}

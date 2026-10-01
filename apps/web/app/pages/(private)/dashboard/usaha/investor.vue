@@ -10,6 +10,7 @@ interface OwnProfile {
   jenama: string; kebutuhan_modal: number | string; skema: string[]; kapasitas_pasok: string | null;
   margin_persen: number | string | null; pitch_deck: string | null;
   disetujui_berbagi_pada: string | null; disetujui_kurator_pada: string | null; dicabut_pada: string | null;
+  kurator_dicabut_pada: string | null;
 }
 const { data, refresh } = await useAsyncData("investor:own", () =>
   directus.request(endpoint<OwnProfile | null>("/v1/program/executive/investor/profil-saya")));
@@ -70,6 +71,7 @@ const choices: [string, string][] = [["kur", "KUR"], ["lpdb", "LPDB"], ["offtake
     <h1 class="text-2xl font-bold">Profil kemitraan investor</h1>
     <p class="text-sm">Data finansial hanya dibuka untuk investor terverifikasi setelah Anda memberi persetujuan dan kurator menyetujui profil.</p>
     <p v-if="data?.disetujui_kurator_pada && !data?.dicabut_pada" class="text-sm text-emerald-700">Profil disetujui untuk dibagikan.</p>
+    <p v-else-if="data?.kurator_dicabut_pada && data?.disetujui_berbagi_pada && !data?.dicabut_pada" role="status" class="text-sm text-amber-800">Persetujuan kurator dicabut. Perbarui profil untuk mengajukannya kembali ke kurasi.</p>
     <form class="grid gap-4 rounded-xl border p-5" @submit.prevent="save(true)">
       <UiField class="gap-1">
         <UiFieldLabel for="investor-jenama">Jenama</UiFieldLabel>
