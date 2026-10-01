@@ -18,6 +18,7 @@ test("R02 real API: executive monitoring shows verified data and red risk pin", 
   await login(page, process.env.R02_PROVINCE_EMAIL || "dummy_admin@diskuk.jabarprov.go.id", "/dashboard/akselerasi");
   await expect(page.getByRole("heading", { name: "Monitoring Program Akselerasi" })).toBeVisible();
   await expect(page.getByText(/Target >95%/)).toBeVisible();
+  await expect(page.getByTestId("kepatuhan-cakupan")).toBeVisible();
   await expect(page.getByRole("table")).toContainText("Realisasi disetujui");
   await expect(page.getByTestId("at-risk-map")).toBeVisible();
   const fallbackPin = page.getByTestId("at-risk-map").locator("[data-risk-pin]");

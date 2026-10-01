@@ -22,13 +22,34 @@ test("12-week aggregate excludes rejected reports, handles zero/missing baseline
     participant({ laporan: [report(1, 1_200_000), report(2, 900_000), report(3, 1_500_000, "ditolak")] }),
     participant({ id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", omzet_tahunan: 0, laporan: [report(1, 200_000)] }),
   ], NOW);
-  assert.deepEqual(result.kepatuhan, { terverifikasi: 3, diharapkan: 8, persen: 37.5, targetLebihDari: 95 });
+  assert.deepEqual(result.kepatuhan, { terverifikasi: 3, diharapkan: 8, persen: 37.5, targetLebihDari: 95, belumDihitung: 0 });
   assert.deepEqual(result.kenaikanOmzet, { persen: 5, pesertaDihitung: 1, sumber: "SIDT tahunan / 52 vs rata-rata laporan disetujui" });
   assert.equal(result.tren.length, 12);
   assert.equal(result.tren[0].target, 2_000_000);
   assert.equal(result.tren[0].realisasi, 1_400_000);
   assert.equal(result.tren[2].realisasi, null);
   assert.equal(result.atRisk.length, 0);
+});
+
+test("laporan disetujui minggu berjalan tidak masuk kepatuhan tetapi dihitung terpisah (BUG-015)", () => {
+  const weeks = (list) => list.map((w) => report(w, 1_000_000));
+  const result = aggregateProgram([participant({ laporan: weeks([1, 2, 3, 4, 5]) })], NOW);
+  assert.equal(completedWeeks(START, 12, NOW), 4);
+  assert.deepEqual(result.kepatuhan, { terverifikasi: 4, diharapkan: 4, persen: 100, targetLebihDari: 95, belumDihitung: 1 });
+  const pendek = aggregateProgram([participant({ jumlah_minggu: 4, laporan: weeks([1, 2, 3, 4, 5]) })], NOW);
+  assert.equal(pendek.kepatuhan.belumDihitung, 0, "minggu di luar jumlah_minggu tidak dihitung");
+  const kosong = aggregateProgram([participant({ laporan: [report(5, null)] })], NOW);
+  assert.equal(kosong.kepatuhan.belumDihitung, 0, "realisasi tidak valid tidak dihitung");
+});
+
+test("batas minggu selesai mengikuti tanggal WIB, bukan UTC", () => {
+  const laporan = [1, 2, 3, 4, 5].map((w) => report(w, 1_000_000));
+  const sebelum = aggregateProgram([participant({ laporan })], new Date("2026-10-04T16:59:59Z"));
+  const sesudah = aggregateProgram([participant({ laporan })], new Date("2026-10-04T17:00:00Z"));
+  assert.equal(completedWeeks(START, 12, new Date("2026-10-04T16:59:59Z")), 4);
+  assert.equal(completedWeeks(START, 12, new Date("2026-10-04T17:00:00Z")), 5);
+  assert.deepEqual([sebelum.kepatuhan.terverifikasi, sebelum.kepatuhan.belumDihitung], [4, 1]);
+  assert.deepEqual([sesudah.kepatuhan.terverifikasi, sesudah.kepatuhan.belumDihitung], [5, 0]);
 });
 
 test("risk needs the latest two completed, consecutive, approved weeks under 70% of SIDT baseline", () => {

@@ -15,6 +15,7 @@ export function aggregateProgram(participants, now = new Date()) {
   const trend = Array.from({ length: 12 }, (_, i) => ({ minggu: i + 1, target: 0, realisasi: null }));
   let expected = 0;
   let approved = 0;
+  let belumDihitung = 0;
   let growthTotal = 0;
   let growthCount = 0;
   const atRisk = [];
@@ -29,6 +30,12 @@ export function aggregateProgram(participants, now = new Date()) {
       const point = trend[week - 1];
       point.target += Number(p.target_mingguan);
       const report = byWeek.get(week);
+      if (week > elapsed) {
+        // Minggu berjalan/mendatang: belum masuk kepatuhan, tetapi ditampilkan agar angka dapat direkonsiliasi (BUG-015).
+        const amount = report?.realisasi_omzet == null ? NaN : Number(report.realisasi_omzet);
+        if (Number.isFinite(amount) && amount >= 0) belumDihitung++;
+        continue;
+      }
       if (week > elapsed || !report || report.realisasi_omzet == null) continue;
       const amount = Number(report.realisasi_omzet);
       if (!Number.isFinite(amount) || amount < 0) continue;
@@ -62,7 +69,7 @@ export function aggregateProgram(participants, now = new Date()) {
     }
   }
   return {
-    kepatuhan: { terverifikasi: approved, diharapkan: expected, persen: expected ? round1((approved / expected) * 100) : null, targetLebihDari: 95 },
+    kepatuhan: { terverifikasi: approved, diharapkan: expected, persen: expected ? round1((approved / expected) * 100) : null, targetLebihDari: 95, belumDihitung },
     kenaikanOmzet: { persen: growthCount ? round1(growthTotal / growthCount) : null, pesertaDihitung: growthCount, sumber: "SIDT tahunan / 52 vs rata-rata laporan disetujui" },
     tren: trend,
     atRisk,

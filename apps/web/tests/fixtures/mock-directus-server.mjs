@@ -177,6 +177,15 @@ const server = createServer(async (request, response) => {
     response.end(JSON.stringify(infographicMapResponse()));
     return;
   }
+  if (method === "GET" && path === "/v1/program/executive/monitoring") {
+    response.end(JSON.stringify({ data: {
+      kepatuhan: { terverifikasi: 67, diharapkan: 72, persen: 93.1, targetLebihDari: 95, belumDihitung: 3 },
+      kenaikanOmzet: { persen: 19.5, pesertaDihitung: 12, sumber: "SIDT tahunan / 52 vs rata-rata laporan disetujui" },
+      tren: Array.from({ length: 12 }, (_, i) => ({ minggu: i + 1, target: 100_000_000, realisasi: i < 6 ? 100_000_000 : null })),
+      atRisk: [],
+    } }));
+    return;
+  }
   if (method === "GET" && ["/v1/program/katalog/usaha", "/v1/program/katalog/produk", "/v1/program/kpi/peserta"].includes(path)) {
     response.end(JSON.stringify({ data: [] }));
     return;

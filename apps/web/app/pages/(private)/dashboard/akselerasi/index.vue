@@ -41,7 +41,11 @@ const colors = ["#64748b", "#16a34a"];
             <p class="text-sm text-muted-foreground">{{ data.kenaikanOmzet.pesertaDihitung }} peserta · {{ data.kenaikanOmzet.sumber }}</p></UiCardContent></UiCard>
         <UiCard><UiCardHeader><UiCardTitle>Kepatuhan laporan terverifikasi</UiCardTitle></UiCardHeader>
           <UiCardContent><p class="text-3xl font-bold">{{ percent(data.kepatuhan.persen) }}</p>
-            <p class="text-sm text-muted-foreground">{{ data.kepatuhan.terverifikasi }} dari {{ data.kepatuhan.diharapkan }} laporan · Target &gt;95%</p></UiCardContent></UiCard>
+            <p class="text-sm text-muted-foreground">{{ data.kepatuhan.terverifikasi }} dari {{ data.kepatuhan.diharapkan }} laporan · Target &gt;95%</p>
+            <p class="mt-1 text-xs text-muted-foreground" data-testid="kepatuhan-cakupan">Dihitung dari minggu program yang sudah selesai.</p>
+            <p v-if="data.kepatuhan.belumDihitung > 0" class="text-xs text-muted-foreground" data-testid="kepatuhan-minggu-berjalan">
+              {{ data.kepatuhan.belumDihitung }} laporan disetujui pada minggu berjalan belum dihitung.
+            </p></UiCardContent></UiCard>
       </div>
       <UiCard><UiCardHeader><UiCardTitle>Target agregat dan realisasi terverifikasi</UiCardTitle></UiCardHeader>
         <UiCardContent><div class="flex gap-5 text-sm"><span>┄ Target rencana agregat</span><span class="text-green-700">━ Realisasi terverifikasi</span></div>

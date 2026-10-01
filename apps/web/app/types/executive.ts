@@ -11,7 +11,7 @@ export interface RiskItem {
 }
 
 export interface ExecutiveMonitoring {
-  kepatuhan: { terverifikasi: number; diharapkan: number; persen: number | null; targetLebihDari: number };
+  kepatuhan: { terverifikasi: number; diharapkan: number; persen: number | null; targetLebihDari: number; belumDihitung: number };
   kenaikanOmzet: { persen: number | null; pesertaDihitung: number; sumber: string };
   tren: Array<{ minggu: number; target: number; realisasi: number | null }>;
   atRisk: RiskItem[];
