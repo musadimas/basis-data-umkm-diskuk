@@ -12,7 +12,7 @@ import type {
 } from "~/types/dashboard";
 import type { InfografisData } from "~/types/infografis";
 import type { TabularSpasialResponse, TabularSpatialTileset } from "~/types/tabular";
-import { DASHBOARD_SECTIONS } from "~/constants/DASHBOARD";
+import { DASHBOARD_SECTIONS, REGION_ANALYTICS_FIELD } from "~/constants/DASHBOARD";
 import { defaultAnalysis, serializeAnalysisUrl } from "~/lib/analytics-query";
 import { formatAnalyticsNumber } from "~/lib/analytics-format";
 import { endpoint } from "~/lib/directus";
@@ -220,8 +220,8 @@ const mapKecamatanName = computed(() =>
 
 function openRegion(region: { id: string; name?: string }) {
   const level = mapInfografis.value?.regionLevel ?? "kota";
-  // Level terdalam: tidak ada geometri lebih rinci, arahkan ke Analitik.
-  if (level === "kelurahan") return openAnalytics("kelurahan_id", region.id);
+  // Level terdalam tidak punya rincian; kartu wilayah hanya menawarkan Analitik.
+  if (level === "kelurahan") return;
   if (level === "kota") {
     mapKota.value = region.id;
     mapKecamatan.value = "semua";
@@ -229,6 +229,11 @@ function openRegion(region: { id: string; name?: string }) {
     mapKecamatan.value = region.id;
   }
   mapKelurahan.value = "semua";
+}
+
+/** Tombol "Buka di Analitik" pada kartu wilayah (BUG-005). */
+function analyzeRegion(region: { id: string }) {
+  openAnalytics(REGION_ANALYTICS_FIELD[mapInfografis.value?.regionLevel ?? "kota"], region.id);
 }
 
 function mapBack() {
@@ -324,6 +329,7 @@ const mapSelectionLabel = computed(() => {
         @tiles-ready="markTilesReady"
         @tiles-error="fallbackFromTiles"
         @select="openRegion"
+        @analyze="analyzeRegion"
         @back="mapBack"
       />
     </DashboardCardSection>

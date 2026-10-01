@@ -71,6 +71,7 @@ const props = withDefaults(
 );
 const emit = defineEmits<{
   select: [region: InfografisRegion];
+  analyze: [region: InfografisRegion];
   back: [];
   "update:showRegions": [value: boolean];
   "update:showPoints": [value: boolean];
@@ -138,11 +139,13 @@ onNuxtReady(() => {
       :controls-class="controlsClass"
       :zoom-class="zoomClass"
       point-card
+      region-analytics
       @update:show-regions="emit('update:showRegions', $event)"
       @update:show-points="emit('update:showPoints', $event)"
       @tiles-ready="emit('tiles-ready')"
       @tiles-error="emit('tiles-error')"
       @select="emit('select', $event)"
+      @analyze="emit('analyze', $event)"
     />
     <div
       v-else-if="!clientReady"

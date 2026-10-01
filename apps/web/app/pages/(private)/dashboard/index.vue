@@ -366,7 +366,7 @@ const canMapGoBack = computed(() =>
 
 function openRegion(region: { id: string; name?: string }) {
   const level = mapInfografis.value?.regionLevel ?? "kota";
-  if (level === "kelurahan") return openAnalytics("kelurahan_id", region.id);
+  if (level === "kelurahan") return;
   if (level === "kota") {
     mapKota.value = region.id;
     mapKotaName.value = region.name ?? kotaNameById(region.id);
@@ -376,6 +376,11 @@ function openRegion(region: { id: string; name?: string }) {
     mapKecamatanName.value = region.name ?? "";
   }
   mapKelurahan.value = "semua";
+}
+
+/** Tombol "Buka di Analitik" pada kartu wilayah peta (BUG-005). */
+function analyzeRegion(region: { id: string }) {
+  openAnalytics(REGION_ANALYTICS_FIELD[mapInfografis.value?.regionLevel ?? "kota"], region.id);
 }
 
 function mapBack() {
@@ -550,6 +555,7 @@ const kbliCodesBySector = computed<Record<string, KbliCodeItem[]>>(() => {
         @update:show-regions="showRegions = $event"
         @update:show-points="showPoints = $event"
         @select="openRegion"
+        @analyze="analyzeRegion"
         @back="mapBack"
       />
     </DashboardCardSection>

@@ -129,3 +129,35 @@ test("BUG-001: panel wilayah teratas mengikuti level dan membuka analitik level 
   await page.getByRole("button", { name: /Cibinong/ }).click(); // nama aksesibel dari isi tombol, bukan atribut title
   await expect.poll(() => new URL(page.url()).searchParams.getAll("filter")).toContain("kecamatan_id~eq~11");
 });
+
+test("BUG-005: klik wilayah membuka kartu info; drill dan Analitik hanya lewat tombol", async ({ page }) => {
+  await installMockDirectus(page, { authenticated: true, renderMap: true });
+  const drillRequests: string[] = [];
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (url.pathname === "/panel/v1/analytics/infographic/map" && url.searchParams.get("kota")) drillRequests.push(url.search);
+  });
+  await loginMock(page, "/dashboard");
+  const canvas = page.locator(".maplibregl-canvas");
+  await expect(canvas).toBeVisible();
+  const card = page.getByTestId("region-card");
+  // Kamera beranimasi fitBounds 700 ms; ulangi klik tengah sampai poligon terkena.
+  await expect(async () => {
+    await canvas.click();
+    await expect(card).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
+  await expect(card).toContainText(/Wilayah \d+/);
+  await expect(card).toContainText("UMKM");
+  await expect(card.getByTestId("region-card-analytics")).toHaveText("Buka di Analitik");
+  expect(drillRequests).toHaveLength(0);
+  await card.getByTestId("region-card-drill").click();
+  await expect.poll(() => drillRequests.length).toBeGreaterThan(0);
+  await expect(card).toBeHidden();
+  await expect(async () => {
+    await canvas.click();
+    await expect(card).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
+  await card.getByTestId("region-card-analytics").click();
+  await expect(page).toHaveURL(/\/dashboard\/analitik\?/);
+  expect(new URL(page.url()).searchParams.getAll("filter").some((value) => /^kota_id~eq~\d+$/.test(value))).toBe(true);
+});

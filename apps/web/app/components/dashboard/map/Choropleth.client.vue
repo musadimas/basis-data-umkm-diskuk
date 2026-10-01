@@ -2,7 +2,7 @@
   Peta koropleth sebaran UMKM per wilayah (MapLibre GL + tile raster OpenStreetMap).
 
   Komponen bersifat client-only (suffix `.client`). Fitur:
-  - Poligon wilayah dengan hover highlight & klik untuk drill-down.
+  - Poligon wilayah dengan hover highlight; klik membuka kartu info (rincian level berikutnya dan, di dashboard, Analitik).
   - Counter jumlah UMKM pada tiap poligon wilayah.
   - Sebaran titik UMKM (opsional, diaktifkan lewat saklar) dengan clustering:
     titik diagregasi menjadi klaster berhitung, lalu mengembang saat peta
@@ -24,7 +24,7 @@ import {
 } from "maplibre-gl";
 import type { InfografisRegion } from "~/types/infografis";
 import type { SkalaUsaha, SpasialUmkmItem } from "~/types/dashboard";
-import { formatAnalyticsNumber } from "~/lib/analytics-format";
+import { formatAnalyticsNumber, formatAnalyticsPercent } from "~/lib/analytics-format";
 import { TALENT_STATUS } from "~/constants";
 import { endpoint } from "~/lib/directus";
 import type { TalentStatus } from "~/types/program";
@@ -71,6 +71,8 @@ const props = withDefaults(
      * status talent, dan tautan profil. Hanya untuk dashboard yang sudah login.
      */
     pointCard?: boolean;
+    /** Kartu wilayah menampilkan tombol "Buka di Analitik" (emit `analyze`). Hanya dashboard yang sudah login. */
+    regionAnalytics?: boolean;
   }>(),
   {
     level: "kota",
@@ -85,10 +87,12 @@ const props = withDefaults(
     controlsClass: "right-3 top-3",
     zoomClass: "bottom-12 right-3",
     pointCard: false,
+    regionAnalytics: false,
   },
 );
 const emit = defineEmits<{
   select: [region: InfografisRegion];
+  analyze: [region: InfografisRegion];
   "update:showRegions": [value: boolean];
   "update:showPoints": [value: boolean];
   "tiles-ready": [];
@@ -118,6 +122,39 @@ const levelLabel = computed(
       kelurahan: "desa dan kelurahan",
     })[props.level],
 );
+/** Label level berikutnya untuk tombol rincian; level terdalam tidak punya rincian. */
+const NEXT_LEVEL_LABEL = {
+  kota: "kecamatan",
+  kecamatan: "desa/kelurahan",
+  kelurahan: null,
+} as const satisfies Record<"kota" | "kecamatan" | "kelurahan", string | null>;
+const regionTotal = computed(() =>
+  props.regions.reduce((sum, region) => sum + (Number(region.value) || 0), 0),
+);
+
+/** Satu-satunya jalan menutup popup wilayah/titik; idempoten, dipanggil semua jalur keluar (R7). */
+function closePopup() {
+  const current = popup;
+  popup = null;
+  current?.remove();
+}
+
+/** Tombol aksi kartu wilayah; hanya berlaku selama popup pemiliknya masih yang aktif. */
+function regionAction(label: string, testId: string, owner: Popup, run: () => void) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className =
+    "w-full rounded-md border border-blue-700 px-2 py-1 text-left text-[12px] font-semibold text-blue-700 hover:bg-blue-50";
+  button.dataset.testid = testId;
+  button.textContent = label;
+  button.addEventListener("click", () => {
+    if (popup !== owner) return;
+    closePopup();
+    run();
+  });
+  return button;
+}
+
 const legendItems = computed(() => {
   const max = maxValue.value;
   if (max <= 0) return [{ color: "#cbd5e1", label: "Tidak ada UMKM" }];
@@ -400,18 +437,33 @@ function onRegionClick(event: MapLayerMouseEvent) {
   const id = String(feature?.properties?.id ?? "");
   const region = props.regions.find((item) => item.id === id);
   if (!region) return;
-  popup?.remove();
+  closePopup();
+  const value = Number(region.value) || 0;
   const content = document.createElement("div");
-  const title = document.createElement("strong");
-  const total = document.createElement("div");
+  content.className = "space-y-1";
+  content.dataset.testid = "region-card";
+  const title = document.createElement("div");
+  title.className = "text-[13px] font-bold leading-snug";
   title.textContent = region.name;
-  total.textContent = `${formatAnalyticsNumber(region.value)} UMKM`;
+  const total = document.createElement("div");
+  total.className = "text-[11px] text-slate-600";
+  const share = regionTotal.value > 0 ? (value / regionTotal.value) * 100 : 0;
+  total.textContent = `${formatAnalyticsNumber(value)} UMKM · ${formatAnalyticsPercent(share)} dari total peta`;
   content.append(title, total);
-  popup = new Popup({ closeButton: false, offset: 8 })
+  const owner = new Popup({ closeButton: true, offset: 8, maxWidth: "260px" })
     .setLngLat(event.lngLat)
-    .setDOMContent(content)
-    .addTo(event.target);
-  emit("select", region);
+    .setDOMContent(content);
+  const actions = document.createElement("div");
+  actions.className = "mt-2 grid gap-1";
+  const next = NEXT_LEVEL_LABEL[props.level];
+  if (next) actions.append(regionAction(`Lihat rincian ${next}`, "region-card-drill", owner, () => emit("select", region)));
+  if (props.regionAnalytics) actions.append(regionAction("Buka di Analitik", "region-card-analytics", owner, () => emit("analyze", region)));
+  if (actions.childElementCount > 0) content.append(actions);
+  // Popup ditutup maplibre (tombol × atau klik peta): lepaskan rujukan agar tombol basi tidak berlaku.
+  owner.on("close", () => {
+    if (popup === owner) popup = null;
+  });
+  popup = owner.addTo(event.target);
 }
 
 /** Klik klaster → zoom halus ke tingkat di mana klaster tersebut mengembang. */
@@ -457,7 +509,7 @@ function onTileClusterClick(event: MapLayerMouseEvent) {
 function onPointClick(event: MapLayerMouseEvent) {
   const properties = event.features?.[0]?.properties;
   if (!properties) return;
-  popup?.remove();
+  closePopup();
   // SAFETY: skala pada feature berasal dari pointsFeatureCollection() yang menyalin SkalaUsaha apa adanya;
   // fallback "#64748b"/teks mentah di bawah menangani nilai di luar union.
   const skala = (properties.skala ?? "") as SkalaUsaha;
@@ -803,7 +855,12 @@ onMounted(() => {
   resizeObserver.observe(container.value);
 });
 
-watch(() => props.regions, updateSource, { deep: true });
+// Data wilayah berganti (filter, drill, kembali): kartu lama tidak lagi menunjuk data yang tampil.
+watch(() => props.regions, () => {
+  closePopup();
+  updateSource();
+}, { deep: true });
+watch(() => props.level, closePopup);
 watch(() => props.points, updateSource);
 watch(
   () => [props.showRegions, props.showPoints] as const,
@@ -814,10 +871,9 @@ watch(
 onBeforeUnmount(() => {
   clearTileReadyTimer();
   resizeObserver?.disconnect();
-  popup?.remove();
+  closePopup();
   map?.remove();
   resizeObserver = null;
-  popup = null;
   map = null;
 });
 </script>
