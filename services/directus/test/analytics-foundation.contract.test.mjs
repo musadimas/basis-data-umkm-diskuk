@@ -83,6 +83,17 @@ test("saved config rejects raw PII/result payloads", () => {
   );
 });
 
+test("nilai filter berupa data: nama wilayah ber-kata-kunci lolos, NIK/telepon tetap ditolak", () => {
+  const filter = (value) => ({ metric: "jumlah_umkm", groupBy: "kelurahan_nama", filters: [{ fieldId: "kelurahan_nama", operator: "in", value }] });
+  assert.doesNotThrow(() => contracts.assertSafeAnalysisConfig(filter(["MEKARMANIK", "ELEKTRONIK"])));
+  assert.doesNotThrow(() => contracts.assertSafeAnalysisConfig({ filters: [{ fieldId: "kelurahan_nama", operator: "eq", value: "MEKARMANIK" }] }));
+  assert.throws(() => contracts.assertSafeAnalysisConfig(filter(["MEKARMANIK", "3273010101011234"])), /Invalid analysis/);
+  assert.throws(() => contracts.assertSafeAnalysisConfig(filter("081234567890")), /Invalid analysis/);
+  // Kata kunci tetap ditolak pada posisi identifier.
+  assert.throws(() => contracts.assertSafeAnalysisConfig({ groupBy: "nik", filters: [] }), /Invalid analysis/);
+  assert.throws(() => contracts.assertSafeAnalysisConfig({ filters: [{ fieldId: "telepon", operator: "eq", value: "x" }] }), /Invalid analysis/);
+});
+
 test("migration includes triggers, promotion guard, and no raw payload column", () => {
   assert.match(foundation, /SECURITY DEFINER/);
   assert.match(foundation, /analitik_capture_source_change/);

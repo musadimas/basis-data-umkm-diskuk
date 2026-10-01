@@ -140,6 +140,9 @@ function sanitizeError(error) {
     message: "Permintaan tidak dapat diproses.",
   };
 }
+// Nilai filter adalah data (mis. nama desa "MEKARMANIK"), bukan nama field: kata kunci PII_KEY_RE
+// tidak berlaku, tetapi pola NIK/telepon tetap ditolak.
+const FILTER_VALUE_PATH = /\.filters\[\d+\]\.value(?:\[\d+\])?$/;
 function containsForbiddenConfig(value, path = "config") {
   if (Array.isArray(value))
     return value.some((item, index) =>
@@ -147,7 +150,7 @@ function containsForbiddenConfig(value, path = "config") {
     );
   if (typeof value === "string")
     return (
-      PII_KEY_RE.test(value) ||
+      (!FILTER_VALUE_PATH.test(path) && PII_KEY_RE.test(value)) ||
       /^\d{16}$/.test(value) ||
       /^(?:\+62|62|08)\d{8,13}$/.test(value)
     );

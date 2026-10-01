@@ -68,6 +68,20 @@ describe("analytics query URL contract", () => {
     expect(parsed.warning).toBe(false);
     expect(parsed.config.filters).toEqual(config.filters);
   });
+  it("keeps region names that contain PII keywords but still drops NIK and phone values", () => {
+    const config = {
+      ...defaultAnalysis,
+      filters: [
+        { fieldId: "kelurahan_nama", operator: "in" as const, value: ["MEKARMANIK", "SUKAMANAH"] },
+        { fieldId: "sektor_kbli", operator: "eq" as const, value: "ELEKTRONIK" },
+      ],
+    };
+    const parsed = parseAnalysisUrl(serializeAnalysisUrl(config));
+    expect(parsed.warning).toBe(false);
+    expect(parsed.config.filters).toEqual(config.filters);
+    expect(parseAnalysisUrl("filter=kelurahan_nama~eq~3273010101011234").warning).toBe(true);
+    expect(parseAnalysisUrl("filter=kelurahan_nama~in~MEKARMANIK%2C081234567890").warning).toBe(true);
+  });
   it("rejects in-filters with more than 100 values", () => {
     const value = Array.from({ length: 101 }, (_, i) => `K${i}`).join(",");
     expect(parseAnalysisUrl(`filter=kota_nama~in~${encodeURIComponent(value)}`).warning).toBe(true);

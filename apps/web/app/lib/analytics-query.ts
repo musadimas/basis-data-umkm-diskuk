@@ -58,11 +58,15 @@ function hasControlCharacters(value: string) {
   });
 }
 
+/**
+ * Nilai filter adalah data (mis. nama desa "MEKARMANIK", sektor "ELEKTRONIK"), bukan nama field,
+ * jadi hanya pola PII nyata (UUID, NIK 16 digit, nomor telepon) yang ditolak; daftar kata kunci
+ * `FORBIDDEN_IDENTIFIER` hanya untuk identifier.
+ */
 function safeFilterValue(value: string): boolean {
   return (
     value.length <= 100 &&
     !hasControlCharacters(value) &&
-    !FORBIDDEN_IDENTIFIER.test(value) &&
     !FORBIDDEN_UUID.test(value) &&
     !/^\d{16}$/.test(value) &&
     !/^(?:\+62|62|08)\d{8,13}$/.test(value)
