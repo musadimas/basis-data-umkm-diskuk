@@ -9,6 +9,7 @@ import {
   submitPengajuan,
   updatePengajuan,
 } from "./service.js";
+import { exportBeritaAcaraPdf } from "./berita-acara-pdf.js";
 import cakupan from "../../../../../analytics-shared/cakupan.cjs";
 
 const { terjaga } = cakupan;
@@ -22,6 +23,7 @@ const { terjaga } = cakupan;
 //   POST  /v1/program/talent/pengajuan/:id/ajukan       submit a scored draft to curation
 //   POST  /v1/program/talent/pengajuan/:id/tolak       reject a submitted application (provinsi, reason required)
 //   GET   /v1/program/talent/berita-acara              issued Berita Acara
+//   GET   /v1/program/talent/berita-acara/:id/pdf      Berita Acara PDF (provinsi, generated on demand)
 //   POST  /v1/program/talent/berita-acara              approve scored submissions into the talent pool
 // Kandidat 01: gate peran di adapter (kelola = provinsi/kabkota, BA & tolak = provinsi
 // saja); scope usaha di service via pastikanUsaha (404 seragam, K1).
@@ -37,5 +39,6 @@ export default (router, context) => {
   router.post("/pengajuan/:id/ajukan", terjaga(KELOLA, submitPengajuan)(context));
   router.post("/pengajuan/:id/tolak", terjaga(KEPUTUSAN, rejectPengajuan)(context));
   router.get("/berita-acara", terjaga(KELOLA, listBeritaAcara)(context));
+  router.get("/berita-acara/:id/pdf", terjaga(KEPUTUSAN, exportBeritaAcaraPdf)(context));
   router.post("/berita-acara", terjaga(KEPUTUSAN, createBeritaAcara)(context));
 };

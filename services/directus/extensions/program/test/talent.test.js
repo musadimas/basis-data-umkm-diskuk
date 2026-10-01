@@ -8,7 +8,7 @@ const ID = "5b0c3a52-6c1f-4f8e-9a54-0c6f1f2d7a11";
 // Scope, alur pengajuan, Berita Acara, dan duplikat diuji terhadap Postgres di test/pg/talent.test.js.
 test("every talent route rejects anonymous and wrong-role callers before database access", async () => {
   const { call, routes, queries } = mountEndpoint(registerTalent);
-  assert.equal(routes.length, 9);
+  assert.equal(routes.length, 10);
   for (const { method, path } of routes) {
     const url = path.replace(/:\w+/g, ID);
     const anonymous = await call(method, url, { accountability: null });
@@ -24,7 +24,7 @@ test("semua route talent bertanda terjaga dengan peran yang tepat (01)", async (
   const require = createRequire(import.meta.url);
   const cakupan = require("../../../analytics-shared/cakupan.cjs");
   const { routes } = mountEndpoint(registerTalent);
-  assert.equal(routes.length, 9);
+  assert.equal(routes.length, 10);
   const peranUntuk = (method, path) => {
     const route = routes.find((r) => r.method === method && r.path === path);
     return cakupan.tandaCakupan(route.handler);
@@ -38,6 +38,7 @@ test("semua route talent bertanda terjaga dengan peran yang tepat (01)", async (
     ["POST", "/pengajuan/:id/ajukan", ["kabkota", "provinsi"]],
     ["POST", "/pengajuan/:id/tolak", ["provinsi"]],
     ["GET", "/berita-acara", ["kabkota", "provinsi"]],
+    ["GET", "/berita-acara/:id/pdf", ["provinsi"]],
     ["POST", "/berita-acara", ["provinsi"]],
   ];
   for (const [method, path, peran] of ekspektasi) {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { FileCheck2 } from "@lucide/vue";
+import { FileCheck2, FileDown } from "@lucide/vue";
 import { PENGAJUAN_STATUS, PLACEHOLDER_RUBRIK, SKALA_LABEL, SKOR_DIMENSI } from "~/constants";
 import { endpoint } from "~/lib/directus";
 import { requestErrorCode } from "~/lib/request-error";
@@ -131,6 +131,31 @@ async function tolak() {
 const score = (value: number | undefined) =>
   value === undefined ? "—" : new Intl.NumberFormat("id-ID", { maximumFractionDigits: 1 }).format(value);
 const date = (value: string) => new Intl.DateTimeFormat("id-ID", { dateStyle: "medium" }).format(new Date(value));
+
+const mengunduhBa = ref<string | null>(null);
+const galatBa = ref<{ id: string; text: string } | null>(null);
+const namaBerkasBa = (nomor: string) =>
+  `${nomor.replace(/[^A-Za-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "") || "berita-acara"}.pdf`;
+async function unduhBeritaAcara(item: BeritaAcara) {
+  if (mengunduhBa.value) return;
+  mengunduhBa.value = item.id;
+  galatBa.value = null;
+  try {
+    const response = await directus.request(endpoint<Response>(`/v1/program/talent/berita-acara/${item.id}/pdf`));
+    const url = URL.createObjectURL(await response.blob());
+    const tautan = document.createElement("a");
+    tautan.href = url;
+    tautan.download = namaBerkasBa(item.nomor);
+    document.body.appendChild(tautan);
+    tautan.click();
+    tautan.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } catch {
+    galatBa.value = { id: item.id, text: `Berita Acara ${item.nomor} tidak dapat diunduh. Coba lagi.` };
+  } finally {
+    mengunduhBa.value = null;
+  }
+}
 </script>
 
 <template>
@@ -229,8 +254,20 @@ const date = (value: string) => new Intl.DateTimeFormat("id-ID", { dateStyle: "m
         <p v-if="!beritaAcara?.length" class="text-sm text-muted-foreground">Belum ada Berita Acara.</p>
         <ul v-else class="divide-y text-sm">
           <li v-for="item in beritaAcara" :key="item.id" class="flex flex-wrap items-center justify-between gap-2 py-2">
-            <span class="font-mono font-semibold">{{ item.nomor }}</span>
+            <UiButton
+              v-if="isProvinsi"
+              type="button"
+              variant="link"
+              class="h-auto gap-1 p-0 font-mono font-semibold"
+              :disabled="mengunduhBa !== null"
+              :aria-label="`Unduh PDF Berita Acara ${item.nomor}`"
+              @click="unduhBeritaAcara(item)"
+            >
+              <FileDown class="size-4" /> {{ mengunduhBa === item.id ? "Menyiapkan PDF…" : item.nomor }}
+            </UiButton>
+            <span v-else class="font-mono font-semibold">{{ item.nomor }}</span>
             <span class="text-muted-foreground">{{ date(item.tanggal) }} · {{ item.jumlahPengajuan }} usaha</span>
+            <p v-if="galatBa?.id === item.id" role="alert" class="w-full text-xs text-destructive">{{ galatBa.text }}</p>
           </li>
         </ul>
       </UiCardContent>

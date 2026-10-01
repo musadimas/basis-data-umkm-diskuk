@@ -399,6 +399,23 @@ export async function installMockProgram(page, state = createProgramState()) {
         .map((item) => ({ ...item, usahaInfo: { nama: state.usaha.nama, nib: state.usaha.nib, skala: "micro", kota: state.usaha.kota } }));
       return json(route, 200, rows);
     }
+    match = path.match(/^\/talent\/berita-acara\/([^/]+)\/pdf$/);
+    if (method === "GET" && match) {
+      if (state.failNext?.[path]) {
+        delete state.failNext[path];
+        return json(route, 500, "INTERNAL_SERVER_ERROR");
+      }
+      const ba = state.beritaAcara.find((item) => item.id === match[1]);
+      if (!ba) return json(route, 404, "BERITA_ACARA_NOT_FOUND");
+      return route.fulfill({
+        status: 200,
+        headers: {
+          "content-type": "application/pdf",
+          "content-disposition": `attachment; filename="${ba.nomor.replace(/[^A-Za-z0-9_-]+/g, "-")}.pdf"`,
+        },
+        body: "%PDF-1.4\n%%EOF",
+      });
+    }
     if (method === "GET" && path === "/talent/berita-acara") return json(route, 200, state.beritaAcara);
     if (method === "POST" && path === "/talent/berita-acara") {
       const created = {

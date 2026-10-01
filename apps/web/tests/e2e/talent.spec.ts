@@ -314,4 +314,35 @@ test.describe("Modul 4 · Talent Scouting", () => {
     expect(page.url()).toContain("000000000099");
     expect(loads).toBe(0);
   });
+
+  test("BUG-011: provinsi mengunduh PDF Berita Acara; gagal menampilkan pesan per item", async ({ page }) => {
+    const state = createProgramState();
+    state.beritaAcara.push({ id: "ba-1", nomor: "BA-TS/2026/0001", tanggal: "2026-09-30", catatan: null, berkas: null, dateCreated: "2026-09-30T03:00:00Z", jumlahPengajuan: 1 });
+    await installMockDirectus(page, { authenticated: true, role: "provinsi" });
+    await installMockProgram(page, state);
+    await loginMock(page, "/dashboard/talent/kurasi");
+
+    const tombol = page.getByRole("button", { name: "Unduh PDF Berita Acara BA-TS/2026/0001" });
+    await expect(tombol).toBeVisible();
+    const download = page.waitForEvent("download");
+    await tombol.click();
+    expect((await download).suggestedFilename()).toBe("BA-TS-2026-0001.pdf");
+
+    // R4/R8: kegagalan server menampilkan pesan per item dan tombol kembali aktif.
+    state.failNext["/talent/berita-acara/ba-1/pdf"] = true;
+    await tombol.click();
+    await expect(page.getByRole("alert")).toContainText("tidak dapat diunduh");
+    await expect(tombol).toBeEnabled();
+  });
+
+  test("BUG-011: kabkota melihat daftar BA tanpa tombol unduh", async ({ page }) => {
+    const state = createProgramState();
+    state.beritaAcara.push({ id: "ba-1", nomor: "BA-TS/2026/0001", tanggal: "2026-09-30", catatan: null, berkas: null, dateCreated: "2026-09-30T03:00:00Z", jumlahPengajuan: 1 });
+    await installMockDirectus(page, { authenticated: true, role: "kabkota" });
+    await installMockProgram(page, state);
+    await loginMock(page, "/dashboard/talent/kurasi");
+
+    await expect(page.getByText("BA-TS/2026/0001")).toBeVisible();
+    await expect(page.getByRole("button", { name: /Unduh PDF Berita Acara/ })).toHaveCount(0);
+  });
 });

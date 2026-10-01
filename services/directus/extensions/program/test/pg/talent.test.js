@@ -335,3 +335,32 @@ test("dua klik Berita Acara paralel untuk pengajuan yang sama menghasilkan satu 
   assert.equal((await db("talent_berita_acara")).length, 1);
   assert.equal((await db("talent_pengajuan").where({ berita_acara: (await db("talent_berita_acara").first()).id })).length, 1);
 });
+
+test("PDF Berita Acara: provinsi 200 berisi nomor dan usaha; kabkota 403; id asing 404; id rusak 400", { skip: pgSkipReason() }, async (t) => {
+  const { db, call, subang, bandung, provinsi, kabkotaSubang } = await siap(t);
+  const a = await buatPengajuan(db, { usahaId: subang.id, status: "dinilai", skor: SKOR });
+  const b = await buatPengajuan(db, { usahaId: bandung.id, status: "dinilai", skor: SKOR });
+  const dibuat = await call("POST", "/berita-acara", { accountability: akun(provinsi.id), body: { pengajuan: [a, b], catatan: "batch 1" } });
+  assert.equal(dibuat.res.statusCode, 201, JSON.stringify(dibuat.res.body));
+  const id = dibuat.res.body.data.id;
+
+  const prov = await call("GET", `/berita-acara/${id}/pdf`, { accountability: akun(provinsi.id) });
+  assert.equal(prov.res.statusCode, 200, JSON.stringify(prov.res.body));
+  assert.equal(prov.res.headers["Content-Type"], "application/pdf");
+  assert.ok(prov.res.headers["Content-Disposition"].includes("BA-TS-"), prov.res.headers["Content-Disposition"]);
+  const raw = prov.res.body.toString("latin1");
+  assert.equal(raw.slice(0, 8), "%PDF-1.4");
+  assert.match(raw, /BA-TS\/\d{4}\/0001/);
+  assert.match(raw, /Usaha Subang/);
+  assert.match(raw, /Usaha Bandung/);
+
+  const kabkota = await call("GET", `/berita-acara/${id}/pdf`, { accountability: akun(kabkotaSubang.id) });
+  assert.equal(kabkota.nextError?.statusCode ?? kabkota.res.statusCode, 403);
+
+  const asing = await call("GET", `/berita-acara/${uuid()}/pdf`, { accountability: akun(provinsi.id) });
+  assert.equal(asing.res.statusCode, 404);
+  assert.equal(kode(asing), "BERITA_ACARA_NOT_FOUND");
+
+  const rusak = await call("GET", "/berita-acara/x/pdf", { accountability: akun(provinsi.id) });
+  assert.equal(rusak.res.statusCode, 400);
+});
