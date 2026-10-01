@@ -15,9 +15,9 @@ test("Canvas Analitik supports aggregate PPTX export option", async ({ page, vie
   await expect(dialog).toBeVisible();
 
   const formatSelect = dialog.getByLabel("Format");
-  await expect(formatSelect.locator('option[value="aggregate_pptx"]')).toHaveText("Slide PPT (rapat pimpinan)");
-
-  await formatSelect.selectOption("aggregate_pptx");
+  await formatSelect.click();
+  await page.getByRole("option", { name: "Slide PPT (rapat pimpinan)" }).click();
+  await expect(formatSelect).toHaveText("Slide PPT (rapat pimpinan)");
   await dialog.getByLabel("Judul dokumen").fill("Rapat Pimpinan Triwulan III");
 
   const exportRequest = page.waitForRequest((request) => {

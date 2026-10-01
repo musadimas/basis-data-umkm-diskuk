@@ -247,7 +247,8 @@ test.describe("R04 · Klinik: outcome konsultasi (panel petugas dan profil usaha
     // ── Pendamping: closes T1 with an outcome (checklist) and records T2's outcome afterwards ──
     const pendamping = await sesiPetugas(browser, baseURL, state, AKTOR.pendamping, "pendamping");
     await kartu(pendamping, "Toko Kulit Maju").click();
-    await pendamping.getByTestId("pilih-status").selectOption({ label: "Selesai" });
+    await pendamping.getByTestId("pilih-status").click();
+    await pendamping.getByRole("option", { name: "Selesai", exact: true }).click();
     await expect(pendamping.getByTestId("outcome-penutupan")).toContainText("boleh dikosongkan");
     await pendamping.getByRole("button", { name: "NPWP Usaha: Kepatuhan" }).click();
     await pendamping.getByRole("button", { name: "QRIS: Perbaikan" }).click();

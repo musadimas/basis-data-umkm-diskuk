@@ -12,7 +12,8 @@ test("Canvas Analitik exports a three-slide PPT with the rendered chart", async 
 
   await page.getByRole("button", { name: "Ekspor" }).click();
   const dialog = page.getByRole("dialog", { name: "Ekspor privat" });
-  await dialog.getByLabel("Format").selectOption("slide_pptx");
+  await dialog.getByLabel("Format").click();
+  await page.getByRole("option", { name: "Slide PPT (dari tampilan saat ini)" }).click();
   const [download] = await Promise.all([page.waitForEvent("download"), dialog.getByRole("button", { name: "Mulai ekspor" }).click()]);
 
   expect(download.suggestedFilename()).toMatch(/^analitik-.+-\d{4}-\d{2}-\d{2}\.pptx$/);

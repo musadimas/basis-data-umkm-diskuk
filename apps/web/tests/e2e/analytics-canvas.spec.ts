@@ -14,6 +14,10 @@ test.describe("canvas analitik", () => {
     await expect(
       page.getByRole("heading", { name: "Kanvas analitik" }),
     ).toBeVisible();
+    // Nama aksesibel picker templat tidak bergantung pada templat yang sedang terpilih.
+    await expect(
+      page.getByRole("combobox", { name: "Templat analisis" }),
+    ).toBeVisible();
     await expect(
       page.getByRole("listitem").filter({ hasText: "Kabupaten Bogor" }),
     ).toBeVisible();

@@ -20,10 +20,9 @@ const current = computed(
 <template>
   <UiSelect
     :model-value="current"
-    aria-label="Templat analisis"
     @update:model-value="pilih"
   >
-    <UiSelectTrigger class="h-8 max-w-[11rem] text-xs"><UiSelectValue placeholder="Templat analisis" /></UiSelectTrigger>
+    <UiSelectTrigger class="h-8 max-w-[11rem] text-xs" aria-label="Templat analisis"><UiSelectValue placeholder="Templat analisis" /></UiSelectTrigger>
     <UiSelectContent>
       <UiSelectItem
         v-for="template in templates"

@@ -55,21 +55,22 @@ test.describe("Y06 katalog publik pada stack disposable", () => {
 
   test("filter wilayah menawarkan 27 kabupaten/kota dan mengubah hasil serta count", async ({ page }) => {
     await page.goto("/katalog");
-    const opsi = page.locator("#filter-wilayah option");
-    await expect(opsi).toHaveCount(28); // "Semua Kab/Kota" + 27 wilayah Jawa Barat
+    const wilayah = page.locator("#filter-wilayah");
+    const opsi = page.getByRole("listbox").getByRole("option");
+    // Halaman SSR: klik pertama bisa terjadi sebelum hidrasi menautkan handler combobox.
+    await expect(async () => {
+      if ((await wilayah.getAttribute("aria-expanded")) !== "true") await wilayah.click();
+      await expect(opsi).toHaveCount(28, { timeout: 2000 }); // "Semua Kab/Kota" + 27 wilayah Jawa Barat
+    }).toPass({ timeout: 30_000 });
     const label = (await opsi.allTextContents()).join(" | ");
     for (const nama of ["Kabupaten Subang", "Kota Bandung", "Kota Banjar", "Kabupaten Pangandaran", "Kabupaten Bogor"]) {
       expect(label).toContain(nama);
     }
 
-    const subang = page.locator("#filter-wilayah option", { hasText: "Kabupaten Subang (" });
-    const nilai = await subang.first().getAttribute("value");
-    // Pilihan sebelum hidrasi tidak menggerakkan filter; ulangi sampai URL ikut berubah.
-    await expect(async () => {
-      await page.locator("#filter-wilayah").selectOption(nilai!);
-      await expect(page).toHaveURL(new RegExp(`kota=${nilai}`), { timeout: 2000 });
-      await expect(page.getByTestId("katalog-total")).not.toHaveText("0", { timeout: 2000 });
-    }).toPass({ timeout: 30_000 });
+    await opsi.filter({ hasText: "Kabupaten Subang (" }).first().click();
+    await expect(page).toHaveURL(/kota=\d+/);
+    await expect(wilayah).toContainText("Kabupaten Subang");
+    await expect(page.getByTestId("katalog-total")).not.toHaveText("0");
 
     // Chip brief + wilayah dapat digabung, dan kombinasi kosong dinyatakan jelas.
     await page.getByRole("button", { name: "Kerajinan", exact: true }).click();
@@ -177,7 +178,7 @@ test.describe("Y06 katalog pada layar ponsel", () => {
     }
 
     await page.goto(`/katalog/${PRODUK_TAYANG}`);
-    for (const aksi of ["Ajukan Minat Kemitraan / Order B2B", "Kontak Penjualan Resmi (WhatsApp)", "Unduh Lembar Spesifikasi (PDF)"]) {
+    for (const aksi of ["Ajukan Minat Kemitraan (LOI)", "Kontak Penjualan Resmi (WhatsApp)", "Unduh Lembar Spesifikasi (PDF)"]) {
       const link = page.getByRole("link", { name: aksi });
       await link.scrollIntoViewIfNeeded();
       await expect(link).toBeVisible();
