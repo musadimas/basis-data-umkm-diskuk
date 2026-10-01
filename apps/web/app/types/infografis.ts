@@ -44,6 +44,9 @@ export interface InfografisRegion {
   };
 }
 
+/** Level agregasi wilayah pada respons infografis. */
+export type InfografisRegionLevel = "kota" | "kecamatan" | "kelurahan";
+
 export interface InfografisData {
   scales: {
     total: number;
@@ -57,7 +60,7 @@ export interface InfografisData {
     unclassified: number;
   };
   regions: InfografisRegion[];
-  regionLevel?: "kota" | "kecamatan" | "kelurahan";
+  regionLevel?: InfografisRegionLevel;
   geometryReady?: boolean;
   geometryMissing?: number;
   geometrySource?: {

@@ -1,3 +1,5 @@
+import type { InfografisRegionLevel } from "~/types/infografis";
+
 export const DASHBOARD_SECTIONS = {
   scale: {
     title: "Jumlah Usaha Berdasarkan Skala Usaha",
@@ -41,13 +43,6 @@ export const DASHBOARD_SECTIONS = {
     tooltip:
       "Peringkat sektor KBLI (A–U) berdasarkan jumlah UMKM pada filter aktif",
   },
-  topRegion: {
-    title: "5 Kabupaten/Kota Teratas",
-    description:
-      "Lima kabupaten/kota dengan jumlah UMKM terbanyak. Klik untuk membuka analitik wilayah.",
-    tooltip:
-      "Peringkat kabupaten/kota berdasarkan jumlah UMKM pada filter aktif",
-  },
   topKbli: {
     title: "5 Kode KBLI Teratas",
     description:
@@ -69,3 +64,29 @@ export const DASHBOARD_SECTIONS = {
       "Rincian agregat per sektor KBLI, atau baris data usaha dari snapshot usaha_tabular dengan filter & paginasi server-side",
   },
 } as const;
+
+/** Panel wilayah teratas di Infografis: judul mengikuti level agregasi dari API (BUG-001). */
+export const TOP_REGION_SECTIONS = {
+  kota: {
+    title: "5 Kabupaten/Kota Teratas",
+    description: "Lima kabupaten/kota dengan jumlah UMKM terbanyak. Klik untuk membuka analitik wilayah.",
+    tooltip: "Peringkat kabupaten/kota berdasarkan jumlah UMKM pada filter aktif",
+  },
+  kecamatan: {
+    title: "5 Kecamatan Teratas",
+    description: "Lima kecamatan dengan jumlah UMKM terbanyak pada kabupaten/kota terpilih. Klik untuk membuka analitik wilayah.",
+    tooltip: "Peringkat kecamatan berdasarkan jumlah UMKM pada filter aktif",
+  },
+  kelurahan: {
+    title: "5 Desa/Kelurahan Teratas",
+    description: "Lima desa/kelurahan dengan jumlah UMKM terbanyak pada kecamatan terpilih. Klik untuk membuka analitik wilayah.",
+    tooltip: "Peringkat desa/kelurahan berdasarkan jumlah UMKM pada filter aktif",
+  },
+} satisfies Record<InfografisRegionLevel, { title: string; description: string; tooltip: string }>;
+
+/** Field Analitik untuk membuka satu wilayah sesuai levelnya (dipakai Infografis; Phase 3 menambah Spasial). */
+export const REGION_ANALYTICS_FIELD = {
+  kota: "kota_id",
+  kecamatan: "kecamatan_id",
+  kelurahan: "kelurahan_id",
+} as const satisfies Record<InfografisRegionLevel, string>;

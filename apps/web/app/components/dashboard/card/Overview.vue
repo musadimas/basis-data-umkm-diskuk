@@ -6,10 +6,11 @@ import type {
   InfografisMarketingMethod,
   InfografisNibData,
   InfografisRegion,
+  InfografisRegionLevel,
   InfografisSectorItem,
 } from "~/types/infografis";
 import { ArrowUpRight, ChartColumnDecreasing, CircleHelp } from "@lucide/vue";
-import { DASHBOARD_SECTIONS } from "~/constants/DASHBOARD";
+import { DASHBOARD_SECTIONS, TOP_REGION_SECTIONS } from "~/constants/DASHBOARD";
 import { formatAnalyticsNumber, formatAnalyticsPercent } from "~/lib/analytics-format";
 
 interface Props {
@@ -18,8 +19,10 @@ interface Props {
   marketingMethods?: InfografisMarketingMethod[];
   /** Sektor KBLI terurut desc dari API, untuk panel top sektor. */
   sectors?: InfografisSectorItem[];
-  /** Wilayah terurut desc dari API, untuk panel top kabupaten/kota. */
+  /** Wilayah terurut desc dari API, untuk panel wilayah teratas. */
   regions?: InfografisRegion[];
+  /** Level agregasi `regions` dari API; menentukan judul panel wilayah teratas. */
+  regionLevel?: InfografisRegionLevel;
   /** Kode KBLI terurut desc dari API, untuk panel top kode KBLI. */
   kbli?: InfografisKbliItem[];
   /** Cakupan klasifikasi KBLI, untuk donut kualitas data. */
@@ -36,6 +39,7 @@ const props = withDefaults(defineProps<Props>(), {
   marketingMethods: () => [],
   sectors: () => [],
   regions: () => [],
+  regionLevel: "kota",
   kbli: () => [],
   title: "Infografis UMKM",
   description:
@@ -43,7 +47,7 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const emit = defineEmits<{
-  (e: "drill:sektor" | "drill:kota" | "drill:kbli", value: string): void;
+  (e: "drill:sektor" | "drill:wilayah" | "drill:kbli", value: string): void;
 }>();
 
 // ── KPI strip & komposisi skala ─────────────────────────────────────────────
@@ -171,7 +175,9 @@ const maxSectorValue = computed(() =>
   Math.max(0, ...topSectors.value.map((item) => item.total)),
 );
 
-/** Lima kabupaten/kota dengan jumlah UMKM terbanyak (berdasarkan `value`) —
+const topRegionSection = computed(() => TOP_REGION_SECTIONS[props.regionLevel]);
+
+/** Lima wilayah (level mengikuti `regionLevel`) dengan jumlah UMKM terbanyak —
  *  diurutkan eksplisit desc agar tidak bergantung pada urutan dari API. */
 const topRegions = computed(() =>
   [...props.regions]
@@ -653,7 +659,7 @@ const coveragePercentage = computed(() => {
           </ul>
         </section>
 
-        <!-- Panel top kabupaten/kota -->
+        <!-- Panel wilayah teratas (level mengikuti regionLevel) -->
         <section
           v-if="topRegions.length"
           aria-labelledby="dashboard-top-region-title"
@@ -664,20 +670,20 @@ const coveragePercentage = computed(() => {
               id="dashboard-top-region-title"
               class="flex items-center gap-1.5 text-sm font-bold text-foreground"
             >
-              {{ DASHBOARD_SECTIONS.topRegion.title }}
-              <UiTooltipProvider v-if="DASHBOARD_SECTIONS.topRegion.tooltip">
+              {{ topRegionSection.title }}
+              <UiTooltipProvider v-if="topRegionSection.tooltip">
                 <UiTooltip>
                   <UiTooltipTrigger as-child>
                     <button
                       type="button"
                       class="inline-flex items-center justify-center rounded-full text-muted-foreground/70 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green"
-                      :aria-label="`Informasi tentang ${DASHBOARD_SECTIONS.topRegion.title}`"
+                      :aria-label="`Informasi tentang ${topRegionSection.title}`"
                     >
                       <CircleHelp class="h-3.5 w-3.5" />
                     </button>
                   </UiTooltipTrigger>
                   <UiTooltipContent class="text-justify max-w-2xs text-xs font-normal">
-                    <p>{{ DASHBOARD_SECTIONS.topRegion.tooltip }}</p>
+                    <p>{{ topRegionSection.tooltip }}</p>
                   </UiTooltipContent>
                 </UiTooltip>
               </UiTooltipProvider>
@@ -690,7 +696,7 @@ const coveragePercentage = computed(() => {
                 type="button"
                 class="group flex w-full items-center gap-2 rounded-md px-1 py-0.5 text-left transition-colors hover:bg-background/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green"
                 :title="`Buka analitik untuk ${region.name}`"
-                @click="emit('drill:kota', region.id)"
+                @click="emit('drill:wilayah', region.id)"
               >
                 <span
                   class="w-5 shrink-0 text-right text-[10px] font-bold tabular-nums text-muted-foreground"

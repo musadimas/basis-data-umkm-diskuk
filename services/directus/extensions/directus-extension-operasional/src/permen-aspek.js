@@ -121,7 +121,7 @@ async function getAspekPerkembangan(database, query, operator) {
   return { data: {
     totalUsaha: total,
     sumber: "Snapshot usaha_tabular, usaha, usaha_atribut_jabar, kegiatan_sertifikat_dampak (indikator dampak), dan konsultasi_outcome terverifikasi (hasil klinik)",
-    definisiVersi: "indikator-operasional-v2",
+    definisiVersi: "indikator-operasional-v3",
     kepatuhanRegulasi: false,
     aspek: ASPEK.map((aspek) => ({
       id: aspek.id,
@@ -133,7 +133,10 @@ async function getAspekPerkembangan(database, query, operator) {
         return {
           id, label, sumber, ya, tidak, diketahui,
           belumAdaData: Math.max(0, total - diketahui),
-          persentase: diketahui ? Math.round((ya / diketahui) * 1000) / 10 : null,
+          total,
+          // BUG-002: penyebut = seluruh UMKM dalam filter, sehingga indikator yang hanya bisa "ya"
+          // (NIB, sertifikat dampak) tidak lagi tampil 100%.
+          persentase: total ? Math.round((ya / total) * 1000) / 10 : null,
         };
       }),
     })),

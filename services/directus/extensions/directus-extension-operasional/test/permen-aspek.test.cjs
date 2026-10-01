@@ -4,7 +4,7 @@ const assert = require("node:assert/strict");
 const test = require("node:test");
 const { getAspekPerkembangan } = require("../src/permen-aspek.js");
 
-test("lima aspek menghitung ya dari data diketahui dan memisahkan data kosong", async () => {
+test("lima aspek menghitung ya atas seluruh UMKM dalam filter dan memisahkan data kosong", async () => {
   const calls = [];
   const database = { raw: async (sql, params) => {
     calls.push({ sql, params });
@@ -17,8 +17,10 @@ test("lima aspek menghitung ya dari data diketahui dan memisahkan data kosong", 
   assert.match(calls[0].sql, /LEFT JOIN usaha_atribut_jabar/);
   assert.deepEqual(result.data.aspek[0].indikator[1], {
     id: "npwp_usaha", label: "NPWP usaha", sumber: "usaha_atribut_jabar.npwp_usaha",
-    ya: 20, tidak: 10, diketahui: 30, belumAdaData: 70, persentase: 66.7,
+    ya: 20, tidak: 10, diketahui: 30, belumAdaData: 70, total: 100, persentase: 20,
   });
+  assert.equal(result.data.aspek[0].indikator[0].persentase, 80);
+  assert.equal(result.data.definisiVersi, "indikator-operasional-v3");
   assert.equal(result.data.kepatuhanRegulasi, false);
 });
 
@@ -46,7 +48,7 @@ test("indikator dampak IP-UMKM membaca sertifikat aktif; tanpa sertifikat = belu
   const pelatihan = manajemen.indikator.find((i) => i.id === "bukti_pelatihan_manajemen");
   assert.deepEqual(pelatihan, {
     id: "bukti_pelatihan_manajemen", label: "Bukti pelatihan manajemen", sumber: "kegiatan_sertifikat_dampak.atribut",
-    ya: 4, tidak: 0, diketahui: 4, belumAdaData: 6, persentase: 100,
+    ya: 4, tidak: 0, diketahui: 4, belumAdaData: 6, total: 10, persentase: 40,
   });
   const sdm = manajemen.indikator.find((i) => i.id === "peningkatan_kapasitas_sdm");
   assert.equal(sdm.ya, 4);
@@ -85,4 +87,15 @@ test("thenable knex dijalankan sekali walau hasil cache dipakai berulang", async
   await getAspekPerkembangan(database, { kota: "4" }, { role: "provinsi" });
   await getAspekPerkembangan(database, { kota: "4" }, { role: "provinsi" });
   assert.equal(eksekusi, 1);
+});
+
+test("total nol menghasilkan persentase null", async () => {
+  const database = { raw: async () => ({ rows: [{ total: 0 }] }) };
+  const result = await getAspekPerkembangan(database, {}, { role: "provinsi" });
+  const indikator = result.data.aspek.flatMap((aspek) => aspek.indikator);
+  assert.ok(indikator.length > 0);
+  for (const item of indikator) {
+    assert.equal(item.total, 0);
+    assert.equal(item.persentase, null);
+  }
 });

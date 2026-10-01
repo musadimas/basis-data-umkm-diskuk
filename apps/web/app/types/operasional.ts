@@ -66,6 +66,7 @@ export interface AspekPerkembangan {
       tidak: number;
       diketahui: number;
       belumAdaData: number;
+      total: number;
       persentase: number | null;
     }>;
   }>;

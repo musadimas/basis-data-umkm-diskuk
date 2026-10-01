@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { installMockDirectus, loginMock, waitForHydration } from "../fixtures/mock-directus.mjs";
+import { infographicResponse } from "../fixtures/analytics-data.mjs";
 
 test("infografis renders the combined scale summary with NIB and marketing breakdowns", async ({
   page,
@@ -40,6 +41,9 @@ test("infografis renders the combined scale summary with NIB and marketing break
   await expect(summary.getByText(/^Metode Pemasaran/)).toBeVisible();
   await expect(
     summary.getByTitle("Non-digital", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "5 Kabupaten/Kota Teratas" }),
   ).toBeVisible();
 });
 
@@ -106,4 +110,22 @@ test("infografis keeps the filter FAB interactive after a full reload", async ({
 
   await page.getByRole("button", { name: "Buka filter data" }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
+});
+
+test("BUG-001: panel wilayah teratas mengikuti level dan membuka analitik level yang benar", async ({ page }) => {
+  await installMockDirectus(page, { authenticated: true });
+  await page.route((url) => url.pathname === "/panel/v1/analytics/infographic/", async (route) => {
+    const body = infographicResponse();
+    body.data.regionLevel = "kecamatan";
+    body.data.regions = [
+      { id: "11", name: "Cibinong", value: 2 },
+      { id: "12", name: "Bojonggede", value: 1 },
+    ];
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
+  });
+  await loginMock(page, "/dashboard");
+  await expect(page.getByRole("heading", { name: "5 Kecamatan Teratas" })).toBeVisible();
+  await expect(page.getByText("5 Kabupaten/Kota Teratas")).toHaveCount(0);
+  await page.getByRole("button", { name: /Cibinong/ }).click(); // nama aksesibel dari isi tombol, bukan atribut title
+  await expect.poll(() => new URL(page.url()).searchParams.getAll("filter")).toContain("kecamatan_id~eq~11");
 });

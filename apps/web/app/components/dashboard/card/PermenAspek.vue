@@ -31,12 +31,11 @@ const active = ref("legalitas");
         <div v-for="item in aspek.indikator" :key="item.id" class="rounded-lg border p-4">
           <h3 class="text-sm font-semibold">{{ item.label }}</h3>
           <p class="mt-2 text-2xl font-bold">{{ item.persentase === null ? '—' : `${item.persentase}%` }}</p>
-          <p class="mt-1 text-xs text-muted-foreground">{{ item.ya.toLocaleString('id-ID') }} ya dari {{ item.diketahui.toLocaleString('id-ID') }} data diketahui</p>
-          <p class="text-xs text-muted-foreground">{{ item.tidak.toLocaleString('id-ID') }} tidak · {{ item.belumAdaData.toLocaleString('id-ID') }} belum ada data</p>
+          <p class="mt-1 text-xs text-muted-foreground">{{ item.ya.toLocaleString('id-ID') }} ya · {{ item.tidak.toLocaleString('id-ID') }} tidak · {{ item.belumAdaData.toLocaleString('id-ID') }} belum ada data dari {{ item.total.toLocaleString('id-ID') }} UMKM</p>
           <p class="mt-2 text-[11px] text-muted-foreground">Sumber: {{ item.sumber }}</p>
         </div>
       </div>
-      <p class="mt-4 text-xs text-muted-foreground">Persentase = jumlah “ya” ÷ data diketahui. Data kosong tidak dihitung sebagai “tidak”. Field ya/tidak belum membuktikan dokumen verifikatif yang disyaratkan untuk penilaian resmi. {{ data.sumber }}.</p>
+      <p class="mt-4 text-xs text-muted-foreground">Persentase = jumlah “ya” ÷ seluruh UMKM dalam filter wilayah. Data kosong dihitung sebagai “belum ada data”, bukan “tidak”. Field ya/tidak belum membuktikan dokumen verifikatif yang disyaratkan untuk penilaian resmi. {{ data.sumber }}.</p>
       <a class="mt-2 inline-block text-xs text-primary underline" href="https://jdih.umkm.go.id/doc/detail/kdaGwXzTbbXQnHCu4fNxvWoUg8_eQQDh3hRUoD9-tj8qjKHI89VYeSW0ITaDbHP-" target="_blank" rel="noopener noreferrer">Rujukan: Permen UMKM Nomor 2 Tahun 2026</a>
     </template>
   </section>

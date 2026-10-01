@@ -16,7 +16,7 @@ import type {
   TabularOptions,
   TabularSpasialResponse,
 } from "~/types/tabular";
-import { DASHBOARD_SECTIONS } from "~/constants/DASHBOARD";
+import { DASHBOARD_SECTIONS, REGION_ANALYTICS_FIELD } from "~/constants/DASHBOARD";
 import { applyLockedKota, useLockedKota } from "~/composables/useTabularFilters";
 import { defaultAnalysis, serializeAnalysisUrl } from "~/lib/analytics-query";
 import { sectorForKbli } from "~/lib/kbli-sectors";
@@ -40,6 +40,11 @@ function openAnalytics(fieldId: string, value: string) {
     filters: [{ fieldId, operator: "eq" as const, value }],
   };
   router.push(`/dashboard/analitik?${serializeAnalysisUrl(config)}`);
+}
+
+/** Baris panel wilayah teratas: field Analitik mengikuti level agregasi Infografis (BUG-001). */
+function openTopRegion(id: string) {
+  openAnalytics(REGION_ANALYTICS_FIELD[infografis.value?.regionLevel ?? "kota"], id);
 }
 const workforceEnabled = computed(
   () => runtimeConfig.public.enableWorkforce === true,
@@ -499,11 +504,12 @@ const kbliCodesBySector = computed<Record<string, KbliCodeItem[]>>(() => {
       :marketing-methods="marketingMethods ?? []"
       :sectors="infografis?.sectors ?? []"
       :regions="infografis?.regions ?? []"
+      :region-level="infografis?.regionLevel ?? 'kota'"
       :kbli="infografis?.topKbli ?? []"
       :sector-coverage="infografis?.sectorCoverage"
       :workforce="infografis?.workforce"
       @drill:sektor="openAnalytics('sektor_kbli', $event)"
-      @drill:kota="openAnalytics('kota_id', $event)"
+      @drill:wilayah="openTopRegion"
       @drill:kbli="openAnalytics('kbli_kode', $event)"
     />
 
